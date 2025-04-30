@@ -224,7 +224,7 @@ class PromptBuilder:
 
         logger.debug("开始构建prompt")
 
-        # --- [修改] 注入绰号信息 ---
+        # 注入绰号信息
         nickname_injection_str = ""
         if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
             try:
@@ -250,7 +250,6 @@ class PromptBuilder:
                     all_nicknames_data = await relationship_manager.get_users_group_nicknames(
                         platform, list(user_ids_in_context), group_id
                     )
-                    # --- 结束调用 ---
 
                     if all_nicknames_data:
                         selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
@@ -260,7 +259,6 @@ class PromptBuilder:
 
             except Exception as e:
                 logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
-        # --- [结束修改] ---
 
         prompt = await global_prompt_manager.format_prompt(
             "heart_flow_prompt",

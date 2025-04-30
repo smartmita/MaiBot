@@ -29,10 +29,7 @@ async def update_nickname_counts(group_id: str, nickname_map: Dict[str, str]):
     """
     更新数据库中用户的群组绰号计数。
     """
-    # --- [修改] 使用导入的 db 对象访问集合 ---
-    # !!! 重要：请确保 'person_info' 是你实际存储用户信息的集合名称 !!!
     person_info_collection = db.person_info
-    # --- 结束修改 ---
 
     if not person_info_collection: # 理论上 db 对象总是可用，但保留检查
         logger.error("无法访问数据库集合 'person_info'。无法更新绰号计数。")
@@ -107,9 +104,7 @@ async def update_nickname_counts(group_id: str, nickname_map: Dict[str, str]):
 
 
 # --- 队列和进程 ---
-# --- [修改] 使用全局配置 ---
 nickname_queue: mpQueue = mpQueue(maxsize=global_config.NICKNAME_QUEUE_MAX_SIZE)
-# --- 结束修改 ---
 _nickname_process: Optional[Process] = None
 
 async def add_to_nickname_queue(
@@ -119,9 +114,7 @@ async def add_to_nickname_queue(
     user_name_map: Dict[str, str]
 ):
     """将需要分析的数据放入队列。"""
-    # --- [修改] 使用全局配置 ---
     if not global_config.ENABLE_NICKNAME_MAPPING:
-    # --- 结束修改 ---
         return
 
     if group_id is None:
@@ -138,9 +131,7 @@ async def add_to_nickname_queue(
 
 async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
     """独立进程中的主循环，处理队列任务。"""
-    # --- [移除] 不再需要本地数据库初始化 ---
-    # _initialize_db()
-    # --- 结束移除 ---
+
     logger.info("绰号处理循环已启动。")
 
     while not stop_event.is_set():
@@ -160,9 +151,7 @@ async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
 
                 await asyncio.sleep(0.05)
             else:
-                # --- [修改] 使用全局配置 ---
                 await asyncio.sleep(global_config.NICKNAME_PROCESS_SLEEP_INTERVAL)
-                # --- 结束修改 ---
 
         except asyncio.CancelledError:
             logger.info("绰号处理循环已取消。")
@@ -171,9 +160,6 @@ async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
             logger.error(f"绰号处理循环出错: {e}\n{traceback.format_exc()}")
             await asyncio.sleep(5)
 
-    # --- [移除] 不再需要本地数据库关闭 ---
-    # _close_db()
-    # --- 结束移除 ---
     logger.info("绰号处理循环已结束。")
 
 
@@ -190,24 +176,13 @@ def _run_processor_process(queue: mpQueue, stop_event: mpEvent):
 def start_nickname_processor():
     """启动绰号映射处理进程。"""
     global _nickname_process
-    # --- [修改] 使用全局配置 ---
     if not global_config.ENABLE_NICKNAME_MAPPING:
-    # --- 结束修改 ---
         logger.info("绰号映射功能已禁用。处理器未启动。")
         return
 
     if _nickname_process is None or not _nickname_process.is_alive():
         logger.info("正在启动绰号处理器进程...")
-        # --- [修改] 从全局配置导入停止事件控制函数 ---
-        try:
-            from src.config.config import get_stop_event, set_stop_event # 再次确认导入路径
-        except ImportError:
-            logger.error("无法从 src.config.config 导入 get_stop_event/set_stop_event")
-            # 提供备选方案或退出
-            return # 或者 raise ImportError
-
         stop_event = get_stop_event()
-        # --- 结束修改 ---
         stop_event.clear()
         _nickname_process = Process(target=_run_processor_process, args=(nickname_queue, stop_event), daemon=True)
         _nickname_process.start()
@@ -220,14 +195,7 @@ def stop_nickname_processor():
     global _nickname_process
     if _nickname_process and _nickname_process.is_alive():
         logger.info("正在停止绰号处理器进程...")
-        # --- [修改] 从全局配置导入停止事件控制函数 ---
-        try:
-            from src.config.config import set_stop_event # 再次确认导入路径
-        except ImportError:
-            logger.error("无法从 src.config.config 导入 set_stop_event")
-            return # 或者 raise ImportError
         set_stop_event() # 发送停止信号
-        # --- 结束修改 ---
         try:
             _nickname_process.join(timeout=10)
             if _nickname_process.is_alive():

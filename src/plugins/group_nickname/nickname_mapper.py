@@ -16,27 +16,19 @@ if global_config.ENABLE_NICKNAME_MAPPING: # 使用全局开关
         if not model_config or not model_config.get("name"):
             logger.error("在全局配置中未找到有效的 'llm_nickname_mapping' 配置或缺少 'name' 字段。")
         else:
-            llm_args = {
-                "model": model_config.get("name"), # 必须有 name
-                "temperature": model_config.get("temp", 0.5), # 使用 temp 字段
-                "max_tokens": model_config.get("max_tokens", 200), # max_tokens 是可选的，取决于 LLMRequest 实现
-                "api_key": model_config.get("key"), # 使用 key 字段
-                "base_url": model_config.get("base_url"), # 使用 base_url 字段
-                "request_type": "nickname_mapping"
-            }
-            # 清理 None 值参数
-            llm_args = {k: v for k, v in llm_args.items() if v is not None}
-
-            llm_mapper = LLMRequest(**llm_args)
+            llm_mapper = LLMRequest(  # <-- LLM 初始化
+            model=global_config.llm_nickname_mapping,
+            temperature=global_config.llm_nickname_mapping["temp"],
+            max_tokens=256,
+            request_type="nickname_mapping",
+            )
             logger.info("绰号映射 LLM 初始化成功 (使用全局配置)。")
 
     except Exception as e:
         logger.error(f"使用全局配置初始化绰号映射 LLM 失败: {e}", exc_info=True)
         llm_mapper = None
-# --- 结束修改 ---
 
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
-    # ... (函数内容不变) ...
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items()])
 
     prompt = f"""
@@ -69,7 +61,8 @@ Bot 最新回复：
     {{
         "is_exist": false
     }}
-5.  请严格按照 JSON 格式输出，不要包含任何额外的解释或文本。
+5.  不需要输出 Bot 自身的绰号。
+6.  请严格按照 JSON 格式输出，不要包含任何额外的解释或文本。
 
 输出：
 """
@@ -102,7 +95,6 @@ async def analyze_chat_for_nicknames(
         response_content, _, _ = await llm_mapper.generate_response(prompt)
         logger.debug(f"LLM 原始响应 (绰号映射): {response_content}")
 
-        # ... (解析 LLM 响应的逻辑不变) ...
         if not response_content:
             logger.warning("LLM 返回了空的绰号映射内容。")
             return {"is_exist": False}

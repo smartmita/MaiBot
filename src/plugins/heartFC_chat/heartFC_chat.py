@@ -695,7 +695,7 @@ class HeartFChatting:
             # 发生意外错误时，可以选择是否重置计数器，这里选择不重置
             return False  # 表示动作未成功
 
-    # --- [修改] 触发绰号分析的函数 ---
+    # 触发绰号分析的函数
     async def _trigger_nickname_analysis(self, anchor_message: MessageRecv, reply: List[str]):
         """
         触发绰号分析任务，将相关数据放入处理队列。
@@ -720,7 +720,7 @@ class HeartFChatting:
                 limit=history_limit
             )
 
-            # --- 使用 build_readable_messages 格式化历史记录 ---
+            # 格式化历史记录
             chat_history_str = await build_readable_messages(
                 messages=history_messages,
                 replace_bot_name=True,  # 在分析时也替换机器人名字，使其与 LLM 交互一致
@@ -729,7 +729,6 @@ class HeartFChatting:
                 read_mark=0.0, # 不需要已读标记
                 truncate=False # 获取完整内容进行分析
             )
-            # --- 结束使用 build_readable_messages ---
 
             # 2. 获取 Bot 回复字符串
             bot_reply_str = " ".join(reply)
@@ -779,7 +778,6 @@ class HeartFChatting:
 
         except Exception as e:
             logger.error(f"{self.log_prefix} Error triggering nickname analysis: {e}", exc_info=True)
-    # --- 结束触发函数 ---
 
     async def _wait_for_new_message(self, observation, planner_start_db_time: float, log_prefix: str) -> bool:
         """
