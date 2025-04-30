@@ -21,13 +21,19 @@ from src.heart_flow.sub_mind import SubMind
 from src.heart_flow.observation import Observation
 from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
 import contextlib
-from src.plugins.utils.chat_message_builder import num_new_messages_since
+from src.plugins.utils.chat_message_builder import num_new_messages_since, get_raw_msg_before_timestamp_with_chat, build_readable_messages
 from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
 from .heartFC_sender import HeartFCSender
 from src.plugins.chat.utils import process_llm_response
 from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.individuality.individuality import Individuality
+from src.plugins.person_info.relationship_manager import relationship_manager
+
+# --- 导入 GroupNickname 相关 ---
+from src.plugins.group_nickname.config import ENABLE_NICKNAME_MAPPING # <--- 导入开关
+from src.plugins.group_nickname.nickname_processor import add_to_nickname_queue # <--- 导入队列添加函数
+# --- 结束导入 GroupNickname ---
 
 
 INITIAL_DURATION = 60.0
@@ -469,7 +475,6 @@ class HeartFChatting:
                 return False, ""
 
             # execute:执行
-
             return await self._handle_action(
                 action, reasoning, planner_result.get("emoji_query", ""), cycle_timers, planner_start_db_time
             )
@@ -509,11 +514,17 @@ class HeartFChatting:
 
         try:
             if action == "text_reply":
-                return await handler(reasoning, emoji_query, cycle_timers)
+                # 调用文本回复处理，它会返回 (bool, thinking_id)
+                success, thinking_id = await handler(reasoning, emoji_query, cycle_timers)
+                return success, thinking_id # 直接返回结果
             elif action == "emoji_reply":
-                return await handler(reasoning, emoji_query), ""
+                # 调用表情回复处理，它只返回 bool
+                success = await handler(reasoning, emoji_query)
+                return success, "" # thinking_id 为空字符串
             else:  # no_reply
-                return await handler(reasoning, planner_start_db_time, cycle_timers), ""
+                # 调用不回复处理，它只返回 bool
+                success = await handler(reasoning, planner_start_db_time, cycle_timers)
+                return success, "" # thinking_id 为空字符串
         except HeartFCError as e:
             logger.error(f"{self.log_prefix} 处理{action}时出错: {e}")
             # 出错时也重置计数器
@@ -530,6 +541,7 @@ class HeartFChatting:
         2. 创建思考消息
         3. 生成回复
         4. 发送消息
+        5. [新增] 触发绰号分析
 
         参数:
             reasoning: 回复原因
@@ -553,6 +565,7 @@ class HeartFChatting:
         if not thinking_id:
             raise PlannerError("无法创建思考消息")
 
+        reply = None # 初始化 reply
         try:
             # 生成回复
             with Timer("生成回复", cycle_timers):
@@ -566,7 +579,6 @@ class HeartFChatting:
                 raise ReplierError("回复生成失败")
 
             # 发送消息
-
             with Timer("发送消息", cycle_timers):
                 await self._sender(
                     thinking_id=thinking_id,
@@ -574,6 +586,11 @@ class HeartFChatting:
                     response_set=reply,
                     send_emoji=emoji_query,
                 )
+
+            # --- [新增] 触发绰号分析 ---
+            # 在发送成功后（或至少尝试发送后）触发
+            await self._trigger_nickname_analysis(anchor_message, reply)
+            # --- 结束触发 ---
 
             return True, thinking_id
 
@@ -681,6 +698,101 @@ class HeartFChatting:
             logger.error(traceback.format_exc())
             # 发生意外错误时，可以选择是否重置计数器，这里选择不重置
             return False  # 表示动作未成功
+
+    # --- [修改] 触发绰号分析的函数 ---
+    async def _trigger_nickname_analysis(self, anchor_message: MessageRecv, reply: List[str]):
+        """
+        触发绰号分析任务，将相关数据放入处理队列。
+
+        Args:
+            anchor_message: 锚点消息对象。
+            reply: Bot 生成的回复内容列表。
+        """
+        if not ENABLE_NICKNAME_MAPPING:
+            return # 如果功能未开启，则直接返回
+
+        if not anchor_message or not anchor_message.chat_stream or not anchor_message.chat_stream.group_info:
+            logger.debug(f"{self.log_prefix} Skipping nickname analysis: Not a group chat or invalid anchor.")
+            return # 仅在群聊中进行分析
+
+        try:
+            # 1. 获取原始消息列表
+            history_limit = 30 # 例如，获取最近 30 条消息
+            history_messages = get_raw_msg_before_timestamp_with_chat(
+                chat_id=anchor_message.chat_stream.stream_id,
+                timestamp=time.time(), # 获取当前时间点的历史
+                limit=history_limit
+            )
+
+            # --- 使用 build_readable_messages 格式化历史记录 ---
+            chat_history_str = await build_readable_messages(
+                messages=history_messages,
+                replace_bot_name=True,  # 在分析时也替换机器人名字，使其与 LLM 交互一致
+                merge_messages=False, # 不合并，保留原始对话流
+                timestamp_mode="relative", # 使用相对时间戳
+                read_mark=0.0, # 不需要已读标记
+                truncate=False # 获取完整内容进行分析
+            )
+            # --- 结束使用 build_readable_messages ---
+
+            # 2. 获取 Bot 回复字符串
+            bot_reply_str = " ".join(reply)
+
+            # 3. 获取群号
+            group_id = str(anchor_message.chat_stream.group_info.group_id) # 确保是字符串
+
+            # 4. 获取当前上下文中涉及的用户 ID 及其已知名称
+            user_ids_in_history = set()
+            for msg in history_messages:
+                sender_id = msg.get('sender_id')
+                if sender_id:
+                    user_ids_in_history.add(str(sender_id)) # 确保是字符串
+
+            user_name_map = {}
+            if user_ids_in_history:
+                platform = anchor_message.chat_stream.platform
+                # 尝试批量获取 person_name
+                # 假设 relationship_manager 有 get_person_names_batch(platform, user_ids)
+                try:
+                    # 注意：你需要实现 get_person_names_batch 方法
+                    # names_data = await relationship_manager.get_person_names_batch(platform, list(user_ids_in_history))
+                    # 这里暂时用单次获取代替，如果你的 relationship_manager 没有批量方法
+                    names_data = {}
+                    for user_id in user_ids_in_history:
+                        name = await relationship_manager.get_person_name(platform, user_id)
+                        if name:
+                                names_data[user_id] = name
+
+                except AttributeError:
+                    logger.warning("relationship_manager does not have get_person_names_batch method. Falling back to single lookups.")
+                    names_data = {}
+                    for user_id in user_ids_in_history:
+                        name = await relationship_manager.get_person_name(platform, user_id)
+                        if name:
+                                names_data[user_id] = name
+                except Exception as e:
+                    logger.error(f"Error getting person names: {e}", exc_info=True)
+                    names_data = {} # 出错时置空
+
+
+                for user_id in user_ids_in_history:
+                    if user_id in names_data:
+                        user_name_map[user_id] = names_data[user_id]
+                    else:
+                        # 回退查找 nickname
+                        latest_nickname = next((m.get('sender_nickname') for m in reversed(history_messages) if str(m.get('sender_id')) == user_id), None)
+                        if latest_nickname:
+                                user_name_map[user_id] = latest_nickname
+                        else:
+                                user_name_map[user_id] = f"未知({user_id})"
+
+            # 5. 添加到队列
+            await add_to_nickname_queue(chat_history_str, bot_reply_str, group_id, user_name_map)
+            logger.debug(f"{self.log_prefix} Triggered nickname analysis for group {group_id}.")
+
+        except Exception as e:
+            logger.error(f"{self.log_prefix} Error triggering nickname analysis: {e}", exc_info=True)
+    # --- 结束触发函数 ---
 
     async def _wait_for_new_message(self, observation, planner_start_db_time: float, log_prefix: str) -> bool:
         """
