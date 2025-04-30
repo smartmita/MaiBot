@@ -1,41 +1,42 @@
-# GroupNickname/nickname_mapper.py
 import json
-from typing import Dict, Any, Tuple, List, Optional
-from src.common.logger_manager import get_logger # 假设你的日志管理器路径
-from src.plugins.models.utils_model import LLMRequest # 假设你的 LLM 请求工具路径
-from .config import LLM_MODEL_NICKNAME_MAPPING, ENABLE_NICKNAME_MAPPING
+from typing import Dict, Any, Optional
+from src.common.logger_manager import get_logger
+from src.plugins.models.utils_model import LLMRequest
+# 从全局配置导入
+from src.config.config import global_config
+
 
 logger = get_logger("nickname_mapper")
 
-# 初始化用于绰号映射的 LLM 实例
-# 注意：这里的初始化方式可能需要根据你的 LLMRequest 实现进行调整
-try:
-    # 尝试使用字典解包来传递参数
-    llm_mapper = LLMRequest(
-        model=LLM_MODEL_NICKNAME_MAPPING.get("model_name", "default_model"),
-        temperature=LLM_MODEL_NICKNAME_MAPPING.get("temperature", 0.5),
-        max_tokens=LLM_MODEL_NICKNAME_MAPPING.get("max_tokens", 200),
-        api_key=LLM_MODEL_NICKNAME_MAPPING.get("api_key"),
-        base_url=LLM_MODEL_NICKNAME_MAPPING.get("base_url"),
-        request_type="nickname_mapping" # 定义一个请求类型用于区分
-    )
-    logger.info("Nickname mapping LLM initialized successfully.")
-except Exception as e:
-    logger.error(f"Failed to initialize nickname mapping LLM: {e}", exc_info=True)
-    llm_mapper = None # 初始化失败则置为 None
+llm_mapper: Optional[LLMRequest] = None
+if global_config.ENABLE_NICKNAME_MAPPING: # 使用全局开关
+    try:
+        # 从全局配置获取模型设置
+        model_config = global_config.llm_nickname_mapping
+        if not model_config or not model_config.get("name"):
+            logger.error("在全局配置中未找到有效的 'llm_nickname_mapping' 配置或缺少 'name' 字段。")
+        else:
+            llm_args = {
+                "model": model_config.get("name"), # 必须有 name
+                "temperature": model_config.get("temp", 0.5), # 使用 temp 字段
+                "max_tokens": model_config.get("max_tokens", 200), # max_tokens 是可选的，取决于 LLMRequest 实现
+                "api_key": model_config.get("key"), # 使用 key 字段
+                "base_url": model_config.get("base_url"), # 使用 base_url 字段
+                "request_type": "nickname_mapping"
+            }
+            # 清理 None 值参数
+            llm_args = {k: v for k, v in llm_args.items() if v is not None}
+
+            llm_mapper = LLMRequest(**llm_args)
+            logger.info("绰号映射 LLM 初始化成功 (使用全局配置)。")
+
+    except Exception as e:
+        logger.error(f"使用全局配置初始化绰号映射 LLM 失败: {e}", exc_info=True)
+        llm_mapper = None
+# --- 结束修改 ---
 
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
-    """
-    构建用于 LLM 分析绰号映射的 Prompt。
-
-    Args:
-        chat_history_str: 格式化后的聊天记录字符串。
-        bot_reply: Bot 的回复内容。
-        user_name_map: 用户 ID 到已知名称（如 person_name 或 nickname）的映射。
-
-    Returns:
-        str: 构建好的 Prompt。
-    """
+    # ... (函数内容不变) ...
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items()])
 
     prompt = f"""
@@ -74,6 +75,7 @@ Bot 最新回复：
 """
     return prompt
 
+
 async def analyze_chat_for_nicknames(
     chat_history_str: str,
     bot_reply: str,
@@ -81,47 +83,30 @@ async def analyze_chat_for_nicknames(
 ) -> Dict[str, Any]:
     """
     调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射。
-
-    Args:
-        chat_history_str: 格式化后的聊天记录字符串。
-        bot_reply: Bot 的回复内容。
-        user_name_map: 用户 ID 到已知名称（如 person_name 或 nickname）的映射。
-
-    Returns:
-        Dict[str, Any]: 分析结果，格式为 { "is_exist": bool, "data": Optional[Dict[str, str]] }。
-                       如果出错，返回 {"is_exist": False}。
     """
-    if not ENABLE_NICKNAME_MAPPING:
-        logger.debug("Nickname mapping feature is disabled.")
+    # --- [修改] 使用全局配置开关 ---
+    if not global_config.ENABLE_NICKNAME_MAPPING:
+    # --- 结束修改 ---
+        logger.debug("绰号映射功能已禁用。")
         return {"is_exist": False}
 
     if llm_mapper is None:
-        logger.error("Nickname mapping LLM is not initialized. Cannot perform analysis.")
+        logger.error("绰号映射 LLM 未初始化。无法执行分析。")
         return {"is_exist": False}
 
     prompt = _build_mapping_prompt(chat_history_str, bot_reply, user_name_map)
-    logger.debug(f"Nickname mapping prompt built:\n{prompt}") # 调试日志
+    logger.debug(f"构建的绰号映射 Prompt:\n{prompt}")
 
     try:
-        # --- 调用 LLM ---
-        # 注意：这里的调用方式需要根据你的 LLMRequest 实现进行调整
-        # 可能需要使用 generate_response_sync 或其他同步方法，因为这将在独立进程中运行
-        # 或者如果 LLMRequest 支持异步，确保在异步环境中调用
-        # response_content, _, _ = await llm_mapper.generate_response(prompt)
-
-        # 假设 llm_mapper 有一个同步的 generate 方法或在异步环境中调用
-        # 这里暂时使用 await，如果你的 LLMRequest 不支持，需要修改
+        # 调用 LLM
         response_content, _, _ = await llm_mapper.generate_response(prompt)
+        logger.debug(f"LLM 原始响应 (绰号映射): {response_content}")
 
-
-        logger.debug(f"LLM raw response for nickname mapping: {response_content}")
-
-        # --- 解析 LLM 响应 ---
+        # ... (解析 LLM 响应的逻辑不变) ...
         if not response_content:
-            logger.warning("LLM returned empty content for nickname mapping.")
+            logger.warning("LLM 返回了空的绰号映射内容。")
             return {"is_exist": False}
 
-        # 尝试去除可能的代码块标记
         response_content = response_content.strip()
         if response_content.startswith("```json"):
             response_content = response_content[7:]
@@ -131,33 +116,31 @@ async def analyze_chat_for_nicknames(
 
         try:
             result = json.loads(response_content)
-            # 基本验证
             if isinstance(result, dict) and "is_exist" in result:
                 if result["is_exist"] is True:
                     if "data" in result and isinstance(result["data"], dict):
-                        # 过滤掉 data 为空的情况
                         if not result["data"]:
-                            logger.debug("LLM indicated is_exist=True but data is empty. Treating as False.")
+                            logger.debug("LLM 指示 is_exist=True 但 data 为空。视为 False 处理。")
                             return {"is_exist": False}
-                        logger.info(f"Nickname mapping found: {result['data']}")
+                        logger.info(f"找到绰号映射: {result['data']}")
                         return {"is_exist": True, "data": result["data"]}
                     else:
-                        logger.warning("LLM response format error: is_exist is True but 'data' is missing or not a dict.")
+                        logger.warning("LLM 响应格式错误: is_exist 为 True 但 'data' 缺失或不是字典。")
                         return {"is_exist": False}
                 elif result["is_exist"] is False:
-                    logger.info("No reliable nickname mapping found by LLM.")
+                    logger.info("LLM 未找到可靠的绰号映射。")
                     return {"is_exist": False}
                 else:
-                    logger.warning("LLM response format error: 'is_exist' is not a boolean.")
+                    logger.warning("LLM 响应格式错误: 'is_exist' 不是布尔值。")
                     return {"is_exist": False}
             else:
-                logger.warning("LLM response format error: Missing 'is_exist' key or not a dict.")
+                logger.warning("LLM 响应格式错误: 缺少 'is_exist' 键或不是字典。")
                 return {"is_exist": False}
         except json.JSONDecodeError as json_err:
-            logger.error(f"Failed to parse LLM response as JSON: {json_err}\nRaw response: {response_content}")
+            logger.error(f"解析 LLM 响应 JSON 失败: {json_err}\n原始响应: {response_content}")
             return {"is_exist": False}
 
     except Exception as e:
-        logger.error(f"Error during nickname mapping LLM call or processing: {e}", exc_info=True)
+        logger.error(f"绰号映射 LLM 调用或处理过程中出错: {e}", exc_info=True)
         return {"is_exist": False}
 

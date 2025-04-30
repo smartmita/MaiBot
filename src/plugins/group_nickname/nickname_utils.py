@@ -1,8 +1,8 @@
 # GroupNickname/nickname_utils.py
 import random
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 from src.common.logger_manager import get_logger
-from .config import MAX_NICKNAMES_IN_PROMPT, NICKNAME_PROBABILITY_SMOOTHING
+from src.config.config import global_config
 
 logger = get_logger("nickname_utils")
 
@@ -14,7 +14,7 @@ def select_nicknames_for_prompt(
 
     Args:
         all_nicknames_info: 包含用户及其绰号信息的字典，格式为
-                           { "用户名1": [{"绰号A": 次数}, {"绰号B": 次数}], ... }
+                        { "用户名1": [{"绰号A": 次数}, {"绰号B": 次数}], ... }
 
     Returns:
         List[Tuple[str, str, int]]: 选中的绰号列表，每个元素为 (用户名, 绰号, 次数)。
@@ -32,11 +32,11 @@ def select_nicknames_for_prompt(
                     nickname, count = list(nickname_entry.items())[0]
                     # 确保次数是正整数
                     if isinstance(count, int) and count > 0:
-                         # 添加平滑因子，避免概率为0，并让低频词也有机会
-                        weight = count + NICKNAME_PROBABILITY_SMOOTHING
+                        # 添加平滑因子，避免概率为0，并让低频词也有机会
+                        weight = count + global_config.NICKNAME_PROBABILITY_SMOOTHING
                         candidates.append((user_name, nickname, count, weight))
                     else:
-                         logger.warning(f"Invalid count for nickname '{nickname}' of user '{user_name}': {count}. Skipping.")
+                        logger.warning(f"Invalid count for nickname '{nickname}' of user '{user_name}': {count}. Skipping.")
                 else:
                     logger.warning(f"Invalid nickname entry format for user '{user_name}': {nickname_entry}. Skipping.")
 
@@ -50,13 +50,13 @@ def select_nicknames_for_prompt(
     if total_weight <= 0:
         # 如果所有权重都无效或为0，则随机选择（或按次数选择）
         candidates.sort(key=lambda x: x[2], reverse=True) # 按原始次数排序
-        selected = candidates[:MAX_NICKNAMES_IN_PROMPT]
+        selected = candidates[:global_config.MAX_NICKNAMES_IN_PROMPT]
     else:
         # 计算归一化概率
         probabilities = [c[3] / total_weight for c in candidates]
 
         # 使用概率分布进行加权随机选择（不重复）
-        num_to_select = min(MAX_NICKNAMES_IN_PROMPT, len(candidates))
+        num_to_select = min(global_config.MAX_NICKNAMES_IN_PROMPT, len(candidates))
         try:
             # random.choices 允许重复，我们需要不重复的选择
             # 可以使用 numpy.random.choice 或手动实现不重复加权抽样
@@ -67,25 +67,25 @@ def select_nicknames_for_prompt(
             max_attempts = num_to_select * 5 # 防止无限循环
 
             while len(selected) < num_to_select and attempts < max_attempts:
-                 # 每次只选一个，避免一次选多个时概率分布变化导致的问题
-                 chosen_index = random.choices(range(len(candidates)), weights=probabilities, k=1)[0]
-                 if chosen_index not in selected_indices:
-                      selected_indices.add(chosen_index)
-                      selected.append(candidates[chosen_index])
-                 attempts += 1
+                # 每次只选一个，避免一次选多个时概率分布变化导致的问题
+                chosen_index = random.choices(range(len(candidates)), weights=probabilities, k=1)[0]
+                if chosen_index not in selected_indices:
+                    selected_indices.add(chosen_index)
+                    selected.append(candidates[chosen_index])
+                attempts += 1
 
             # 如果尝试多次后仍未选够，补充出现次数最多的
             if len(selected) < num_to_select:
-                 remaining_candidates = [c for i, c in enumerate(candidates) if i not in selected_indices]
-                 remaining_candidates.sort(key=lambda x: x[2], reverse=True) # 按原始次数排序
-                 needed = num_to_select - len(selected)
-                 selected.extend(remaining_candidates[:needed])
+                remaining_candidates = [c for i, c in enumerate(candidates) if i not in selected_indices]
+                remaining_candidates.sort(key=lambda x: x[2], reverse=True) # 按原始次数排序
+                needed = num_to_select - len(selected)
+                selected.extend(remaining_candidates[:needed])
 
         except Exception as e:
-             logger.error(f"Error during weighted random choice for nicknames: {e}. Falling back to top N.", exc_info=True)
-             # 出错时回退到选择次数最多的 N 个
-             candidates.sort(key=lambda x: x[2], reverse=True)
-             selected = candidates[:MAX_NICKNAMES_IN_PROMPT]
+            logger.error(f"Error during weighted random choice for nicknames: {e}. Falling back to top N.", exc_info=True)
+            # 出错时回退到选择次数最多的 N 个
+            candidates.sort(key=lambda x: x[2], reverse=True)
+            selected = candidates[:global_config.MAX_NICKNAMES_IN_PROMPT]
 
 
     # 格式化输出并按次数排序

@@ -29,11 +29,7 @@ from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.individuality.individuality import Individuality
 from src.plugins.person_info.relationship_manager import relationship_manager
-
-# --- 导入 GroupNickname 相关 ---
-from src.plugins.group_nickname.config import ENABLE_NICKNAME_MAPPING # <--- 导入开关
 from src.plugins.group_nickname.nickname_processor import add_to_nickname_queue # <--- 导入队列添加函数
-# --- 结束导入 GroupNickname ---
 
 
 INITIAL_DURATION = 60.0
@@ -708,7 +704,7 @@ class HeartFChatting:
             anchor_message: 锚点消息对象。
             reply: Bot 生成的回复内容列表。
         """
-        if not ENABLE_NICKNAME_MAPPING:
+        if not global_config.ENABLE_NICKNAME_MAPPING:
             return # 如果功能未开启，则直接返回
 
         if not anchor_message or not anchor_message.chat_stream or not anchor_message.chat_stream.group_info:

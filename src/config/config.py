@@ -1,7 +1,7 @@
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple, Any
 from dateutil import tz
 
 import tomli
@@ -272,6 +272,13 @@ class BotConfig:
     # enable_think_flow: bool = False  # 是否启用思考流程
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
 
+    # Group Nickname
+    ENABLE_NICKNAME_MAPPING: bool = False # 绰号映射功能总开关
+    MAX_NICKNAMES_IN_PROMPT: int = 10 # Prompt 中最多注入的绰号数量
+    NICKNAME_PROBABILITY_SMOOTHING: int = 1 # 绰号加权随机选择的平滑因子
+    NICKNAME_QUEUE_MAX_SIZE: int = 100 # 绰号处理队列最大容量
+    NICKNAME_PROCESS_SLEEP_INTERVAL: float = 0.5 # 绰号处理进程休眠间隔（秒）
+
     # 模型配置
     llm_reasoning: Dict[str, str] = field(default_factory=lambda: {})
     # llm_reasoning_minor: Dict[str, str] = field(default_factory=lambda: {})
@@ -288,6 +295,7 @@ class BotConfig:
     llm_heartflow: Dict[str, str] = field(default_factory=lambda: {})
     llm_tool_use: Dict[str, str] = field(default_factory=lambda: {})
     llm_plan: Dict[str, str] = field(default_factory=lambda: {})
+    llm_nickname_mapping: Dict[str, Any] = field(default_factory=dict)
 
     api_urls: Dict[str, str] = field(default_factory=lambda: {})
 
@@ -401,6 +409,14 @@ class BotConfig:
                 config.save_emoji = emoji_config.get("save_emoji", config.save_emoji)
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
+        def group_nickname(parent: dict):
+            gn_config = parent.get("group_nickname", {})
+            config.ENABLE_NICKNAME_MAPPING = gn_config.get("enable_nickname_mapping", config.ENABLE_NICKNAME_MAPPING)
+            config.MAX_NICKNAMES_IN_PROMPT = gn_config.get("max_nicknames_in_prompt", config.MAX_NICKNAMES_IN_PROMPT)
+            config.NICKNAME_PROBABILITY_SMOOTHING = gn_config.get("nickname_probability_smoothing", config.NICKNAME_PROBABILITY_SMOOTHING)
+            config.NICKNAME_QUEUE_MAX_SIZE = gn_config.get("nickname_queue_max_size", config.NICKNAME_QUEUE_MAX_SIZE)
+            config.NICKNAME_PROCESS_SLEEP_INTERVAL = gn_config.get("nickname_process_sleep_interval", config.NICKNAME_PROCESS_SLEEP_INTERVAL)
+
         def bot(parent: dict):
             # 机器人基础配置
             bot_config = parent["bot"]
@@ -488,6 +504,7 @@ class BotConfig:
                 "llm_PFC_action_planner",
                 "llm_PFC_chat",
                 "llm_PFC_reply_checker",
+                "llm_nickname_mapping",
             ]
 
             for item in config_list:
@@ -709,6 +726,7 @@ class BotConfig:
             "response_splitter": {"func": response_splitter, "support": ">=0.0.11", "necessary": False},
             "experimental": {"func": experimental, "support": ">=0.0.11", "necessary": False},
             "heartflow": {"func": heartflow, "support": ">=1.0.2", "necessary": False},
+            "group_nickname": {"func": group_nickname, "support": ">=0.6.3", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象

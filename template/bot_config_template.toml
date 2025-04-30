@@ -125,6 +125,13 @@ steal_emoji = true # 是否偷取表情包，让麦麦可以发送她保存的�
 enable_check = false  # 是否启用表情包过滤，只有符合该要求的表情包才会被保存
 check_prompt = "符合公序良俗" # 表情包过滤要求，只有符合该要求的表情包才会被保存
 
+[group_nickname]
+enable_nickname_mapping = false  # 绰号映射功能总开关（默认关闭，建议关闭）
+max_nicknames_in_prompt = 10  # Prompt 中最多注入的绰号数量（防止token数量爆炸）
+nickname_probability_smoothing = 1  # 绰号加权随机选择的平滑因子
+nickname_queue_max_size = 100  # 绰号处理队列最大容量
+nickname_process_sleep_interval = 0.5  # 绰号处理进程休眠间隔（秒）
+
 [memory]
 build_memory_interval = 2000 # 记忆构建间隔 单位秒   间隔越低，麦麦学习越多，但是冗余信息也会增多
 build_memory_distribution = [6.0,3.0,0.6,32.0,12.0,0.4] # 记忆构建分布，参数：分布1均值，标准差，权重，分布2均值，标准差，权重
@@ -302,6 +309,13 @@ provider = "SILICONFLOW"
 pri_in = 2
 pri_out = 8
 
+#绰号映射生成模型
+[model.llm_nickname_mapping]
+name = "deepseek-ai/DeepSeek-V3"
+provider = "SILICONFLOW"
+temp = 0.3
+pri_in = 2
+pri_out = 8
 
 #此模型暂时没有使用！！
 #此模型暂时没有使用！！

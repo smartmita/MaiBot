@@ -14,7 +14,6 @@ from ..moods.moods import MoodManager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
-from src.plugins.group_nickname.config import ENABLE_NICKNAME_MAPPING
 from src.plugins.group_nickname.nickname_utils import select_nicknames_for_prompt, format_nickname_prompt_injection
 from src.plugins.person_info.relationship_manager import relationship_manager
 
@@ -227,7 +226,7 @@ class PromptBuilder:
 
         # --- [修改] 注入绰号信息 ---
         nickname_injection_str = ""
-        if ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
+        if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
             try:
                 group_id = str(chat_stream.group_info.group_id)
                 # 提取上下文中的用户 ID (需要 message_list_before_now 变量在此可用)
