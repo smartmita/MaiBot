@@ -751,17 +751,8 @@ class HeartFChatting:
             user_name_map = {}
             if user_ids_in_history:
                 platform = anchor_message.chat_stream.platform
-                # 尝试批量获取 person_name
-                # 假设 relationship_manager 有 get_person_names_batch(platform, user_ids)
                 try:
-                    # 注意：你需要实现 get_person_names_batch 方法
-                    # names_data = await relationship_manager.get_person_names_batch(platform, list(user_ids_in_history))
-                    # 这里暂时用单次获取代替，如果你的 relationship_manager 没有批量方法
-                    names_data = {}
-                    for user_id in user_ids_in_history:
-                        name = await relationship_manager.get_person_name(platform, user_id)
-                        if name:
-                                names_data[user_id] = name
+                    names_data = await relationship_manager.get_person_names_batch(platform, list(user_ids_in_history))
 
                 except AttributeError:
                     logger.warning("relationship_manager does not have get_person_names_batch method. Falling back to single lookups.")

@@ -1,8 +1,7 @@
-# GroupNickname/config.py
 import threading
 
 # 功能总开关
-ENABLE_NICKNAME_MAPPING = True # 设置为 False 可完全禁用此功能
+ENABLE_NICKNAME_MAPPING = False # 设置为 False 可完全禁用此功能
 
 # --- LLM 相关配置 (示例，你需要根据实际情况修改) ---
 # 用于绰号映射分析的 LLM 模型配置

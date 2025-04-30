@@ -14,6 +14,9 @@ from ..moods.moods import MoodManager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
+from src.plugins.group_nickname.config import ENABLE_NICKNAME_MAPPING
+from src.plugins.group_nickname.nickname_utils import select_nicknames_for_prompt, format_nickname_prompt_injection
+from src.plugins.person_info.relationship_manager import relationship_manager
 
 logger = get_logger("prompt")
 
@@ -221,6 +224,44 @@ class PromptBuilder:
             structured_info_prompt = ""
 
         logger.debug("开始构建prompt")
+
+        # --- [修改] 注入绰号信息 ---
+        nickname_injection_str = ""
+        if ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
+            try:
+                group_id = str(chat_stream.group_info.group_id)
+                # 提取上下文中的用户 ID (需要 message_list_before_now 变量在此可用)
+                # 假设 message_list_before_now 在此函数作用域内可用
+                user_ids_in_context = set()
+                # !!! 注意: 确保 message_list_before_now 在这里是可访问的 !!!
+                # 如果不是，你需要从 chat_stream 或其他地方重新获取或传递它
+                # 假设 message_list_before_now 存在
+                if 'message_list_before_now' in locals() or 'message_list_before_now' in globals():
+                    for msg in message_list_before_now:
+                        sender_id = msg.get('sender_id')
+                        if sender_id:
+                            user_ids_in_context.add(str(sender_id))
+                else:
+                    logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
+
+
+                if user_ids_in_context:
+                    platform = chat_stream.platform
+                    # --- 调用批量获取群组绰号的方法 ---
+                    all_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                        platform, list(user_ids_in_context), group_id
+                    )
+                    # --- 结束调用 ---
+
+                    if all_nicknames_data:
+                        selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
+                        nickname_injection_str = format_nickname_prompt_injection(selected_nicknames)
+                        if nickname_injection_str:
+                            logger.debug(f"Injecting nickname info into focus prompt:\n{nickname_injection_str}")
+
+            except Exception as e:
+                logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
+        # --- [结束修改] ---
 
         prompt = await global_prompt_manager.format_prompt(
             "heart_flow_prompt",
