@@ -11,7 +11,7 @@ logger = get_logger("mai_state")
 
 # -- 状态相关的可配置参数 (可以从 glocal_config 加载) --
 # enable_unlimited_hfc_chat = True  # 调试用：无限专注聊天
-enable_unlimited_hfc_chat = False
+enable_unlimited_hfc_chat = True
 prevent_offline_state = True
 # 目前默认不启用OFFLINE状态
 

@@ -582,7 +582,7 @@ class HeartFChatting:
                     response_set=reply,
                     send_emoji=emoji_query,
                 )
-
+            print("消息发送成功，准备进入绰号分析")
             # --- [新增] 触发绰号分析 ---
             # 在发送成功后（或至少尝试发送后）触发
             await self._trigger_nickname_analysis(anchor_message, reply)

@@ -30,9 +30,9 @@ if global_config.ENABLE_NICKNAME_MAPPING: # 使用全局开关
 
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items()])
-
+    print(f"\n\n\n{user_list_str}\n\n\n\n")
     prompt = f"""
-任务：分析以下聊天记录和 Bot 的最新回复，判断其中是否包含用户绰号，并确定绰号与用户 ID 之间是否存在明确的一一对应关系。
+任务：分析以下聊天记录和你的最新回复，判断其中是否包含用户绰号，并确定绰号与用户 ID 之间是否存在明确的一一对应关系。
 
 已知用户信息：
 {user_list_str}
@@ -42,18 +42,18 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
 {chat_history_str}
 ---
 
-Bot 最新回复：
+你的最新回复：
 {bot_reply}
 
 分析要求：
-1.  识别聊天记录和 Bot 回复中出现的可能是用户绰号的词语。
+1.  识别聊天记录和你发言中出现的可能是用户绰号的词语。
 2.  判断这些绰号是否能明确地指向某个特定的用户 ID。一个绰号必须在上下文中清晰地与某个发言人或被提及的人关联起来。
 3.  如果能建立可靠的一一映射关系，请输出一个 JSON 对象，格式如下：
     {{
         "is_exist": true,
         "data": {{
-            "用户ID_A": "绰号_A",
-            "用户ID_B": "绰号_B"
+            "用户A数字id": "绰号_A",
+            "用户B数字id": "绰号_B"
         }}
     }}
     其中 "data" 字段的键是用户的 ID，值是对应的绰号。只包含你能确认映射关系的绰号。
@@ -61,7 +61,7 @@ Bot 最新回复：
     {{
         "is_exist": false
     }}
-5.  不需要输出 Bot 自身的绰号。
+5.  你的昵称后面包含"(你)"，不需要输出你自身的绰号。
 6.  请严格按照 JSON 格式输出，不要包含任何额外的解释或文本。
 
 输出：

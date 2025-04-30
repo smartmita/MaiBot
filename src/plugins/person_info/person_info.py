@@ -51,6 +51,7 @@ person_info_default = {
     "konw_time": 0,
     "msg_interval": 2000,
     "msg_interval_list": [],
+    "group_nicknames": [],
 }  # 个人信息的各项与默认值在此定义，以下处理会自动创建/补全每一项
 
 

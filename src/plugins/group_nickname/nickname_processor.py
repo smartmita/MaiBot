@@ -20,85 +20,132 @@ _stop_event = Event()
 mongo_client: Optional[MongoClient] = None # MongoDB 客户端实例
 person_info_collection = None # 用户信息集合对象
 
-
-# --- 数据库更新逻辑 ---
+# --- 数据库更新逻辑 (使用推荐的新结构) ---
 async def update_nickname_counts(group_id: str, nickname_map: Dict[str, str]):
     """
     更新数据库中用户的群组绰号计数。
+    使用新的数据结构:
+    {
+        "user_id": 12345,
+        "group_nicknames": [ # <--- 字段名统一为 group_nicknames
+            {
+                "group_id": "群号1",
+                "nicknames": [ { "name": "绰号A", "count": 5 }, ... ]
+            }, ...
+        ]
+    }
     """
-    person_info_collection = db.person_info
+    person_info_collection = db.person_info # 获取集合对象
 
-    if not person_info_collection: # 理论上 db 对象总是可用，但保留检查
-        logger.error("无法访问数据库集合 'person_info'。无法更新绰号计数。")
-        return
     if not nickname_map:
         logger.debug("提供的用于更新的绰号映射为空。")
         return
 
-    logger.info(f"尝试更新群组 '{group_id}' 的绰号计数，映射为: {nickname_map}")
+    logger.info(f"尝试更新群组 '{group_id}' 的绰号计数 (新结构)，映射为: {nickname_map}")
 
-    for user_id, nickname in nickname_map.items():
-        if not user_id or not nickname:
-            logger.warning(f"跳过绰号映射中的无效条目: user_id='{user_id}', nickname='{nickname}'")
+    for user_id_str, nickname in nickname_map.items(): # user_id 从 map 中取出是 str
+        if not user_id_str or not nickname:
+            logger.warning(f"跳过绰号映射中的无效条目: user_id='{user_id_str}', nickname='{nickname}'")
             continue
 
-        group_id_str = str(group_id)
+        group_id_str = str(group_id) # 确保 group_id 是字符串
+        try:
+            # 假设数据库中存储的用户ID是整数类型，如果不是请移除 int()
+            user_id_int = int(user_id_str)
+        except ValueError:
+            logger.warning(f"无效的用户ID格式: '{user_id_str}'，跳过。")
+            continue
 
         try:
-            # a. 确保用户文档存在 group_nickname 字段且为 list
+            # 步骤 1: 确保用户文档存在，且有 group_nicknames 字段 (如果不存在则添加空数组)
+            # 注意：这里不再使用 $setOnInsert 添加 group_nicknames，因为 $addToSet 或 $push 在字段不存在时会自动创建。
+            # upsert=True 确保用户文档存在。
             person_info_collection.update_one(
-                {"person_id": user_id},
-                {"$setOnInsert": {"group_nickname": []}},
+                {"user_id": user_id_int},
+                {"$setOnInsert": {"user_id": user_id_int}}, # 确保 upsert 时 user_id 被正确设置
                 upsert=True
             )
-
-            # b. 确保特定 group_id 的条目存在
-            update_result = person_info_collection.update_one(
-                {"person_id": user_id, f"group_nickname.{group_id_str}": {"$exists": False}},
-                {"$push": {"group_nickname": {group_id_str: []}}}
+            # 确保 group_nicknames 字段存在且为数组 (如果不存在则创建)
+            person_info_collection.update_one(
+                {"user_id": user_id_int, "group_nicknames": {"$exists": False}},
+                {"$set": {"group_nicknames": []}}
             )
-            if update_result.modified_count > 0:
-                logger.debug(f"为用户 '{user_id}' 添加了群组 '{group_id_str}' 的条目。")
 
-            # c. 确保特定 nickname 存在于 group_id 的数组中，并增加计数
+
+            # 步骤 2: 尝试直接增加现有绰号的计数
+            # 条件：用户存在，且 group_nicknames 数组中存在一个元素其 group_id 匹配，且该元素的 nicknames 数组中存在一个元素的 name 匹配
             update_result = person_info_collection.update_one(
                 {
-                    "person_id": user_id,
-                    "group_nickname": {
-                        "$elemMatch": {
-                            group_id_str: {"$elemMatch": {nickname: {"$exists": True}}}
-                        }
+                    "user_id": user_id_int,
+                    "group_nicknames": {             # <--- 确保使用 group_nicknames
+                        "$elemMatch": {"group_id": group_id_str, "nicknames.name": nickname}
                     }
                 },
-                {"$inc": {f"group_nickname.$[group].$[nick].{nickname}": 1}},
+                {                                     # <--- 确保使用 group_nicknames
+                    "$inc": {"group_nicknames.$[group].nicknames.$[nick].count": 1}
+                },
                 array_filters=[
-                    {f"group.{group_id_str}": {"$exists": True}},
-                    {f"nick.{nickname}": {"$exists": True}}
+                    {"group.group_id": group_id_str},
+                    {"nick.name": nickname}
                 ]
             )
 
-            if update_result.matched_count == 0:
-                # nickname 不存在，添加 nickname 并设置次数为 1
-                add_nick_result = person_info_collection.update_one(
-                    {"person_id": user_id, f"group_nickname.{group_id_str}": {"$exists": True}},
-                    {"$push": {f"group_nickname.$[group].{group_id_str}": {nickname: 1}}},
-                    array_filters=[{f"group.{group_id_str}": {"$exists": True}}]
-                )
-                if add_nick_result.modified_count > 0:
-                    logger.debug(f"为用户 '{user_id}' 在群组 '{group_id_str}' 中添加了绰号 '{nickname}'，计数为 1。")
-                else:
-                    logger.warning(f"未能为用户 '{user_id}' 在群组 '{group_id_str}' 中添加绰号 '{nickname}'。更新结果: {add_nick_result.raw_result}")
+            if update_result.modified_count > 0:
+                logger.debug(f"用户 '{user_id_str}' 在群组 '{group_id_str}' 中的绰号 '{nickname}' 计数已增加。")
+                continue # 处理完成，进行下一次循环
 
-            elif update_result.modified_count > 0:
-                logger.debug(f"用户 '{user_id}' 在群组 '{group_id_str}' 中的绰号 '{nickname}' 计数已增加。")
+            # 步骤 3: 如果步骤 2 未修改任何内容，尝试将新绰号添加到现有群组的 nicknames 数组中
+            # 条件：用户存在，且 group_nicknames 数组中存在一个元素其 group_id 匹配
+            update_result = person_info_collection.update_one(
+                {
+                    "user_id": user_id_int,
+                    "group_nicknames.group_id": group_id_str # <--- 确保使用 group_nicknames
+                },
+                {                                             # <--- 确保使用 group_nicknames
+                    "$push": {"group_nicknames.$[group].nicknames": {"name": nickname, "count": 1}}
+                },
+                array_filters=[
+                    {"group.group_id": group_id_str}
+                ]
+            )
+
+            if update_result.modified_count > 0:
+                logger.debug(f"为用户 '{user_id_str}' 在群组 '{group_id_str}' 中添加了新绰号 '{nickname}'，计数为 1。")
+                continue # 处理完成，进行下一次循环
+
+            # 步骤 4: 如果步骤 2 和 3 都未修改任何内容，说明群组条目本身可能不存在于 group_nicknames 数组中，尝试添加新的群组条目
+            # 条件：用户存在，且 group_nicknames 数组中 *不包含* 指定 group_id 的元素
+            update_result = person_info_collection.update_one(
+                {
+                    "user_id": user_id_int,
+                    "group_nicknames.group_id": {"$ne": group_id_str} # <--- 检查 group_id 是否不存在
+                },
+                {
+                    "$push": {                         # <--- 确保使用 group_nicknames
+                        "group_nicknames": {
+                            "group_id": group_id_str,
+                            "nicknames": [{"name": nickname, "count": 1}]
+                        }
+                    }
+                }
+                # 注意：这里不需要 upsert=True，因为步骤1已确保用户存在。
+                # 如果字段 group_nicknames 不存在，$push 会自动创建它。
+            )
+
+            # 记录日志（无论修改与否，因为可能是因为组已存在但无匹配导致没修改）
+            if update_result.modified_count > 0:
+                logger.debug(f"为用户 '{user_id_str}' 添加了新群组 '{group_id_str}' 条目和绰号 '{nickname}'。")
             else:
-                logger.warning(f"绰号增加操作匹配但未修改用户 '{user_id}' 的绰号 '{nickname}'。更新结果: {update_result.raw_result}")
+                # 到这里还没成功，可能意味着群组已存在但之前的步骤意外失败，或者有并发问题
+                logger.warning(f"未能为用户 '{user_id_str}' 更新或添加群组 '{group_id_str}' 的绰号 '{nickname}'。可能群组已存在但前面的步骤未成功修改。UpdateResult: {update_result.raw_result}")
+
 
         except OperationFailure as op_err:
-            logger.error(f"数据库操作失败: 用户 {user_id}, 群组 {group_id_str}, 绰号 {nickname}: {op_err}", exc_info=True)
+            # 使用 logger.exception 来记录数据库操作错误，自动包含 traceback
+            logger.exception(f"数据库操作失败: 用户 {user_id_str}, 群组 {group_id_str}, 绰号 {nickname}") # <--- 修改了日志记录方式
         except Exception as e:
-            logger.error(f"更新用户 {user_id} 的绰号 {nickname} 时发生意外错误: {e}", exc_info=True)
-
+            # 记录其他意外错误
+            logger.exception(f"更新用户 {user_id_str} 的绰号 {nickname} 时发生意外错误") # <--- 修改了日志记录方式
 
 # --- 队列和进程 ---
 nickname_queue: mpQueue = mpQueue(maxsize=global_config.NICKNAME_QUEUE_MAX_SIZE)
