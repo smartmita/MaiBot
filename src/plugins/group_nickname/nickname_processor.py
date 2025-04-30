@@ -1,11 +1,10 @@
-# GroupNickname/nickname_processor.py
 import asyncio
 import traceback
 from multiprocessing import Process, Queue as mpQueue, Event
 from typing import Dict, Optional
 
 from pymongo import MongoClient
-from pymongo.errors import ConnectionFailure, OperationFailure
+from pymongo.errors import OperationFailure
 
 from src.common.logger_manager import get_logger # 导入日志管理器
 from src.config.config import global_config # 导入全局配置
@@ -179,7 +178,6 @@ async def _nickname_processing_loop(queue: mpQueue, stop_event):
     logger.info("绰号处理循环已启动。")
 
     while not stop_event.is_set():
-        logger.info("绰号处理循环正在运行...")
         try:
             if not queue.empty():
                 item = queue.get()
