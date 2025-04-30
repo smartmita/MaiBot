@@ -110,7 +110,7 @@ class BaseWillingManager(ABC):
     def delete(self, message_id: str):
         del_message = self.ongoing_messages.pop(message_id, None)
         if not del_message:
-            logger.debug(f"删除异常，当前消息{message_id}不存在")
+            logger.debug(f"尝试删除不存在的消息 ID: {message_id}，可能已被其他流程处理，喵~")
 
     @abstractmethod
     async def async_task_starter(self) -> None:

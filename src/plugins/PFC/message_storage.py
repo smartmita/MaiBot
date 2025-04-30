@@ -50,21 +50,18 @@ class MessageStorage(ABC):
 class MongoDBMessageStorage(MessageStorage):
     """MongoDB消息存储实现"""
 
-    def __init__(self):
-        self.db = db
-
     async def get_messages_after(self, chat_id: str, message_time: float) -> List[Dict[str, Any]]:
         query = {"chat_id": chat_id}
         # print(f"storage_check_message: {message_time}")
 
         query["time"] = {"$gt": message_time}
 
-        return list(self.db.messages.find(query).sort("time", 1))
+        return list(db.messages.find(query).sort("time", 1))
 
     async def get_messages_before(self, chat_id: str, time_point: float, limit: int = 5) -> List[Dict[str, Any]]:
         query = {"chat_id": chat_id, "time": {"$lt": time_point}}
 
-        messages = list(self.db.messages.find(query).sort("time", -1).limit(limit))
+        messages = list(db.messages.find(query).sort("time", -1).limit(limit))
 
         # 将消息按时间正序排列
         messages.reverse()
@@ -73,7 +70,7 @@ class MongoDBMessageStorage(MessageStorage):
     async def has_new_messages(self, chat_id: str, after_time: float) -> bool:
         query = {"chat_id": chat_id, "time": {"$gt": after_time}}
 
-        return self.db.messages.find_one(query) is not None
+        return db.messages.find_one(query) is not None
 
 
 # # 创建一个内存消息存储实现，用于测试

@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Any, Dict, TypeVar, List, Union, Tuple
+import ast
 
 # 定义类型变量用于泛型类型提示
 T = TypeVar("T")
@@ -12,6 +13,7 @@ logger = logging.getLogger("json_utils")
 def safe_json_loads(json_str: str, default_value: T = None) -> Union[Any, T]:
     """
     安全地解析JSON字符串，出错时返回默认值
+    现在尝试处理单引号和标准JSON
 
     参数:
         json_str: 要解析的JSON字符串
@@ -20,16 +22,34 @@ def safe_json_loads(json_str: str, default_value: T = None) -> Union[Any, T]:
     返回:
         解析后的Python对象，或在解析失败时返回default_value
     """
-    if not json_str:
+    if not json_str or not isinstance(json_str, str):
+        logger.warning(f"safe_json_loads 接收到非字符串输入: {type(json_str)}, 值: {json_str}")
         return default_value
 
     try:
+        # 尝试标准的 JSON 解析
         return json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON解析失败: {e}, JSON字符串: {json_str[:100]}...")
-        return default_value
+    except json.JSONDecodeError:
+        # 如果标准解析失败，尝试将单引号替换为双引号再解析
+        # （注意：这种替换可能不安全，如果字符串内容本身包含引号）
+        # 更安全的方式是用 ast.literal_eval
+        try:
+            # logger.debug(f"标准JSON解析失败，尝试用 ast.literal_eval 解析: {json_str[:100]}...")
+            result = ast.literal_eval(json_str)
+            # 确保结果是字典（因为我们通常期望参数是字典）
+            if isinstance(result, dict):
+                return result
+            else:
+                logger.warning(f"ast.literal_eval 解析成功但结果不是字典: {type(result)}, 内容: {result}")
+                return default_value
+        except (ValueError, SyntaxError, MemoryError, RecursionError) as ast_e:
+            logger.error(f"使用 ast.literal_eval 解析失败: {ast_e}, 字符串: {json_str[:100]}...")
+            return default_value
+        except Exception as e:
+            logger.error(f"使用 ast.literal_eval 解析时发生意外错误: {e}, 字符串: {json_str[:100]}...")
+            return default_value
     except Exception as e:
-        logger.error(f"JSON解析过程中发生意外错误: {e}")
+        logger.error(f"JSON解析过程中发生意外错误: {e}, 字符串: {json_str[:100]}...")
         return default_value
 
 
@@ -177,25 +197,27 @@ def process_llm_tool_calls(
         if "name" not in func_details or not isinstance(func_details.get("name"), str):
             logger.warning(f"{log_prefix}工具调用[{i}]的'function'字段缺少'name'或类型不正确: {func_details}")
             continue
-        if "arguments" not in func_details or not isinstance(
-            func_details.get("arguments"), str
-        ):  # 参数是字符串形式的JSON
-            logger.warning(f"{log_prefix}工具调用[{i}]的'function'字段缺少'arguments'或类型不正确: {func_details}")
+
+        # 验证参数 'arguments'
+        args_value = func_details.get("arguments")
+
+        # 1. 检查 arguments 是否存在且是字符串
+        if args_value is None or not isinstance(args_value, str):
+            logger.warning(f"{log_prefix}工具调用[{i}]的'function'字段缺少'arguments'字符串: {func_details}")
             continue
 
-        # 可选：尝试解析参数JSON，确保其有效
-        args_str = func_details["arguments"]
-        try:
-            json.loads(args_str)  # 尝试解析，但不存储结果
-        except json.JSONDecodeError as e:
+        # 2. 尝试安全地解析 arguments 字符串
+        parsed_args = safe_json_loads(args_value, None)
+
+        # 3. 检查解析结果是否为字典
+        if parsed_args is None or not isinstance(parsed_args, dict):
             logger.warning(
-                f"{log_prefix}工具调用[{i}]的'arguments'不是有效的JSON字符串: {e}, 内容: {args_str[:100]}..."
+                f"{log_prefix}工具调用[{i}]的'arguments'无法解析为有效的JSON字典, "
+                f"原始字符串: {args_value[:100]}..., 解析结果类型: {type(parsed_args).__name__}"
             )
             continue
-        except Exception as e:
-            logger.warning(f"{log_prefix}解析工具调用[{i}]的'arguments'时发生意外错误: {e}, 内容: {args_str[:100]}...")
-            continue
 
+        # 如果检查通过，将原始的 tool_call 加入有效列表
         valid_tool_calls.append(tool_call)
 
     if not valid_tool_calls and tool_calls:  # 如果原始列表不为空，但验证后为空

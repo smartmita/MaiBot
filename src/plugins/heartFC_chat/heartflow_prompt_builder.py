@@ -301,9 +301,9 @@ class PromptBuilder:
         relation_prompt = ""
         for person in who_chat_in_group:
             relation_prompt += await relationship_manager.build_relationship_info(person)
-            print(f"relation_prompt: {relation_prompt}")
+            # print(f"relation_prompt: {relation_prompt}")
 
-        print(f"relat11111111ion_prompt: {relation_prompt}")
+        # print(f"relat11111111ion_prompt: {relation_prompt}")
 
         # 心情
         mood_manager = MoodManager.get_instance()

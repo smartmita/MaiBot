@@ -64,6 +64,9 @@ class ClassicalWillingManager(BaseWillingManager):
         self.chat_reply_willing[chat_id] = max(0, current_willing - 1.8)
 
     async def after_generate_reply_handle(self, message_id):
+        if message_id not in self.ongoing_messages:
+            return
+
         chat_id = self.ongoing_messages[message_id].chat_id
         current_willing = self.chat_reply_willing.get(chat_id, 0)
         if current_willing < 1:
