@@ -232,7 +232,7 @@ class PromptBuilder:
                 user_ids_in_context = set()
                 if message_list_before_now:
                     for msg in message_list_before_now:
-                        sender_id = msg.get('sender_id')
+                        sender_id = msg["user_info"].get('user_id')
                         if sender_id:
                             user_ids_in_context.add(str(sender_id))
                 else:
@@ -419,7 +419,8 @@ class PromptBuilder:
                 user_ids_in_context = set()
                 if message_list_before_now:
                     for msg in message_list_before_now:
-                        sender_id = msg.get('sender_id')
+                        print(msg)
+                        sender_id = msg["user_info"].get('user_id')
                         if sender_id:
                             user_ids_in_context.add(str(sender_id))
                 else:
