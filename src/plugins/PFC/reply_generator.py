@@ -17,6 +17,9 @@ logger = get_module_logger("reply_generator")
 PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请根据以下信息生成一条回复：
 
 当前对话目标：{goals_str}
+
+{knowledge_info_str}
+
 最近的聊天记录：
 {chat_history_text}
 
@@ -25,7 +28,7 @@ PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请
 1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
 2. 符合你的性格特征和身份细节
 3. 通俗易懂，自然流畅，像正常聊天一样，简短（通常20字以内，除非特殊情况）
-4. 适当利用相关知识，但不要生硬引用
+4. 可以适当利用相关知识，但不要生硬引用
 5. 自然、得体，结合聊天记录逻辑合理，且没有重复表达同质内容
 
 请注意把握聊天内容，不要回复的太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
@@ -39,6 +42,9 @@ PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请
 PROMPT_SEND_NEW_MESSAGE = """{persona_text}。现在你在参与一场QQ私聊，**刚刚你已经发送了一条或多条消息**，现在请根据以下信息再发一条新消息： 
 
 当前对话目标：{goals_str}
+
+{knowledge_info_str}
+
 最近的聊天记录：
 {chat_history_text}
 
@@ -47,7 +53,7 @@ PROMPT_SEND_NEW_MESSAGE = """{persona_text}。现在你在参与一场QQ私聊�
 1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
 2. 符合你的性格特征和身份细节
 3. 通俗易懂，自然流畅，像正常聊天一样，简短（通常20字以内，除非特殊情况）
-4. 适当利用相关知识，但不要生硬引用
+4. 可以适当利用相关知识，但不要生硬引用
 5. 跟之前你发的消息自然的衔接，逻辑合理，且没有重复表达同质内容或部分重叠内容
 
 请注意把握聊天内容，不用太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
@@ -131,6 +137,38 @@ class ReplyGenerator:
         else:
             goals_str = "- 目前没有明确对话目标\n"  # 简化无目标情况
 
+        # --- 新增：构建知识信息字符串 ---
+        knowledge_info_str = "【供参考的相关知识和记忆】\n"  # 稍微改下标题，表明是供参考
+        try:
+            # 检查 conversation_info 是否有 knowledge_list 并且不为空
+            if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+                # 最多只显示最近的 5 条知识
+                recent_knowledge = conversation_info.knowledge_list[-5:]
+                for i, knowledge_item in enumerate(recent_knowledge):
+                    if isinstance(knowledge_item, dict):
+                        query = knowledge_item.get("query", "未知查询")
+                        knowledge = knowledge_item.get("knowledge", "无知识内容")
+                        source = knowledge_item.get("source", "未知来源")
+                        # 只取知识内容的前 2000 个字
+                        knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+                        knowledge_info_str += (
+                            f"{i + 1}. 关于 '{query}' (来源: {source}): {knowledge_snippet}\n"  # 格式微调，更简洁
+                        )
+                    else:
+                        knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+
+                if not recent_knowledge:
+                    knowledge_info_str += "- 暂无。\n"  # 更简洁的提示
+
+            else:
+                knowledge_info_str += "- 暂无。\n"
+        except AttributeError:
+            logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+            knowledge_info_str += "- 获取知识列表时出错。\n"
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+            knowledge_info_str += "- 处理知识列表时出错。\n"
+
         # 获取聊天历史记录 (chat_history_text)
         chat_history_text = observation_info.chat_history_str
         if observation_info.new_messages_count > 0 and observation_info.unprocessed_messages:
@@ -162,7 +200,10 @@ class ReplyGenerator:
 
         # --- 格式化最终的 Prompt ---
         prompt = prompt_template.format(
-            persona_text=persona_text, goals_str=goals_str, chat_history_text=chat_history_text
+            persona_text=persona_text,
+            goals_str=goals_str,
+            chat_history_text=chat_history_text,
+            knowledge_info_str=knowledge_info_str,
         )
 
         # --- 调用 LLM 生成 ---

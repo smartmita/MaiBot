@@ -77,7 +77,7 @@ class BaseWillingManager(ABC):
             if not issubclass(manager_class, cls):
                 raise TypeError(f"Manager class {manager_class.__name__} is not a subclass of {cls.__name__}")
             else:
-                logger.info(f"成功载入willing模式：{manager_type}")
+                logger.info(f"普通回复模式：{manager_type}")
             return manager_class()
         except (ImportError, AttributeError, TypeError) as e:
             module = importlib.import_module(".mode_classical", __package__)

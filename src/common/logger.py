@@ -621,22 +621,22 @@ CHAT_IMAGE_STYLE_CONFIG = {
     },
 }
 
-# 兴趣log
-INTEREST_STYLE_CONFIG = {
+# HFC log
+HFC_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
             "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
             "<level>{level: <8}</level> | "
-            "<light-yellow>兴趣</light-yellow> | "
+            "<light-green>专注聊天</light-green> | "
             "<level>{message}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 兴趣 | {message}",
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 专注聊天 | {message}",
     },
     "simple": {
         "console_format": (
-            "<level>{time:MM-DD HH:mm}</level> | <light-green>兴趣</light-green> | <light-green>{message}</light-green>"
+            "<level>{time:MM-DD HH:mm}</level> | <light-green>专注聊天</light-green> | <light-green>{message}</light-green>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 兴趣 | {message}",
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 专注聊天 | {message}",
     },
 }
 
@@ -847,7 +847,7 @@ CONFIG_STYLE_CONFIG = CONFIG_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else CONFIG
 TOOL_USE_STYLE_CONFIG = TOOL_USE_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else TOOL_USE_STYLE_CONFIG["advanced"]
 PFC_STYLE_CONFIG = PFC_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else PFC_STYLE_CONFIG["advanced"]
 LPMM_STYLE_CONFIG = LPMM_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else LPMM_STYLE_CONFIG["advanced"]
-INTEREST_STYLE_CONFIG = INTEREST_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else INTEREST_STYLE_CONFIG["advanced"]
+HFC_STYLE_CONFIG = HFC_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else HFC_STYLE_CONFIG["advanced"]
 TIANYI_STYLE_CONFIG = TIANYI_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else TIANYI_STYLE_CONFIG["advanced"]
 MODEL_UTILS_STYLE_CONFIG = MODEL_UTILS_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else MODEL_UTILS_STYLE_CONFIG["advanced"]
 PROMPT_STYLE_CONFIG = PROMPT_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else PROMPT_STYLE_CONFIG["advanced"]

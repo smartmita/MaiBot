@@ -8,13 +8,12 @@ from typing import List
 
 class InfoCatcher:
     def __init__(self):
-        self.chat_history = []  # 聊天历史，长度为三倍使用的上下文
-        self.context_length = global_config.MAX_CONTEXT_SIZE
-        self.chat_history_in_thinking = []  # 思考期间的聊天内容
-        self.chat_history_after_response = []  # 回复后的聊天内容，长度为一倍上下文
+        self.chat_history = []  # 聊天历史，长度为三倍使用的上下文喵~
+        self.context_length = global_config.observation_context_size
+        self.chat_history_in_thinking = []  # 思考期间的聊天内容喵~
+        self.chat_history_after_response = []  # 回复后的聊天内容，长度为一倍上下文喵~
 
         self.chat_id = ""
-        self.response_mode = global_config.response_mode
         self.trigger_response_text = ""
         self.response_text = ""
 
@@ -36,10 +35,10 @@ class InfoCatcher:
             "model": "",
         }
 
-        # 使用字典来存储 reasoning 模式的数据
+        # 使用字典来存储 reasoning 模式的数据喵~
         self.reasoning_data = {"thinking_log": "", "prompt": "", "response": "", "model": ""}
 
-        # 耗时
+        # 耗时喵~
         self.timing_results = {
             "interested_rate_time": 0,
             "sub_heartflow_observe_time": 0,
@@ -73,15 +72,25 @@ class InfoCatcher:
             self.heartflow_data["sub_heartflow_now"] = current_mind
 
     def catch_after_llm_generated(self, prompt: str, response: str, reasoning_content: str = "", model_name: str = ""):
-        if self.response_mode == "heart_flow":
-            self.heartflow_data["prompt"] = prompt
-            self.heartflow_data["response"] = response
-            self.heartflow_data["model"] = model_name
-        elif self.response_mode == "reasoning":
-            self.reasoning_data["thinking_log"] = reasoning_content
-            self.reasoning_data["prompt"] = prompt
-            self.reasoning_data["response"] = response
-            self.reasoning_data["model"] = model_name
+        # if self.response_mode == "heart_flow": # 条件判断不需要了喵~
+        #     self.heartflow_data["prompt"] = prompt
+        #     self.heartflow_data["response"] = response
+        #     self.heartflow_data["model"] = model_name
+        # elif self.response_mode == "reasoning": # 条件判断不需要了喵~
+        #     self.reasoning_data["thinking_log"] = reasoning_content
+        #     self.reasoning_data["prompt"] = prompt
+        #     self.reasoning_data["response"] = response
+        #     self.reasoning_data["model"] = model_name
+
+        # 直接记录信息喵~
+        self.reasoning_data["thinking_log"] = reasoning_content
+        self.reasoning_data["prompt"] = prompt
+        self.reasoning_data["response"] = response
+        self.reasoning_data["model"] = model_name
+        # 如果 heartflow 数据也需要通用字段，可以取消下面的注释喵~
+        # self.heartflow_data["prompt"] = prompt
+        # self.heartflow_data["response"] = response
+        # self.heartflow_data["model"] = model_name
 
         self.response_text = response
 
@@ -172,13 +181,13 @@ class InfoCatcher:
         }
 
     def done_catch(self):
-        """将收集到的信息存储到数据库的 thinking_log 集合中"""
+        """将收集到的信息存储到数据库的 thinking_log 集合中喵~"""
         try:
-            # 将消息对象转换为可序列化的字典
+            # 将消息对象转换为可序列化的字典喵~
 
             thinking_log_data = {
                 "chat_id": self.chat_id,
-                "response_mode": self.response_mode,
+                # "response_mode": self.response_mode, # 这个也删掉喵~
                 "trigger_text": self.trigger_response_text,
                 "response_text": self.response_text,
                 "trigger_info": {
@@ -195,18 +204,20 @@ class InfoCatcher:
                 "chat_history_after_response": self.message_list_to_dict(self.chat_history_after_response),
             }
 
-            # 根据不同的响应模式添加相应的数据
-            if self.response_mode == "heart_flow":
-                thinking_log_data["mode_specific_data"] = self.heartflow_data
-            elif self.response_mode == "reasoning":
-                thinking_log_data["mode_specific_data"] = self.reasoning_data
+            # 根据不同的响应模式添加相应的数据喵~ # 现在直接都加上去好了喵~
+            # if self.response_mode == "heart_flow":
+            #     thinking_log_data["mode_specific_data"] = self.heartflow_data
+            # elif self.response_mode == "reasoning":
+            #     thinking_log_data["mode_specific_data"] = self.reasoning_data
+            thinking_log_data["heartflow_data"] = self.heartflow_data
+            thinking_log_data["reasoning_data"] = self.reasoning_data
 
-            # 将数据插入到 thinking_log 集合中
+            # 将数据插入到 thinking_log 集合中喵~
             db.thinking_log.insert_one(thinking_log_data)
 
             return True
         except Exception as e:
-            print(f"存储思考日志时出错: {str(e)}")
+            print(f"存储思考日志时出错: {str(e)} 喵~")
             print(traceback.format_exc())
             return False
 

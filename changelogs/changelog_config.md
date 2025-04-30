@@ -33,7 +33,7 @@
 - 调整了部分配置项的默认值
 - 调整了配置项的顺序，将 `groups` 配置项移到了更靠前的位置
 - 在 `message` 配置项中：
-  - 新增了 `max_response_length` 参数
+  - 新增了 `model_max_output_length` 参数
 - 在 `willing` 配置项中新增了 `emoji_response_penalty` 参数
 - 将 `personality` 配置项中的 `prompt_schedule` 重命名为 `prompt_schedule_gen`
 

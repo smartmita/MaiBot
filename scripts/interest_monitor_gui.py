@@ -344,9 +344,6 @@ class InterestMonitorApp:
                             self.stream_last_active[stream_id] = subflow_entry.get(
                                 "chat_state_changed_time"
                             )  # 存储原始时间戳
-                            self.stream_last_interaction[stream_id] = subflow_entry.get(
-                                "last_interaction_time"
-                            )  # 存储原始时间戳
 
                             # 添加数据点 (使用顶层时间戳)
                             new_stream_history[stream_id].append((entry_timestamp, interest_level_float))

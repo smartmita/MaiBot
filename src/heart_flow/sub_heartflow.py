@@ -5,7 +5,6 @@ import time
 from typing import Optional, List, Dict, Tuple, Callable, Coroutine
 import traceback
 from src.common.logger_manager import get_logger
-import random
 from src.plugins.chat.message import MessageRecv
 from src.plugins.chat.chat_stream import chat_manager
 import math
@@ -15,20 +14,15 @@ from src.heart_flow.mai_state_manager import MaiStateInfo
 from src.heart_flow.chat_state_info import ChatState, ChatStateInfo
 from src.heart_flow.sub_mind import SubMind
 
-# # --- REMOVE: Conditional import --- #
-# if TYPE_CHECKING:
-#     from src.heart_flow.subheartflow_manager import SubHeartflowManager
-# # --- END REMOVE --- #
-
 
 # 定义常量 (从 interest.py 移动过来)
 MAX_INTEREST = 15.0
 
 logger = get_logger("subheartflow")
 
-base_reply_probability = 0.05
-probability_increase_rate_per_second = 0.08
-max_reply_probability = 1
+PROBABILITY_INCREASE_RATE_PER_SECOND = 0.1
+PROBABILITY_DECREASE_RATE_PER_SECOND = 0.1
+MAX_REPLY_PROBABILITY = 1
 
 
 class InterestChatting:
@@ -37,24 +31,15 @@ class InterestChatting:
         decay_rate=global_config.default_decay_rate_per_second,
         max_interest=MAX_INTEREST,
         trigger_threshold=global_config.reply_trigger_threshold,
-        base_reply_probability=base_reply_probability,
-        increase_rate=probability_increase_rate_per_second,
-        decay_factor=global_config.probability_decay_factor_per_second,
-        max_probability=max_reply_probability,
+        max_probability=MAX_REPLY_PROBABILITY,
     ):
         # 基础属性初始化
         self.interest_level: float = 0.0
-        self.last_update_time: float = time.time()
         self.decay_rate_per_second: float = decay_rate
         self.max_interest: float = max_interest
-        self.last_interaction_time: float = self.last_update_time
 
         self.trigger_threshold: float = trigger_threshold
-        self.base_reply_probability: float = base_reply_probability
-        self.probability_increase_rate: float = increase_rate
-        self.probability_decay_factor: float = decay_factor
         self.max_reply_probability: float = max_probability
-        self.current_reply_probability: float = 0.0
         self.is_above_threshold: bool = False
 
         # 任务相关属性初始化
@@ -100,7 +85,6 @@ class InterestChatting:
         """
         # 添加新消息
         self.interest_dict[message.message_info.message_id] = (message, interest_value, is_mentioned)
-        self.last_interaction_time = time.time()
 
         # 如果字典长度超过10，删除最旧的消息
         if len(self.interest_dict) > 10:
@@ -144,10 +128,10 @@ class InterestChatting:
     async def _update_reply_probability(self):
         self.above_threshold = self.interest_level >= self.trigger_threshold
         if self.above_threshold:
-            self.start_hfc_probability += 0.1
+            self.start_hfc_probability += PROBABILITY_INCREASE_RATE_PER_SECOND
         else:
             if self.start_hfc_probability > 0:
-                self.start_hfc_probability = max(0, self.start_hfc_probability - 0.1)
+                self.start_hfc_probability = max(0, self.start_hfc_probability - PROBABILITY_DECREASE_RATE_PER_SECOND)
 
     async def increase_interest(self, value: float):
         self.interest_level += value
@@ -167,13 +151,6 @@ class InterestChatting:
             "start_hfc_probability": round(self.start_hfc_probability, 4),
             "above_threshold": self.above_threshold,
         }
-
-    async def should_evaluate_reply(self) -> bool:
-        if self.current_reply_probability > 0:
-            trigger = random.random() < self.current_reply_probability
-            return trigger
-        else:
-            return False
 
     # --- 新增后台更新任务相关方法 ---
     async def _run_update_loop(self, update_interval: float = 1.0):
@@ -322,7 +299,7 @@ class SubHeartflow:
             chat_stream = chat_manager.get_stream(self.chat_id)
             self.normal_chat_instance = NormalChat(chat_stream=chat_stream, interest_dict=self.get_interest_dict())
 
-            logger.info(f"{log_prefix} 启动 NormalChat 随便水群...")
+            logger.info(f"{log_prefix} 开始普通聊天，随便水群...")
             await self.normal_chat_instance.start_chat()  # <--- 修正：调用 start_chat
             return True
         except Exception as e:
@@ -334,7 +311,7 @@ class SubHeartflow:
     async def _stop_heart_fc_chat(self):
         """停止并清理 HeartFChatting 实例"""
         if self.heart_fc_instance:
-            logger.info(f"{self.log_prefix} 关闭 HeartFChatting 实例...")
+            logger.debug(f"{self.log_prefix} 结束专注聊天...")
             try:
                 await self.heart_fc_instance.shutdown()
             except Exception as e:
@@ -409,7 +386,7 @@ class SubHeartflow:
             # 移除限额检查逻辑
             logger.debug(f"{log_prefix} 准备进入或保持 聊天 状态")
             if await self._start_normal_chat():
-                logger.info(f"{log_prefix} 成功进入或保持 NormalChat 状态。")
+                # logger.info(f"{log_prefix} 成功进入或保持 NormalChat 状态。")
                 state_changed = True
             else:
                 logger.error(f"{log_prefix} 启动 NormalChat 失败，无法进入 CHAT 状态。")
@@ -439,7 +416,7 @@ class SubHeartflow:
             self.history_chat_state.append((current_state, self.chat_state_last_time))
 
             logger.info(
-                f"{log_prefix} 麦麦的聊天状态从 {current_state.value} （持续了 {self.chat_state_last_time} 秒） 变更为 {new_state.value}"
+                f"{log_prefix} 麦麦的聊天状态从 {current_state.value} （持续了 {int(self.chat_state_last_time)} 秒） 变更为 {new_state.value}"
             )
 
             self.chat_state.chat_status = new_state
@@ -493,11 +470,10 @@ class SubHeartflow:
     async def get_interest_state(self) -> dict:
         return await self.interest_chatting.get_state()
 
-    async def get_interest_level(self) -> float:
-        return await self.interest_chatting.get_interest()
-
-    async def should_evaluate_reply(self) -> bool:
-        return await self.interest_chatting.should_evaluate_reply()
+    def get_normal_chat_last_speak_time(self) -> float:
+        if self.normal_chat_instance:
+            return self.normal_chat_instance.last_speak_time
+        return 0
 
     def get_interest_dict(self) -> Dict[str, tuple[MessageRecv, float, bool]]:
         return self.interest_chatting.interest_dict

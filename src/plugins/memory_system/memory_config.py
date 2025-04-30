@@ -24,7 +24,7 @@ class MemoryConfig:
     consolidate_memory_interval: int  # 记忆整合间隔
 
     llm_topic_judge: str  # 话题判断模型
-    llm_summary_by_topic: str  # 话题总结模型
+    llm_summary: str  # 话题总结模型
 
     @classmethod
     def from_global_config(cls, global_config):
@@ -44,7 +44,5 @@ class MemoryConfig:
             consolidate_memory_percentage=getattr(global_config, "consolidate_memory_percentage", 0.01),
             consolidate_memory_interval=getattr(global_config, "consolidate_memory_interval", 1000),
             llm_topic_judge=getattr(global_config, "llm_topic_judge", "default_judge_model"),  # 添加默认模型名
-            llm_summary_by_topic=getattr(
-                global_config, "llm_summary_by_topic", "default_summary_model"
-            ),  # 添加默认模型名
+            llm_summary=getattr(global_config, "llm_summary", "default_summary_model"),  # 添加默认模型名
         )

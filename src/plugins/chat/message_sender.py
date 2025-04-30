@@ -159,16 +159,16 @@ class MessageManager:
             logger.warning("Processor task already running.")
             return
         self._processor_task = asyncio.create_task(self._start_processor_loop())
-        logger.info("MessageManager processor task started.")
+        logger.debug("MessageManager processor task started.")
 
     def stop(self):
         """停止后台处理器任务。"""
         self._running = False
         if hasattr(self, "_processor_task") and not self._processor_task.done():
             self._processor_task.cancel()
-            logger.info("MessageManager processor task stopping.")
+            logger.debug("MessageManager processor task stopping.")
         else:
-            logger.info("MessageManager processor task not running or already stopped.")
+            logger.debug("MessageManager processor task not running or already stopped.")
 
     async def get_container(self, chat_id: str) -> MessageContainer:
         """获取或创建聊天流的消息容器 (异步，使用锁)"""

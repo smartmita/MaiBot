@@ -23,7 +23,7 @@ from src.common.logger import (
     PFC_ACTION_PLANNER_STYLE_CONFIG,
     MAI_STATE_CONFIG,
     LPMM_STYLE_CONFIG,
-    INTEREST_STYLE_CONFIG,
+    HFC_STYLE_CONFIG,
     TIANYI_STYLE_CONFIG,
     REMOTE_STYLE_CONFIG,
     TOPIC_STYLE_CONFIG,
@@ -68,7 +68,7 @@ MODULE_LOGGER_CONFIGS = {
     "pfc_action_planner": PFC_ACTION_PLANNER_STYLE_CONFIG,  # PFC私聊规划
     "mai_state": MAI_STATE_CONFIG,  # 麦麦状态
     "lpmm": LPMM_STYLE_CONFIG,  # LPMM
-    "interest": INTEREST_STYLE_CONFIG,  # 兴趣
+    "hfc": HFC_STYLE_CONFIG,  # HFC
     "tianyi": TIANYI_STYLE_CONFIG,  # 天依
     "remote": REMOTE_STYLE_CONFIG,  # 远程
     "topic": TOPIC_STYLE_CONFIG,  # 话题

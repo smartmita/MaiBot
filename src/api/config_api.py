@@ -47,7 +47,7 @@ class BotConfig:
     MAX_CONTEXT_SIZE: int  # 上下文最大消息数
     emoji_chance: float  # 发送表情包的基础概率
     thinking_timeout: int  # 思考时间
-    max_response_length: int  # 最大回复长度
+    model_max_output_length: int  # 最大回复长度
     message_buffer: bool  # 消息缓冲器
 
     ban_words: set
@@ -132,7 +132,7 @@ class BotConfig:
     # llm_reasoning_minor: Dict[str, str]
     llm_normal: Dict[str, str]  # LLM普通
     llm_topic_judge: Dict[str, str]  # LLM话题判断
-    llm_summary_by_topic: Dict[str, str]  # LLM话题总结
+    llm_summary: Dict[str, str]  # LLM话题总结
     llm_emotion_judge: Dict[str, str]  # LLM情感判断
     embedding: Dict[str, str]  # 嵌入
     vlm: Dict[str, str]  # VLM

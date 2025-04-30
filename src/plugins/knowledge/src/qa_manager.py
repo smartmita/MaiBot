@@ -11,6 +11,9 @@ from .lpmmconfig import global_config
 from .utils.dyn_topk import dyn_select_top_k
 
 
+MAX_KNOWLEDGE_LENGTH = 10000  # 最大知识长度
+
+
 class QAManager:
     def __init__(
         self,
@@ -112,8 +115,10 @@ class QAManager:
                 for res in query_res
             ]
             found_knowledge = "\n".join(
-                [f"第{i + 1}条知识：{k[1]}\n 该条知识对于问题的相关性：{k[0]}" for i, k in enumerate(knowledge)]
+                [f"第{i + 1}条知识：{k[0]}\n 该条知识对于问题的相关性：{k[1]}" for i, k in enumerate(knowledge)]
             )
+            if len(found_knowledge) > MAX_KNOWLEDGE_LENGTH:
+                found_knowledge = found_knowledge[:MAX_KNOWLEDGE_LENGTH] + "\n"
             return found_knowledge
         else:
             logger.info("LPMM知识库并未初始化，使用旧版数据库进行检索")

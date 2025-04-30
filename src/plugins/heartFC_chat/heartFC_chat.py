@@ -32,12 +32,14 @@ from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.group_nickname.nickname_processor import add_to_nickname_queue # <--- 导入队列添加函数
 
 
-INITIAL_DURATION = 60.0
-
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒
 
+EMOJI_SEND_PRO = 0.3  # 设置一个概率，比如 30% 才真的发
 
-logger = get_logger("interest")  # Logger Name Changed
+CONSECUTIVE_NO_REPLY_THRESHOLD = 3  # 连续不回复的阈值
+
+
+logger = get_logger("HFC")  # Logger Name Changed
 
 
 # 默认动作定义
@@ -180,8 +182,6 @@ class HeartFChatting:
     用于在特定聊天流中生成回复。
     其生命周期现在由其关联的 SubHeartflow 的 FOCUSED 状态控制。
     """
-
-    CONSECUTIVE_NO_REPLY_THRESHOLD = 3  # 连续不回复的阈值
 
     def __init__(
         self,
@@ -657,14 +657,14 @@ class HeartFChatting:
                 self._lian_xu_bu_hui_fu_ci_shu += 1
                 self._lian_xu_deng_dai_shi_jian += dang_qian_deng_dai  # 累加等待时间
                 logger.debug(
-                    f"{self.log_prefix} 连续不回复计数增加: {self._lian_xu_bu_hui_fu_ci_shu}/{self.CONSECUTIVE_NO_REPLY_THRESHOLD}, "
+                    f"{self.log_prefix} 连续不回复计数增加: {self._lian_xu_bu_hui_fu_ci_shu}/{CONSECUTIVE_NO_REPLY_THRESHOLD}, "
                     f"本次等待: {dang_qian_deng_dai:.2f}秒, 累计等待: {self._lian_xu_deng_dai_shi_jian:.2f}秒"
                 )
 
                 # 检查是否同时达到次数和时间阈值
-                time_threshold = 0.66 * WAITING_TIME_THRESHOLD * self.CONSECUTIVE_NO_REPLY_THRESHOLD
+                time_threshold = 0.66 * WAITING_TIME_THRESHOLD * CONSECUTIVE_NO_REPLY_THRESHOLD
                 if (
-                    self._lian_xu_bu_hui_fu_ci_shu >= self.CONSECUTIVE_NO_REPLY_THRESHOLD
+                    self._lian_xu_bu_hui_fu_ci_shu >= CONSECUTIVE_NO_REPLY_THRESHOLD
                     and self._lian_xu_deng_dai_shi_jian >= time_threshold
                 ):
                     logger.info(
@@ -674,7 +674,7 @@ class HeartFChatting:
                     )
                     # 调用回调。注意：这里不重置计数器和时间，依赖回调函数成功改变状态来隐式重置上下文。
                     await self.on_consecutive_no_reply_callback()
-                elif self._lian_xu_bu_hui_fu_ci_shu >= self.CONSECUTIVE_NO_REPLY_THRESHOLD:
+                elif self._lian_xu_bu_hui_fu_ci_shu >= CONSECUTIVE_NO_REPLY_THRESHOLD:
                     # 仅次数达到阈值，但时间未达到
                     logger.debug(
                         f"{self.log_prefix} 连续不回复次数达到阈值 ({self._lian_xu_bu_hui_fu_ci_shu}次) "
@@ -1076,6 +1076,21 @@ class HeartFChatting:
                     f"{self.log_prefix}[Planner] 恢复了原始动作集, 当前可用: {list(self.action_manager.get_available_actions().keys())}"
                 )
         # --- 结束：确保动作恢复 ---
+
+        # --- 新增：概率性忽略文本回复附带的表情（正确的位置）---
+
+        if action == "text_reply" and emoji_query:
+            logger.debug(f"{self.log_prefix}[Planner] 大模型想让麦麦发文字时带表情: '{emoji_query}'")
+            # 掷骰子看看要不要听它的
+            if random.random() > EMOJI_SEND_PRO:
+                logger.info(
+                    f"{self.log_prefix}[Planner] 但是麦麦这次不想加表情 ({1 - EMOJI_SEND_PRO:.0%})，忽略表情 '{emoji_query}'"
+                )
+                emoji_query = ""  # 把表情请求清空，就不发了
+            else:
+                logger.info(f"{self.log_prefix}[Planner] 好吧，加上表情 '{emoji_query}'")
+        # --- 结束：概率性忽略 ---
+
         # --- 结束 LLM 决策 --- #
 
         return {

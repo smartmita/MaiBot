@@ -62,7 +62,7 @@ def register_tool(tool_class: Type[BaseTool]):
         raise ValueError(f"工具类 {tool_class.__name__} 没有定义 name 属性")
 
     TOOL_REGISTRY[tool_name] = tool_class
-    logger.info(f"已注册工具: {tool_name}")
+    logger.info(f"已注册: {tool_name}")
 
 
 def discover_tools():

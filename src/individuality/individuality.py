@@ -191,7 +191,7 @@ class Individuality:
         获取合并的个体特征prompt
 
         Args:
-            level (int): 详细程度 (1: 核心/随机细节, 2: 核心+侧面/细节+其他, 3: 全部)
+            level (int): 详细程度 (1: 核心/随机细节, 2: 核心+随机侧面/全部细节, 3: 全部)
             x_person (int, optional): 人称代词 (0: 无人称, 1: 我, 2: 你). 默认为 2.
 
         Returns:

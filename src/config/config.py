@@ -20,9 +20,9 @@ from src.common.logger_manager import get_logger
 logger = get_logger("config")
 
 # 考虑到，实际上配置文件中的mai_version是不会自动更新的,所以采用硬编码
-is_test = True
+is_test = False
 mai_version_main = "0.6.3"
-mai_version_fix = "snapshot-5"
+mai_version_fix = ""
 
 if mai_version_fix:
     if is_test:
@@ -170,32 +170,34 @@ class BotConfig:
     SCHEDULE_TEMPERATURE: float = 0.5  # 日程表温度，建议0.5-1.0
     TIME_ZONE: str = "Asia/Shanghai"  # 时区
 
-    # message
-    MAX_CONTEXT_SIZE: int = 15  # 上下文最大消息数
-    emoji_chance: float = 0.2  # 发送表情包的基础概率
-    thinking_timeout: int = 120  # 思考时间
-    max_response_length: int = 1024  # 最大回复长度
+    # chat
+    allow_focus_mode: bool = True  # 是否允许专注聊天状态
+
+    base_normal_chat_num: int = 3  # 最多允许多少个群进行普通聊天
+    base_focused_chat_num: int = 2  # 最多允许多少个群进行专注聊天
+
+    observation_context_size: int = 12  # 心流观察到的最长上下文大小，超过这个值的上下文会被压缩
+
     message_buffer: bool = True  # 消息缓冲器
 
     ban_words = set()
     ban_msgs_regex = set()
 
-    # [heartflow] # 启用启用heart_flowC(心流聊天)模式时生效, 需要填写token消耗量巨大的相关模型
-    # 启用后麦麦会自主选择进入heart_flowC模式(持续一段时间), 进行长时间高质量的聊天
+    # focus_chat
     reply_trigger_threshold: float = 3.0  # 心流聊天触发阈值，越低越容易触发
-    probability_decay_factor_per_second: float = 0.2  # 概率衰减因子，越大衰减越快
     default_decay_rate_per_second: float = 0.98  # 默认衰减率，越大衰减越慢
-    allow_focus_mode: bool = True  # 是否允许子心流进入 FOCUSED 状态
+    consecutive_no_reply_threshold = 3
 
-    # sub_heart_flow_update_interval: int = 60  # 子心流更新频率，间隔 单位秒
-    # sub_heart_flow_freeze_time: int = 120  # 子心流冻结时间，超过这个时间没有回复，子心流会冻结，间隔 单位秒
-    sub_heart_flow_stop_time: int = 600  # 子心流停止时间，超过这个时间没有回复，子心流会停止，间隔 单位秒
-    # heart_flow_update_interval: int = 300  # 心流更新频率，间隔 单位秒
-    observation_context_size: int = 20  # 心流观察到的最长上下文大小，超过这个值的上下文会被压缩
     compressed_length: int = 5  # 不能大于observation_context_size,心流上下文压缩的最短压缩长度，超过心流观察到的上下文长度，会压缩，最短压缩长度为5
     compress_length_limit: int = 5  # 最多压缩份数，超过该数值的压缩上下文会被删除
 
-    # willing
+    # normal_chat
+    model_reasoning_probability: float = 0.7  # 麦麦回答时选择推理模型(主要)模型概率
+    model_normal_probability: float = 0.3  # 麦麦回答时选择一般模型(次要)模型概率
+
+    emoji_chance: float = 0.2  # 发送表情包的基础概率
+    thinking_timeout: int = 120  # 思考时间
+
     willing_mode: str = "classical"  # 意愿模式
     response_willing_amplifier: float = 1.0  # 回复意愿放大系数
     response_interested_rate_amplifier: float = 1.0  # 回复兴趣度放大系数
@@ -203,12 +205,6 @@ class BotConfig:
     emoji_response_penalty: float = 0.0  # 表情包回复惩罚
     mentioned_bot_inevitable_reply: bool = False  # 提及 bot 必然回复
     at_bot_inevitable_reply: bool = False  # @bot 必然回复
-
-    # response
-    response_mode: str = "heart_flow"  # 回复策略
-    model_reasoning_probability: float = 0.7  # 麦麦回答时选择推理模型(主要)模型概率
-    model_normal_probability: float = 0.3  # 麦麦回答时选择一般模型(次要)模型概率
-    # MODEL_R1_DISTILL_PROBABILITY: float = 0.1  # R1蒸馏模型概率
 
     # emoji
     max_emoji_num: int = 200  # 表情包最大数量
@@ -264,6 +260,8 @@ class BotConfig:
     response_max_length = 100  # 回复允许的最大长度
     response_max_sentence_num = 3  # 回复允许的最大句子数
 
+    model_max_output_length: int = 800  # 最大回复长度
+
     # remote
     remote_enable: bool = True  # 是否启用远程控制
 
@@ -284,8 +282,7 @@ class BotConfig:
     # llm_reasoning_minor: Dict[str, str] = field(default_factory=lambda: {})
     llm_normal: Dict[str, str] = field(default_factory=lambda: {})
     llm_topic_judge: Dict[str, str] = field(default_factory=lambda: {})
-    llm_summary_by_topic: Dict[str, str] = field(default_factory=lambda: {})
-    llm_emotion_judge: Dict[str, str] = field(default_factory=lambda: {})
+    llm_summary: Dict[str, str] = field(default_factory=lambda: {})
     embedding: Dict[str, str] = field(default_factory=lambda: {})
     vlm: Dict[str, str] = field(default_factory=lambda: {})
     moderation: Dict[str, str] = field(default_factory=lambda: {})
@@ -425,63 +422,62 @@ class BotConfig:
             config.BOT_NICKNAME = bot_config.get("nickname", config.BOT_NICKNAME)
             config.BOT_ALIAS_NAMES = bot_config.get("alias_names", config.BOT_ALIAS_NAMES)
 
-        def response(parent: dict):
-            response_config = parent["response"]
-            config.model_reasoning_probability = response_config.get(
+        def chat(parent: dict):
+            chat_config = parent["chat"]
+            config.allow_focus_mode = chat_config.get("allow_focus_mode", config.allow_focus_mode)
+            config.base_normal_chat_num = chat_config.get("base_normal_chat_num", config.base_normal_chat_num)
+            config.base_focused_chat_num = chat_config.get("base_focused_chat_num", config.base_focused_chat_num)
+            config.observation_context_size = chat_config.get(
+                "observation_context_size", config.observation_context_size
+            )
+            config.message_buffer = chat_config.get("message_buffer", config.message_buffer)
+            config.ban_words = chat_config.get("ban_words", config.ban_words)
+            for r in chat_config.get("ban_msgs_regex", config.ban_msgs_regex):
+                config.ban_msgs_regex.add(re.compile(r))
+
+        def normal_chat(parent: dict):
+            normal_chat_config = parent["normal_chat"]
+            config.model_reasoning_probability = normal_chat_config.get(
                 "model_reasoning_probability", config.model_reasoning_probability
             )
-            config.model_normal_probability = response_config.get(
+            config.model_normal_probability = normal_chat_config.get(
                 "model_normal_probability", config.model_normal_probability
             )
+            config.emoji_chance = normal_chat_config.get("emoji_chance", config.emoji_chance)
+            config.thinking_timeout = normal_chat_config.get("thinking_timeout", config.thinking_timeout)
 
-        def heartflow(parent: dict):
-            heartflow_config = parent["heartflow"]
-            config.sub_heart_flow_stop_time = heartflow_config.get(
-                "sub_heart_flow_stop_time", config.sub_heart_flow_stop_time
+            config.willing_mode = normal_chat_config.get("willing_mode", config.willing_mode)
+            config.response_willing_amplifier = normal_chat_config.get(
+                "response_willing_amplifier", config.response_willing_amplifier
             )
-            if config.INNER_VERSION in SpecifierSet(">=1.3.0"):
-                config.observation_context_size = heartflow_config.get(
-                    "observation_context_size", config.observation_context_size
-                )
-                config.compressed_length = heartflow_config.get("compressed_length", config.compressed_length)
-                config.compress_length_limit = heartflow_config.get(
-                    "compress_length_limit", config.compress_length_limit
-                )
-            if config.INNER_VERSION in SpecifierSet(">=1.4.0"):
-                config.reply_trigger_threshold = heartflow_config.get(
-                    "reply_trigger_threshold", config.reply_trigger_threshold
-                )
-                config.probability_decay_factor_per_second = heartflow_config.get(
-                    "probability_decay_factor_per_second", config.probability_decay_factor_per_second
-                )
-                config.default_decay_rate_per_second = heartflow_config.get(
-                    "default_decay_rate_per_second", config.default_decay_rate_per_second
-                )
-            if config.INNER_VERSION in SpecifierSet(">=1.5.1"):
-                config.allow_focus_mode = heartflow_config.get("allow_focus_mode", config.allow_focus_mode)
+            config.response_interested_rate_amplifier = normal_chat_config.get(
+                "response_interested_rate_amplifier", config.response_interested_rate_amplifier
+            )
+            config.down_frequency_rate = normal_chat_config.get("down_frequency_rate", config.down_frequency_rate)
+            config.emoji_response_penalty = normal_chat_config.get(
+                "emoji_response_penalty", config.emoji_response_penalty
+            )
 
-        def willing(parent: dict):
-            willing_config = parent["willing"]
-            config.willing_mode = willing_config.get("willing_mode", config.willing_mode)
+            config.mentioned_bot_inevitable_reply = normal_chat_config.get(
+                "mentioned_bot_inevitable_reply", config.mentioned_bot_inevitable_reply
+            )
+            config.at_bot_inevitable_reply = normal_chat_config.get(
+                "at_bot_inevitable_reply", config.at_bot_inevitable_reply
+            )
 
-            if config.INNER_VERSION in SpecifierSet(">=0.0.11"):
-                config.response_willing_amplifier = willing_config.get(
-                    "response_willing_amplifier", config.response_willing_amplifier
-                )
-                config.response_interested_rate_amplifier = willing_config.get(
-                    "response_interested_rate_amplifier", config.response_interested_rate_amplifier
-                )
-                config.down_frequency_rate = willing_config.get("down_frequency_rate", config.down_frequency_rate)
-                config.emoji_response_penalty = willing_config.get(
-                    "emoji_response_penalty", config.emoji_response_penalty
-                )
-            if config.INNER_VERSION in SpecifierSet(">=1.2.5"):
-                config.mentioned_bot_inevitable_reply = willing_config.get(
-                    "mentioned_bot_inevitable_reply", config.mentioned_bot_inevitable_reply
-                )
-                config.at_bot_inevitable_reply = willing_config.get(
-                    "at_bot_inevitable_reply", config.at_bot_inevitable_reply
-                )
+        def focus_chat(parent: dict):
+            focus_chat_config = parent["focus_chat"]
+            config.compressed_length = focus_chat_config.get("compressed_length", config.compressed_length)
+            config.compress_length_limit = focus_chat_config.get("compress_length_limit", config.compress_length_limit)
+            config.reply_trigger_threshold = focus_chat_config.get(
+                "reply_trigger_threshold", config.reply_trigger_threshold
+            )
+            config.default_decay_rate_per_second = focus_chat_config.get(
+                "default_decay_rate_per_second", config.default_decay_rate_per_second
+            )
+            config.consecutive_no_reply_threshold = focus_chat_config.get(
+                "consecutive_no_reply_threshold", config.consecutive_no_reply_threshold
+            )
 
         def model(parent: dict):
             # 加载模型配置
@@ -492,8 +488,7 @@ class BotConfig:
                 # "llm_reasoning_minor",
                 "llm_normal",
                 "llm_topic_judge",
-                "llm_summary_by_topic",
-                "llm_emotion_judge",
+                "llm_summary",
                 "vlm",
                 "embedding",
                 "llm_tool_use",
@@ -573,26 +568,6 @@ class BotConfig:
                     logger.error(f"模型 {item} 在config中不存在，请检查，或尝试更新配置文件")
                     raise KeyError(f"模型 {item} 在config中不存在，请检查，或尝试更新配置文件")
 
-        def message(parent: dict):
-            msg_config = parent["message"]
-            config.MAX_CONTEXT_SIZE = msg_config.get("max_context_size", config.MAX_CONTEXT_SIZE)
-            config.emoji_chance = msg_config.get("emoji_chance", config.emoji_chance)
-            config.ban_words = msg_config.get("ban_words", config.ban_words)
-            config.thinking_timeout = msg_config.get("thinking_timeout", config.thinking_timeout)
-            config.response_willing_amplifier = msg_config.get(
-                "response_willing_amplifier", config.response_willing_amplifier
-            )
-            config.response_interested_rate_amplifier = msg_config.get(
-                "response_interested_rate_amplifier", config.response_interested_rate_amplifier
-            )
-            config.down_frequency_rate = msg_config.get("down_frequency_rate", config.down_frequency_rate)
-            for r in msg_config.get("ban_msgs_regex", config.ban_msgs_regex):
-                config.ban_msgs_regex.add(re.compile(r))
-            if config.INNER_VERSION in SpecifierSet(">=0.0.11"):
-                config.max_response_length = msg_config.get("max_response_length", config.max_response_length)
-            if config.INNER_VERSION in SpecifierSet(">=1.1.4"):
-                config.message_buffer = msg_config.get("message_buffer", config.message_buffer)
-
         def memory(parent: dict):
             memory_config = parent["memory"]
             config.build_memory_interval = memory_config.get("build_memory_interval", config.build_memory_interval)
@@ -667,6 +642,10 @@ class BotConfig:
                 config.enable_kaomoji_protection = response_splitter_config.get(
                     "enable_kaomoji_protection", config.enable_kaomoji_protection
                 )
+            if config.INNER_VERSION in SpecifierSet(">=1.6.0"):
+                config.model_max_output_length = response_splitter_config.get(
+                    "model_max_output_length", config.model_max_output_length
+                )
 
         def groups(parent: dict):
             groups_config = parent["groups"]
@@ -712,10 +691,7 @@ class BotConfig:
             "personality": {"func": personality, "support": ">=0.0.0"},
             "identity": {"func": identity, "support": ">=1.2.4"},
             "schedule": {"func": schedule, "support": ">=0.0.11", "necessary": False},
-            "message": {"func": message, "support": ">=0.0.0"},
-            "willing": {"func": willing, "support": ">=0.0.9", "necessary": False},
             "emoji": {"func": emoji, "support": ">=0.0.0"},
-            "response": {"func": response, "support": ">=0.0.0"},
             "model": {"func": model, "support": ">=0.0.0"},
             "memory": {"func": memory, "support": ">=0.0.0", "necessary": False},
             "mood": {"func": mood, "support": ">=0.0.0"},
@@ -725,7 +701,9 @@ class BotConfig:
             "platforms": {"func": platforms, "support": ">=1.0.0"},
             "response_splitter": {"func": response_splitter, "support": ">=0.0.11", "necessary": False},
             "experimental": {"func": experimental, "support": ">=0.0.11", "necessary": False},
-            "heartflow": {"func": heartflow, "support": ">=1.0.2", "necessary": False},
+            "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
+            "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
+            "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
             "group_nickname": {"func": group_nickname, "support": ">=0.6.3", "necessary": False},
         }
 

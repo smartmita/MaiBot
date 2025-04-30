@@ -146,7 +146,7 @@ class ChattingObservation(Observation):
 
         self.talking_message_str = await build_readable_messages(
             messages=self.talking_message,
-            timestamp_mode="normal",
+            timestamp_mode="lite",
             read_mark=last_obs_time_mark,
         )
         self.talking_message_str_truncate = await build_readable_messages(

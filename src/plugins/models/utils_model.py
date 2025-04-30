@@ -632,7 +632,7 @@ class LLMRequest:
             **params_copy,
         }
         if "max_tokens" not in payload and "max_completion_tokens" not in payload:
-            payload["max_tokens"] = global_config.max_response_length
+            payload["max_tokens"] = global_config.model_max_output_length
         # 如果 payload 中依然存在 max_tokens 且需要转换，在这里进行再次检查
         if self.model_name.lower() in self.MODELS_NEEDING_TRANSFORMATION and "max_tokens" in payload:
             payload["max_completion_tokens"] = payload.pop("max_tokens")

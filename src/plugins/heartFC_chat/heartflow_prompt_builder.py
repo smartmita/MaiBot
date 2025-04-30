@@ -71,7 +71,7 @@ def init_prompt():
 2. 文字回复(text_reply)适用：
 - 有实质性内容需要表达
 - 有人提到你，但你还没有回应他
-- 可以追加emoji_query表达情绪(格式：情绪描述,如"俏皮的调侃")
+- 可以追加emoji_query表达情绪(emoji_query填写表情包的适用场合，也就是当前场合)
 - 不要追加太多表情
 
 3. 纯表情回复(emoji_reply)适用：
@@ -176,7 +176,7 @@ class PromptBuilder:
         message_list_before_now = get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_stream.stream_id,
             timestamp=time.time(),
-            limit=global_config.MAX_CONTEXT_SIZE,
+            limit=global_config.observation_context_size,
         )
 
         chat_talking_prompt = await build_readable_messages(
@@ -280,6 +280,8 @@ class PromptBuilder:
             moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
         )
 
+        logger.debug(f"focus_chat_prompt: \n{prompt}")
+
         return prompt
 
     async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> tuple[str, str]:
@@ -293,7 +295,7 @@ class PromptBuilder:
         who_chat_in_group += get_recent_group_speaker(
             chat_stream.stream_id,
             (chat_stream.user_info.platform, chat_stream.user_info.user_id),
-            limit=global_config.MAX_CONTEXT_SIZE,
+            limit=global_config.observation_context_size,
         )
 
         relation_prompt = ""
@@ -352,7 +354,7 @@ class PromptBuilder:
         message_list_before_now = get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_stream.stream_id,
             timestamp=time.time(),
-            limit=global_config.MAX_CONTEXT_SIZE,
+            limit=global_config.observation_context_size,
         )
 
         chat_talking_prompt = await build_readable_messages(

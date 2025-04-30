@@ -69,16 +69,17 @@ class KnowledgeFetcher:
             fast_retrieval=False,
         )
         knowledge_text = ""
-        sources = []
+        sources_text = "无记忆匹配"  # 默认值
         if related_memory:
+            sources = []
             for memory in related_memory:
                 knowledge_text += memory[1] + "\n"
                 sources.append(f"记忆片段{memory[0]}")
             knowledge_text = knowledge_text.strip()
             sources_text = "，".join(sources)
 
-        knowledge_text += "现在有以下**知识**可供参考：\n "
+        knowledge_text += "\n现在有以下**知识**可供参考：\n "
         knowledge_text += self._lpmm_get_knowledge(query)
-        knowledge_text += "请记住这些**知识**，并根据**知识**回答问题。\n"
+        knowledge_text += "\n请记住这些**知识**，并根据**知识**回答问题。\n"
 
         return knowledge_text or "未找到相关知识", sources_text or "无记忆匹配"

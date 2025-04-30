@@ -14,7 +14,7 @@ class SearchKnowledgeFromLPMMTool(BaseTool):
     """从LPMM知识库中搜索相关信息的工具"""
 
     name = "lpmm_search_knowledge"
-    description = "从知识库中搜索相关信息"
+    description = "从知识库中搜索相关信息，如果你需要知识，就使用这个工具"
     parameters = {
         "type": "object",
         "properties": {

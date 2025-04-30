@@ -140,11 +140,11 @@ class SubMind:
         individuality = Individuality.get_instance()
 
         relation_prompt = ""
-        print(f"person_list: {person_list}")
+        # print(f"person_list: {person_list}")
         for person in person_list:
             relation_prompt += await relationship_manager.build_relationship_info(person, is_id=True)
 
-        print(f"relat22222ion_prompt: {relation_prompt}")
+        # print(f"relat22222ion_prompt: {relation_prompt}")
 
         # 构建个性部分
         prompt_personality = individuality.get_prompt(x_person=2, level=2)

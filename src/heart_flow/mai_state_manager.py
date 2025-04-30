@@ -4,24 +4,30 @@ import random
 from typing import List, Tuple, Optional
 from src.common.logger_manager import get_logger
 from src.plugins.moods.moods import MoodManager
+from src.config.config import global_config
 
 logger = get_logger("mai_state")
 
 
 # -- 状态相关的可配置参数 (可以从 glocal_config 加载) --
-enable_unlimited_hfc_chat = True  # 调试用：无限专注聊天
-# enable_unlimited_hfc_chat = False
-prevent_offline_state = True  # 调试用：防止进入离线状态
+# enable_unlimited_hfc_chat = True  # 调试用：无限专注聊天
+enable_unlimited_hfc_chat = False
+prevent_offline_state = True
+# 目前默认不启用OFFLINE状态
 
 # 不同状态下普通聊天的最大消息数
-MAX_NORMAL_CHAT_NUM_PEEKING = 30
-MAX_NORMAL_CHAT_NUM_NORMAL = 40
-MAX_NORMAL_CHAT_NUM_FOCUSED = 30
+base_normal_chat_num = global_config.base_normal_chat_num
+base_focused_chat_num = global_config.base_focused_chat_num
+
+
+MAX_NORMAL_CHAT_NUM_PEEKING = int(base_normal_chat_num / 2)
+MAX_NORMAL_CHAT_NUM_NORMAL = base_normal_chat_num
+MAX_NORMAL_CHAT_NUM_FOCUSED = base_normal_chat_num + 1
 
 # 不同状态下专注聊天的最大消息数
-MAX_FOCUSED_CHAT_NUM_PEEKING = 20
-MAX_FOCUSED_CHAT_NUM_NORMAL = 30
-MAX_FOCUSED_CHAT_NUM_FOCUSED = 40
+MAX_FOCUSED_CHAT_NUM_PEEKING = int(base_focused_chat_num / 2)
+MAX_FOCUSED_CHAT_NUM_NORMAL = base_focused_chat_num
+MAX_FOCUSED_CHAT_NUM_FOCUSED = base_focused_chat_num + 2
 
 # -- 状态定义 --
 
@@ -164,7 +170,7 @@ class MaiStateManager:
                 if random.random() < 0.03:  # 3% 概率切换到 OFFLINE
                     potential_next = MaiState.OFFLINE
                     resolved_next = _resolve_offline(potential_next)
-                    logger.debug(f"规则1：概率触发下线，resolve 为 {resolved_next.value}")
+                    logger.debug(f"概率触发下线，resolve 为 {resolved_next.value}")
                     # 只有当解析后的状态与当前状态不同时才设置 next_state
                     if resolved_next != current_status:
                         next_state = resolved_next

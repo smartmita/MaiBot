@@ -12,10 +12,17 @@ from src.heart_flow.interest_logger import InterestLogger
 
 logger = get_logger("background_tasks")
 
-# 新增随机停用间隔 (5 分钟)
-RANDOM_DEACTIVATION_INTERVAL_SECONDS = 300
+
 # 新增兴趣评估间隔
 INTEREST_EVAL_INTERVAL_SECONDS = 5
+# 新增聊天超时检查间隔
+NORMAL_CHAT_TIMEOUT_CHECK_INTERVAL_SECONDS = 60
+# 新增状态评估间隔
+HF_JUDGE_STATE_UPDATE_INTERVAL_SECONDS = 60
+
+CLEANUP_INTERVAL_SECONDS = 1200
+STATE_UPDATE_INTERVAL_SECONDS = 60
+LOG_INTERVAL_SECONDS = 3
 
 
 class BackgroundTaskManager:
@@ -27,33 +34,19 @@ class BackgroundTaskManager:
         mai_state_manager: MaiStateManager,
         subheartflow_manager: SubHeartflowManager,
         interest_logger: InterestLogger,
-        update_interval: int,
-        cleanup_interval: int,
-        log_interval: int,
-        # 新增兴趣评估间隔参数
-        interest_eval_interval: int = INTEREST_EVAL_INTERVAL_SECONDS,
-        # 新增随机停用间隔参数
-        random_deactivation_interval: int = RANDOM_DEACTIVATION_INTERVAL_SECONDS,
     ):
         self.mai_state_info = mai_state_info
         self.mai_state_manager = mai_state_manager
         self.subheartflow_manager = subheartflow_manager
         self.interest_logger = interest_logger
 
-        # Intervals
-        self.update_interval = update_interval
-        self.cleanup_interval = cleanup_interval
-        self.log_interval = log_interval
-        self.interest_eval_interval = interest_eval_interval  # 存储兴趣评估间隔
-        self.random_deactivation_interval = random_deactivation_interval  # 存储随机停用间隔
-
         # Task references
         self._state_update_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._logging_task: Optional[asyncio.Task] = None
-        self._interest_eval_task: Optional[asyncio.Task] = None  # 新增兴趣评估任务引用
-        self._random_deactivation_task: Optional[asyncio.Task] = None  # 新增随机停用任务引用
-        self._hf_judge_state_update_task: Optional[asyncio.Task] = None  # 新增状态评估任务引用
+        self._normal_chat_timeout_check_task: Optional[asyncio.Task] = None  # Nyaa~ 添加聊天超时检查任务的引用
+        self._hf_judge_state_update_task: Optional[asyncio.Task] = None  # Nyaa~ 添加状态评估任务的引用
+        self._into_focus_task: Optional[asyncio.Task] = None  # Nyaa~ 添加兴趣评估任务的引用
         self._tasks: List[Optional[asyncio.Task]] = []  # Keep track of all tasks
 
     async def start_tasks(self):
@@ -65,57 +58,53 @@ class BackgroundTaskManager:
         - 将任务引用保存到任务列表
         """
 
-        # 任务配置列表: (任务变量名, 任务函数, 任务名称, 日志级别, 额外日志信息, 任务对象引用属性名)
+        # 任务配置列表: (任务函数, 任务名称, 日志级别, 额外日志信息, 任务对象引用属性名)
         task_configs = [
             (
-                self._state_update_task,
-                lambda: self._run_state_update_cycle(self.update_interval),
-                "hf_state_update",
+                lambda: self._run_state_update_cycle(STATE_UPDATE_INTERVAL_SECONDS),
                 "debug",
-                f"聊天状态更新任务已启动 间隔:{self.update_interval}s",
+                f"聊天状态更新任务已启动 间隔:{STATE_UPDATE_INTERVAL_SECONDS}s",
                 "_state_update_task",
             ),
             (
-                self._hf_judge_state_update_task,
-                lambda: self._run_hf_judge_state_update_cycle(60),
-                "hf_judge_state_update",
+                lambda: self._run_normal_chat_timeout_check_cycle(NORMAL_CHAT_TIMEOUT_CHECK_INTERVAL_SECONDS),
                 "debug",
-                f"状态评估任务已启动 间隔:{60}s",
+                f"聊天超时检查任务已启动 间隔:{NORMAL_CHAT_TIMEOUT_CHECK_INTERVAL_SECONDS}s",
+                "_normal_chat_timeout_check_task",
+            ),
+            (
+                lambda: self._run_absent_into_chat(HF_JUDGE_STATE_UPDATE_INTERVAL_SECONDS),
+                "debug",
+                f"状态评估任务已启动 间隔:{HF_JUDGE_STATE_UPDATE_INTERVAL_SECONDS}s",
                 "_hf_judge_state_update_task",
             ),
             (
-                self._cleanup_task,
                 self._run_cleanup_cycle,
-                "hf_cleanup",
                 "info",
-                f"清理任务已启动 间隔:{self.cleanup_interval}s",
+                f"清理任务已启动 间隔:{CLEANUP_INTERVAL_SECONDS}s",
                 "_cleanup_task",
             ),
             (
-                self._logging_task,
                 self._run_logging_cycle,
-                "hf_logging",
                 "info",
-                f"日志任务已启动 间隔:{self.log_interval}s",
+                f"日志任务已启动 间隔:{LOG_INTERVAL_SECONDS}s",
                 "_logging_task",
             ),
             # 新增兴趣评估任务配置
             (
-                self._interest_eval_task,
-                self._run_interest_eval_cycle,
-                "hf_interest_eval",
+                self._run_into_focus_cycle,
                 "debug",  # 设为debug，避免过多日志
-                f"兴趣评估任务已启动 间隔:{self.interest_eval_interval}s",
-                "_interest_eval_task",
+                f"专注评估任务已启动 间隔:{INTEREST_EVAL_INTERVAL_SECONDS}s",
+                "_into_focus_task",
             ),
         ]
 
         # 统一启动所有任务
-        for _task_var, task_func, task_name, log_level, log_msg, task_attr_name in task_configs:
+        for task_func, log_level, log_msg, task_attr_name in task_configs:
             # 检查任务变量是否存在且未完成
             current_task_var = getattr(self, task_attr_name)
             if current_task_var is None or current_task_var.done():
-                new_task = asyncio.create_task(task_func(), name=task_name)
+                new_task = asyncio.create_task(task_func())
                 setattr(self, task_attr_name, new_task)  # 更新任务变量
                 if new_task not in self._tasks:  # 避免重复添加
                     self._tasks.append(new_task)
@@ -123,7 +112,7 @@ class BackgroundTaskManager:
                 # 根据配置记录不同级别的日志
                 getattr(logger, log_level)(log_msg)
             else:
-                logger.warning(f"{task_name}任务已在运行")
+                logger.warning(f"{task_attr_name}任务已在运行")
 
     async def stop_tasks(self):
         """停止所有后台任务。
@@ -209,10 +198,15 @@ class BackgroundTaskManager:
                 logger.info("检测到离线，停用所有子心流")
                 await self.subheartflow_manager.deactivate_all_subflows()
 
-    async def _perform_hf_judge_state_update_work(self):
+    async def _perform_absent_into_chat(self):
         """调用llm检测是否转换ABSENT-CHAT状态"""
-        logger.info("[状态评估任务] 开始基于LLM评估子心流状态...")
-        await self.subheartflow_manager.evaluate_and_transition_subflows_by_llm()
+        logger.debug("[状态评估任务] 开始基于LLM评估子心流状态...")
+        await self.subheartflow_manager.sbhf_absent_into_chat()
+
+    async def _normal_chat_timeout_check_work(self):
+        """检查处于CHAT状态的子心流是否因长时间未发言而超时，并将其转为ABSENT"""
+        logger.debug("[聊天超时检查] 开始检查处于CHAT状态的子心流...")
+        await self.subheartflow_manager.sbhf_chat_into_absent()
 
     async def _perform_cleanup_work(self):
         """执行子心流清理任务
@@ -244,10 +238,10 @@ class BackgroundTaskManager:
         await self.interest_logger.log_all_states()
 
     # --- 新增兴趣评估工作函数 ---
-    async def _perform_interest_eval_work(self):
+    async def _perform_into_focus_work(self):
         """执行一轮子心流兴趣评估与提升检查。"""
         # 直接调用 subheartflow_manager 的方法，并传递当前状态信息
-        await self.subheartflow_manager.evaluate_interest_and_promote()
+        await self.subheartflow_manager.sbhf_absent_into_focus()
 
     # --- 结束新增 ---
 
@@ -259,25 +253,30 @@ class BackgroundTaskManager:
             task_name="State Update", interval=interval, task_func=self._perform_state_update_work
         )
 
-    async def _run_hf_judge_state_update_cycle(self, interval: int):
+    async def _run_absent_into_chat(self, interval: int):
         await self._run_periodic_loop(
-            task_name="State Update", interval=interval, task_func=self._perform_hf_judge_state_update_work
+            task_name="Into Chat", interval=interval, task_func=self._perform_absent_into_chat
+        )
+
+    async def _run_normal_chat_timeout_check_cycle(self, interval: int):
+        await self._run_periodic_loop(
+            task_name="Normal Chat Timeout Check", interval=interval, task_func=self._normal_chat_timeout_check_work
         )
 
     async def _run_cleanup_cycle(self):
         await self._run_periodic_loop(
-            task_name="Subflow Cleanup", interval=self.cleanup_interval, task_func=self._perform_cleanup_work
+            task_name="Subflow Cleanup", interval=CLEANUP_INTERVAL_SECONDS, task_func=self._perform_cleanup_work
         )
 
     async def _run_logging_cycle(self):
         await self._run_periodic_loop(
-            task_name="State Logging", interval=self.log_interval, task_func=self._perform_logging_work
+            task_name="State Logging", interval=LOG_INTERVAL_SECONDS, task_func=self._perform_logging_work
         )
 
     # --- 新增兴趣评估任务运行器 ---
-    async def _run_interest_eval_cycle(self):
+    async def _run_into_focus_cycle(self):
         await self._run_periodic_loop(
-            task_name="Interest Evaluation",
-            interval=self.interest_eval_interval,
-            task_func=self._perform_interest_eval_work,
+            task_name="Into Focus",
+            interval=INTEREST_EVAL_INTERVAL_SECONDS,
+            task_func=self._perform_into_focus_work,
         )

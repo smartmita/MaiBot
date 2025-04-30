@@ -106,8 +106,8 @@ c HeartFChatting工作方式
     - 负责所有 `SubHeartflow` 实例的生命周期管理，包括：
         - 创建和获取 (`get_or_create_subheartflow`)。
         - 停止和清理 (`sleep_subheartflow`, `cleanup_inactive_subheartflows`)。
-        - 根据 `Heartflow` 的状态 (`self.mai_state_info`) 和限制条件，激活、停用或调整子心流的状态（例如 `enforce_subheartflow_limits`, `randomly_deactivate_subflows`, `evaluate_interest_and_promote`）。
-        - **新增**: 通过调用 `evaluate_and_transition_subflows_by_llm` 方法，使用 LLM (配置与 `Heartflow` 主 LLM 相同) 评估处于 `ABSENT` 或 `CHAT` 状态的子心流，根据观察到的活动摘要和 `Heartflow` 的当前状态，判断是否应在 `ABSENT` 和 `CHAT` 之间进行转换 (同样受限于 `CHAT` 状态的数量上限)。
+        - 根据 `Heartflow` 的状态 (`self.mai_state_info`) 和限制条件，激活、停用或调整子心流的状态（例如 `enforce_subheartflow_limits`, `randomly_deactivate_subflows`, `sbhf_absent_into_focus`）。
+        - **新增**: 通过调用 `sbhf_absent_into_chat` 方法，使用 LLM (配置与 `Heartflow` 主 LLM 相同) 评估处于 `ABSENT` 或 `CHAT` 状态的子心流，根据观察到的活动摘要和 `Heartflow` 的当前状态，判断是否应在 `ABSENT` 和 `CHAT` 之间进行转换 (同样受限于 `CHAT` 状态的数量上限)。
     - **清理机制**: 通过后台任务 (`BackgroundTaskManager`) 定期调用 `cleanup_inactive_subheartflows` 方法，此方法会识别并**删除**那些处于 `ABSENT` 状态超过一小时 (`INACTIVE_THRESHOLD_SECONDS`) 的子心流实例。
 
 ### 1.5. 消息处理与回复流程 (Message Processing vs. Replying Flow)
@@ -155,20 +155,20 @@ c HeartFChatting工作方式
     - **初始状态**: 新创建的 `SubHeartflow` 默认为 `ABSENT` 状态。
     - **`ABSENT` -> `CHAT` (激活闲聊)**:
         - **触发条件**: `Heartflow` 的主状态 (`MaiState`) 允许 `CHAT` 模式，且当前 `CHAT` 状态的子心流数量未达上限。
-        - **判定机制**: `SubHeartflowManager` 中的 `evaluate_and_transition_subflows_by_llm` 方法调用大模型(LLM)。LLM 读取该群聊的近期内容和结合自身个性信息，判断是否"想"在该群开始聊天。
+        - **判定机制**: `SubHeartflowManager` 中的 `sbhf_absent_into_chat` 方法调用大模型(LLM)。LLM 读取该群聊的近期内容和结合自身个性信息，判断是否"想"在该群开始聊天。
         - **执行**: 若 LLM 判断为是，且名额未满，`SubHeartflowManager` 调用 `change_chat_state(ChatState.CHAT)`。
     - **`CHAT` -> `FOCUSED` (激活专注)**:
         - **触发条件**: 子心流处于 `CHAT` 状态，其内部维护的"开屎热聊"概率 (`InterestChatting.start_hfc_probability`) 达到预设阈值（表示对当前聊天兴趣浓厚），同时 `Heartflow` 的主状态允许 `FOCUSED` 模式，且 `FOCUSED` 名额未满。
-        - **判定机制**: `SubHeartflowManager` 中的 `evaluate_interest_and_promote` 方法定期检查满足条件的 `CHAT` 子心流。
+        - **判定机制**: `SubHeartflowManager` 中的 `sbhf_absent_into_focus` 方法定期检查满足条件的 `CHAT` 子心流。
         - **执行**: 若满足所有条件，`SubHeartflowManager` 调用 `change_chat_state(ChatState.FOCUSED)`。
         - **注意**: 无法从 `ABSENT` 直接跳到 `FOCUSED`，必须先经过 `CHAT`。
     - **`FOCUSED` -> `ABSENT` (退出专注)**:
-        - **主要途径 (内部驱动)**: 在 `FOCUSED` 状态下运行的 `HeartFlowChatInstance` 连续多次决策为 `no_reply` (例如达到 5 次，次数可配)，它会通过回调函数 (`request_absent_transition`) 请求 `SubHeartflowManager` 将其状态**直接**设置为 `ABSENT`。
+        - **主要途径 (内部驱动)**: 在 `FOCUSED` 状态下运行的 `HeartFlowChatInstance` 连续多次决策为 `no_reply` (例如达到 5 次，次数可配)，它会通过回调函数 (`sbhf_focus_into_absent`) 请求 `SubHeartflowManager` 将其状态**直接**设置为 `ABSENT`。
         - **其他途径 (外部驱动)**:
             - `Heartflow` 主状态变为 `OFFLINE`，`SubHeartflowManager` 强制所有子心流变为 `ABSENT`。
             - `SubHeartflowManager` 因 `FOCUSED` 名额超限 (`enforce_subheartflow_limits`) 或随机停用 (`randomly_deactivate_subflows`) 而将其设置为 `ABSENT`。
     - **`CHAT` -> `ABSENT` (退出闲聊)**:
-        - **主要途径 (内部驱动)**: `SubHeartflowManager` 中的 `evaluate_and_transition_subflows_by_llm` 方法调用 LLM。LLM 读取群聊内容和结合自身状态，判断是否"不想"继续在此群闲聊。
+        - **主要途径 (内部驱动)**: `SubHeartflowManager` 中的 `sbhf_absent_into_chat` 方法调用 LLM。LLM 读取群聊内容和结合自身状态，判断是否"不想"继续在此群闲聊。
         - **执行**: 若 LLM 判断为是，`SubHeartflowManager` 调用 `change_chat_state(ChatState.ABSENT)`。
         - **其他途径 (外部驱动)**:
             - `Heartflow` 主状态变为 `OFFLINE`。

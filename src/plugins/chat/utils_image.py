@@ -5,6 +5,7 @@ import hashlib
 from typing import Optional
 from PIL import Image
 import io
+import numpy as np
 
 
 from ...common.database import db
@@ -231,14 +232,16 @@ class ImageManager:
             return "[图片]"
 
     @staticmethod
-    def transform_gif(gif_base64: str) -> str:
-        """将GIF转换为水平拼接的静态图像
+    def transform_gif(gif_base64: str, similarity_threshold: float = 1000.0, max_frames: int = 15) -> Optional[str]:
+        """将GIF转换为水平拼接的静态图像, 跳过相似的帧
 
         Args:
             gif_base64: GIF的base64编码字符串
+            similarity_threshold: 判定帧相似的阈值 (MSE)，越小表示要求差异越大才算不同帧，默认1000.0
+            max_frames: 最大抽取的帧数，默认15
 
         Returns:
-            str: 拼接后的JPG图像的base64编码字符串
+            Optional[str]: 拼接后的JPG图像的base64编码字符串, 或者在失败时返回None
         """
         try:
             # 解码base64
@@ -246,41 +249,88 @@ class ImageManager:
             gif = Image.open(io.BytesIO(gif_data))
 
             # 收集所有帧
-            frames = []
+            all_frames = []
             try:
                 while True:
-                    gif.seek(len(frames))
+                    gif.seek(len(all_frames))
+                    # 确保是RGB格式方便比较
                     frame = gif.convert("RGB")
-                    frames.append(frame.copy())
+                    all_frames.append(frame.copy())
             except EOFError:
-                pass
+                pass  # 读完啦
 
-            if not frames:
-                raise ValueError("No frames found in GIF")
+            if not all_frames:
+                logger.warning("GIF中没有找到任何帧")
+                return None  # 空的GIF直接返回None
 
-            # 计算需要抽取的帧的索引
-            total_frames = len(frames)
-            if total_frames <= 15:
-                selected_frames = frames
-            else:
-                # 均匀抽取10帧
-                indices = [int(i * (total_frames - 1) / 14) for i in range(15)]
-                selected_frames = [frames[i] for i in indices]
+            # --- 新的帧选择逻辑 ---
+            selected_frames = []
+            last_selected_frame_np = None
 
-            # 获取单帧的尺寸
+            for i, current_frame in enumerate(all_frames):
+                current_frame_np = np.array(current_frame)
+
+                # 第一帧总是要选的
+                if i == 0:
+                    selected_frames.append(current_frame)
+                    last_selected_frame_np = current_frame_np
+                    continue
+
+                # 计算和上一张选中帧的差异（均方误差 MSE）
+                if last_selected_frame_np is not None:
+                    mse = np.mean((current_frame_np - last_selected_frame_np) ** 2)
+                    # logger.trace(f"帧 {i} 与上一选中帧的 MSE: {mse}") # 可以取消注释来看差异值
+
+                    # 如果差异够大，就选它！
+                    if mse > similarity_threshold:
+                        selected_frames.append(current_frame)
+                        last_selected_frame_np = current_frame_np
+                        # 检查是不是选够了
+                        if len(selected_frames) >= max_frames:
+                            # logger.debug(f"已选够 {max_frames} 帧，停止选择。")
+                            break
+                # 如果差异不大就跳过这一帧啦
+
+            # --- 帧选择逻辑结束 ---
+
+            # 如果选择后连一帧都没有（比如GIF只有一帧且后续处理失败？）或者原始GIF就没帧，也返回None
+            if not selected_frames:
+                logger.warning("处理后没有选中任何帧")
+                return None
+
+            # logger.debug(f"总帧数: {len(all_frames)}, 选中帧数: {len(selected_frames)}")
+
+            # 获取选中的第一帧的尺寸（假设所有帧尺寸一致）
             frame_width, frame_height = selected_frames[0].size
 
             # 计算目标尺寸，保持宽高比
             target_height = 200  # 固定高度
+            # 防止除以零
+            if frame_height == 0:
+                logger.error("帧高度为0，无法计算缩放尺寸")
+                return None
             target_width = int((target_height / frame_height) * frame_width)
+            # 宽度也不能是0
+            if target_width == 0:
+                logger.warning(f"计算出的目标宽度为0 (原始尺寸 {frame_width}x{frame_height})，调整为1")
+                target_width = 1
 
-            # 调整所有帧的大小
+            # 调整所有选中帧的大小
             resized_frames = [
                 frame.resize((target_width, target_height), Image.Resampling.LANCZOS) for frame in selected_frames
             ]
 
             # 创建拼接图像
             total_width = target_width * len(resized_frames)
+            # 防止总宽度为0
+            if total_width == 0 and len(resized_frames) > 0:
+                logger.warning("计算出的总宽度为0，但有选中帧，可能目标宽度太小")
+                # 至少给点宽度吧
+                total_width = len(resized_frames)
+            elif total_width == 0:
+                logger.error("计算出的总宽度为0且无选中帧")
+                return None
+
             combined_image = Image.new("RGB", (total_width, target_height))
 
             # 水平拼接图像
@@ -289,14 +339,17 @@ class ImageManager:
 
             # 转换为base64
             buffer = io.BytesIO()
-            combined_image.save(buffer, format="JPEG", quality=85)
+            combined_image.save(buffer, format="JPEG", quality=85)  # 保存为JPEG
             result_base64 = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
             return result_base64
 
+        except MemoryError:
+            logger.error("GIF转换失败: 内存不足，可能是GIF太大或帧数太多")
+            return None  # 内存不够啦
         except Exception as e:
-            logger.error(f"GIF转换失败: {str(e)}")
-            return None
+            logger.error(f"GIF转换失败: {str(e)}", exc_info=True)  # 记录详细错误信息
+            return None  # 其他错误也返回None
 
 
 # 创建全局单例

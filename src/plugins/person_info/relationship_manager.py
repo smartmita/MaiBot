@@ -294,13 +294,10 @@ class RelationshipManager:
                 logger.warning(f"Invalid person_id format for prompt building: {person_id}")
                 person_name = None
         else:
-            platform, user_id, _ = person # 解包元组
-            person_id = person_info_manager.get_person_id(platform, user_id)
-            person_name = await self.get_person_name(platform, user_id)
-
-        if not person_name:
-            person_name = f"用户({person_id})" # 回退显示 ID
-
+            # print(f"person: {person}")
+            person_id = person_info_manager.get_person_id(person[0], person[1])
+        person_name = await person_info_manager.get_value(person_id, "person_name")
+        # print(f"person_name: {person_name}")
         relationship_value = await person_info_manager.get_value(person_id, "relationship_value")
         relationship_value = self.ensure_float(relationship_value, person_id) # 确保是 float
         level_num = self.calculate_level_num(relationship_value)

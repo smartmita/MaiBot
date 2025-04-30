@@ -11,18 +11,8 @@ from src.heart_flow.subheartflow_manager import SubHeartflowManager
 from src.heart_flow.mind import Mind
 from src.heart_flow.interest_logger import InterestLogger  # Import InterestLogger
 from src.heart_flow.background_tasks import BackgroundTaskManager  # Import BackgroundTaskManager
-# --- End import ---
 
 logger = get_logger("heartflow")
-
-
-# Task Intervals (should be in BackgroundTaskManager or config)
-CLEANUP_INTERVAL_SECONDS = 1200
-STATE_UPDATE_INTERVAL_SECONDS = 60
-
-# Thresholds (should be in SubHeartflowManager or config)
-INACTIVE_THRESHOLD_SECONDS = 1200
-# --- End Constants --- #
 
 
 class Heartflow:
@@ -65,9 +55,6 @@ class Heartflow:
             mai_state_manager=self.mai_state_manager,
             subheartflow_manager=self.subheartflow_manager,
             interest_logger=self.interest_logger,
-            update_interval=STATE_UPDATE_INTERVAL_SECONDS,
-            cleanup_interval=CLEANUP_INTERVAL_SECONDS,
-            log_interval=3,  # Example: Using value directly, ideally get from config
         )
 
     async def get_or_create_subheartflow(self, subheartflow_id: Any) -> Optional["SubHeartflow"]:

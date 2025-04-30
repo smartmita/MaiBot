@@ -189,7 +189,7 @@ class Hippocampus:
     def __init__(self):
         self.memory_graph = MemoryGraph()
         self.llm_topic_judge = None
-        self.llm_summary_by_topic = None
+        self.llm_summary = None
         self.entorhinal_cortex = None
         self.parahippocampal_gyrus = None
         self.config = None
@@ -203,7 +203,7 @@ class Hippocampus:
         # 从数据库加载记忆图
         self.entorhinal_cortex.sync_memory_from_db()
         self.llm_topic_judge = LLMRequest(self.config.llm_topic_judge, request_type="memory")
-        self.llm_summary_by_topic = LLMRequest(self.config.llm_summary_by_topic, request_type="memory")
+        self.llm_summary = LLMRequest(self.config.llm_summary, request_type="memory")
 
     def get_all_node_names(self) -> list:
         """获取记忆图中所有节点的名字列表"""
@@ -1169,7 +1169,7 @@ class ParahippocampalGyrus:
             # 调用修改后的 topic_what，不再需要 time_info
             topic_what_prompt = self.hippocampus.topic_what(input_text, topic)
             try:
-                task = self.hippocampus.llm_summary_by_topic.generate_response_async(topic_what_prompt)
+                task = self.hippocampus.llm_summary.generate_response_async(topic_what_prompt)
                 tasks.append((topic.strip(), task))
             except Exception as e:
                 logger.error(f"生成话题 '{topic}' 的摘要时发生错误: {e}")

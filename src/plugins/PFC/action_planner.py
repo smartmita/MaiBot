@@ -21,6 +21,7 @@ PROMPT_INITIAL_REPLY = """{persona_text}。现在你在参与一场QQ私聊，�
 
 【当前对话目标】
 {goals_str}
+{knowledge_info_str}
 
 【最近行动历史概要】
 {action_history_summary}
@@ -33,7 +34,7 @@ PROMPT_INITIAL_REPLY = """{persona_text}。现在你在参与一场QQ私聊，�
 
 ------
 可选行动类型以及解释：
-fetch_knowledge: 需要调取知识，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
+fetch_knowledge: 需要调取知识或记忆，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
 direct_reply: 直接回复对方
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
@@ -53,6 +54,7 @@ PROMPT_FOLLOW_UP = """{persona_text}。现在你在参与一场QQ私聊，刚刚
 
 【当前对话目标】
 {goals_str}
+{knowledge_info_str}
 
 【最近行动历史概要】
 {action_history_summary}
@@ -224,6 +226,41 @@ class ActionPlanner:
             logger.error(f"[私聊][{self.private_name}]构建对话目标字符串时出错: {e}")
             goals_str = "- 构建对话目标时出错。\n"
 
+        # --- 知识信息字符串构建开始 ---
+        knowledge_info_str = "【已获取的相关知识和记忆】\n"
+        try:
+            # 检查 conversation_info 是否有 knowledge_list 并且不为空
+            if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+                # 最多只显示最近的 5 条知识，防止 Prompt 过长
+                recent_knowledge = conversation_info.knowledge_list[-5:]
+                for i, knowledge_item in enumerate(recent_knowledge):
+                    if isinstance(knowledge_item, dict):
+                        query = knowledge_item.get("query", "未知查询")
+                        knowledge = knowledge_item.get("knowledge", "无知识内容")
+                        source = knowledge_item.get("source", "未知来源")
+                        # 只取知识内容的前 2000 个字，避免太长
+                        knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+                        knowledge_info_str += (
+                            f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
+                        )
+                    else:
+                        # 处理列表里不是字典的异常情况
+                        knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+
+                if not recent_knowledge:  # 如果 knowledge_list 存在但为空
+                    knowledge_info_str += "- 暂无相关知识和记忆。\n"
+
+            else:
+                # 如果 conversation_info 没有 knowledge_list 属性，或者列表为空
+                knowledge_info_str += "- 暂无相关知识记忆。\n"
+        except AttributeError:
+            logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+            knowledge_info_str += "- 获取知识列表时出错。\n"
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+            knowledge_info_str += "- 处理知识列表时出错。\n"
+        # --- 知识信息字符串构建结束 ---
+
         # 获取聊天历史记录 (chat_history_text)
         chat_history_text = ""
         try:
@@ -349,6 +386,7 @@ class ActionPlanner:
             time_since_last_bot_message_info=time_since_last_bot_message_info,
             timeout_context=timeout_context,
             chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
+            knowledge_info_str=knowledge_info_str,
         )
 
         logger.debug(f"[私聊][{self.private_name}]发送到LLM的最终提示词:\n------\n{prompt}\n------")
