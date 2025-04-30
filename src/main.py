@@ -1,5 +1,4 @@
 import asyncio
-import atexit # 导入atexit
 import time
 from .plugins.utils.statistic import LLMStatistics
 from .plugins.moods.moods import MoodManager
@@ -18,7 +17,6 @@ from .common.logger_manager import get_logger
 from .plugins.remote import heartbeat_thread  # noqa: F401
 from .individuality.individuality import Individuality
 from .common.server import global_server
-from src.plugins.group_nickname.nickname_processor import start_nickname_processor, stop_nickname_processor
 
 logger = get_logger("main")
 
@@ -179,23 +177,11 @@ class MainSystem:
 async def main():
     """主函数"""
     system = MainSystem()
-    # 注册退出处理函数
-    atexit.register(stop_nickname_processor) # <--- 添加退出处理
+    await asyncio.gather(
+        system.initialize(),
+        system.schedule_tasks(),
+    )
 
-    try:
-        # 启动绰号处理进程
-        start_nickname_processor() # <--- 启动
-
-        await asyncio.gather(
-            system.initialize(),
-            system.schedule_tasks(),
-        )
-    except KeyboardInterrupt:
-        print("程序被中断")
-    # finally 块不再需要手动调用 stop，atexit 会处理
-    # finally:
-    #     print("正在关闭...")
-    #     stop_nickname_processor() # <--- 关闭
 
 if __name__ == "__main__":
     asyncio.run(main())

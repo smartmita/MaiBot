@@ -1,10 +1,7 @@
 # GroupNickname/nickname_processor.py
 import asyncio
-import threading
 import traceback
-# 明确导入 Event 和 Queue
-from multiprocessing import Process, Queue as mpQueue
-from multiprocessing.synchronize import Event as mpEvent # 从 synchronize 导入 Event
+from multiprocessing import Process, Queue as mpQueue, Event
 from typing import Dict, Optional
 
 from pymongo import MongoClient
@@ -17,7 +14,7 @@ from src.common.database import db # 导入数据库初始化和关闭函数
 
 logger = get_logger("nickname_processor") # 获取日志记录器实例
 # --- 运行时状态 (用于安全停止进程) ---
-_stop_event = threading.Event()
+_stop_event = Event()
 
 # --- 数据库连接 ---
 mongo_client: Optional[MongoClient] = None # MongoDB 客户端实例
@@ -129,12 +126,13 @@ async def add_to_nickname_queue(
         logger.warning(f"无法将项目添加到绰号队列（可能已满）: {e}", exc_info=True)
 
 
-async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
+async def _nickname_processing_loop(queue: mpQueue, stop_event):
     """独立进程中的主循环，处理队列任务。"""
 
     logger.info("绰号处理循环已启动。")
 
     while not stop_event.is_set():
+        logger.info("绰号处理循环正在运行...")
         try:
             if not queue.empty():
                 item = queue.get()
@@ -149,7 +147,7 @@ async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
                 else:
                     logger.warning(f"从队列接收到意外的项目类型: {type(item)}")
 
-                await asyncio.sleep(0.05)
+                await asyncio.sleep(5)
             else:
                 await asyncio.sleep(global_config.NICKNAME_PROCESS_SLEEP_INTERVAL)
 
@@ -163,7 +161,7 @@ async def _nickname_processing_loop(queue: mpQueue, stop_event: mpEvent):
     logger.info("绰号处理循环已结束。")
 
 
-def _run_processor_process(queue: mpQueue, stop_event: mpEvent):
+def _run_processor_process(queue: mpQueue, stop_event):
     """进程启动函数，运行异步循环。"""
     try:
         loop = asyncio.new_event_loop()

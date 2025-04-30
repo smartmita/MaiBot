@@ -14,6 +14,9 @@ from src.common.logger_manager import get_logger
 from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
 
+from src.main import MainSystem
+from src.plugins.group_nickname.nickname_processor import start_nickname_processor, stop_nickname_processor # <--- 添加这行导入
+import atexit
 
 logger = get_logger("main")
 confirm_logger = get_logger("confirm")
@@ -220,6 +223,15 @@ def raw_main():
 
     env_config = {key: os.getenv(key) for key in os.environ}
     scan_provider(env_config)
+
+    # 在这里启动绰号处理进程
+    logger.info("准备启动绰号处理进程...")
+    start_nickname_processor() # <--- 添加启动调用
+    logger.info("已调用启动绰号处理进程。")
+
+    # 注册退出处理函数 (确保进程能被关闭)
+    atexit.register(stop_nickname_processor) # <--- 在这里注册停止函数
+    logger.info("已注册绰号处理进程的退出处理程序。")
 
     # 返回MainSystem实例
     return MainSystem()
