@@ -870,8 +870,8 @@ class HeartFChatting:
             # 需要获取用于上下文的历史消息
             message_list_before_now = get_raw_msg_before_timestamp_with_chat(
                 chat_id=self.stream_id,
-                timestamp=time.time(), # 使用当前时间作为参考点
-                limit=global_config.observation_context_size, # 使用与 prompt 构建一致的 limit
+                timestamp=time.time(),  # 使用当前时间作为参考点
+                limit=global_config.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
             nickname_injection_str = await get_nickname_injection_for_prompt(self.chat_stream, message_list_before_now)
