@@ -875,7 +875,7 @@ class HeartFChatting:
             )
             # 调用工具函数获取格式化后的绰号字符串
             nickname_injection_str = await get_nickname_injection_for_prompt(self.chat_stream, message_list_before_now)
-            print(nickname_injection_str)
+
             # --- 构建提示词 (调用修改后的 PromptBuilder 方法) ---
             prompt = await prompt_builder.build_planner_prompt(
                 is_group_chat=self.is_group_chat,  # <-- Pass HFC state
