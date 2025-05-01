@@ -52,20 +52,6 @@ class DBWrapper:
     def __getitem__(self, key):
         return get_db()[key]
 
-def close_db():
-    """关闭全局 MongoDB 客户端连接。"""
-    global _client, _db
-    if _client:
-        try:
-            _client.close()
-            # print(f"数据库连接已由进程 {os.getpid()} 关闭。") # 可选：添加日志
-        except Exception as e:
-            # print(f"关闭数据库连接时出错: {e}") # 可选：记录关闭错误
-            pass # 关闭期间避免程序崩溃
-        finally:
-            # 重置全局变量，以便下次 get_db 能重新连接（如果需要）
-            _client = None
-            _db = None
 
 # 全局数据库访问点
 db: Database = DBWrapper()
