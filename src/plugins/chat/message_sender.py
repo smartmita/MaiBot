@@ -3,6 +3,7 @@ import asyncio
 import time
 from asyncio import Task
 from typing import Union
+from src.plugins.message.api import global_api
 
 # from ...common.database import db # 数据库依赖似乎不需要了，注释掉
 from .message import MessageSending, MessageThinking, MessageSet
@@ -20,7 +21,7 @@ logger = get_logger("sender")
 async def send_via_ws(message: MessageSending) -> None:
     """通过 WebSocket 发送消息"""
     try:
-        await send_message(message)
+        await global_api.send_message(message)
     except Exception as e:
         logger.error(f"WS发送失败: {e}")
         raise ValueError(f"未找到平台：{message.message_info.platform} 的url配置，请检查配置文件") from e
