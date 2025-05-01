@@ -6,15 +6,16 @@ import threading
 import queue
 from typing import Dict, Optional
 
-from pymongo.errors import OperationFailure, DuplicateKeyError # 引入 DuplicateKeyError
+from pymongo.errors import OperationFailure, DuplicateKeyError  # 引入 DuplicateKeyError
 from src.common.logger_manager import get_logger
-from src.common.database import db # 使用全局 db
+from src.common.database import db  # 使用全局 db
 from .nickname_mapper import analyze_chat_for_nicknames
 from src.config.config import global_config
 
 logger = get_logger("nickname_processor")
 
 _stop_event = threading.Event()
+
 
 async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dict[str, str]):
     """
@@ -32,7 +33,7 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
         from ..person_info.person_info import person_info_manager
     except ImportError:
         logger.error("无法导入 person_info_manager，无法生成 person_id！")
-        return # 无法继续，因为需要 person_id
+        return  # 无法继续，因为需要 person_id
 
     person_info_collection = db.person_info
 
@@ -67,16 +68,16 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
             # 如果文档不存在，它会被创建，并设置 $setOnInsert 中的字段。
             # 如果文档已存在，此操作不会修改任何内容（因为没有 $set 操作符）。
             upsert_result = person_info_collection.update_one(
-                {"person_id": person_id}, # Filter by the unique key
+                {"person_id": person_id},  # Filter by the unique key
                 {
                     "$setOnInsert": {
                         "person_id": person_id,
                         "user_id": user_id_int,
                         "platform": platform,
-                        "group_nicknames": [] # 初始化 group_nicknames 数组
+                        "group_nicknames": [],  # 初始化 group_nicknames 数组
                     }
                 },
-                upsert=True
+                upsert=True,
             )
 
             # 可选日志：记录是否创建了新文档
@@ -91,28 +92,28 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
             # 3a. 尝试增加现有群组中现有绰号的计数
             update_result_inc = person_info_collection.update_one(
                 {
-                    "person_id": person_id, # 明确目标文档
-                    "group_nicknames": { # 检查数组中是否有匹配项
+                    "person_id": person_id,  # 明确目标文档
+                    "group_nicknames": {  # 检查数组中是否有匹配项
                         "$elemMatch": {"group_id": group_id_str, "nicknames.name": nickname}
-                    }
+                    },
                 },
-                {"$inc": {"group_nicknames.$[group].nicknames.$[nick].count": 1}}, # 增加计数
-                array_filters=[ # 指定要更新的数组元素
+                {"$inc": {"group_nicknames.$[group].nicknames.$[nick].count": 1}},  # 增加计数
+                array_filters=[  # 指定要更新的数组元素
                     {"group.group_id": group_id_str},
-                    {"nick.name": nickname}
-                ]
+                    {"nick.name": nickname},
+                ],
             )
 
             # 3b. 如果上一步未修改 (绰号不存在于该群组)，尝试将新绰号添加到现有群组
             if update_result_inc.modified_count == 0:
                 update_result_push_nick = person_info_collection.update_one(
                     {
-                        "person_id": person_id, # 明确目标文档
-                        "group_nicknames.group_id": group_id_str # 检查群组是否存在
+                        "person_id": person_id,  # 明确目标文档
+                        "group_nicknames.group_id": group_id_str,  # 检查群组是否存在
                     },
                     # 将新绰号添加到匹配群组的 nicknames 数组中
                     {"$push": {"group_nicknames.$[group].nicknames": {"name": nickname, "count": 1}}},
-                    array_filters=[{"group.group_id": group_id_str}] # 指定要推送到的群组
+                    array_filters=[{"group.group_id": group_id_str}],  # 指定要推送到的群组
                 )
 
                 # 3c. 如果上一步也未修改 (群组条目本身不存在)，则添加新的群组条目和绰号
@@ -120,22 +121,22 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
                     # 确保 group_nicknames 数组存在 (如果 $setOnInsert 失败或数据不一致时的保险措施)
                     person_info_collection.update_one(
                         {"person_id": person_id, "group_nicknames": {"$exists": False}},
-                        {"$set": {"group_nicknames": []}}
+                        {"$set": {"group_nicknames": []}},
                     )
                     # 推送新的群组对象到 group_nicknames 数组
                     update_result_push_group = person_info_collection.update_one(
                         {
-                            "person_id": person_id, # 明确目标文档
-                            "group_nicknames.group_id": {"$ne": group_id_str} # 确保该群组 ID 尚未存在
+                            "person_id": person_id,  # 明确目标文档
+                            "group_nicknames.group_id": {"$ne": group_id_str},  # 确保该群组 ID 尚未存在
                         },
                         {
-                            "$push": { # 添加新的群组条目
+                            "$push": {  # 添加新的群组条目
                                 "group_nicknames": {
                                     "group_id": group_id_str,
-                                    "nicknames": [{"name": nickname, "count": 1}] # 初始化绰号列表
+                                    "nicknames": [{"name": nickname, "count": 1}],  # 初始化绰号列表
                                 }
                             }
-                        }
+                        },
                     )
                     if update_result_push_group.modified_count > 0:
                         logger.debug(f"为 person_id {person_id} 添加了新的群组 {group_id_str} 和绰号 '{nickname}'")
@@ -143,26 +144,27 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
         except DuplicateKeyError as dk_err:
             # 这个错误理论上不应该再由步骤 2 的 upsert 触发。
             # 如果仍然出现，可能指示 person_id 生成逻辑问题或非常罕见的 MongoDB 内部情况。
-            logger.error(f"数据库操作失败 (DuplicateKeyError): person_id {person_id}. 错误: {dk_err}. 这不应该发生，请检查 person_id 生成逻辑和数据库状态。")
+            logger.error(
+                f"数据库操作失败 (DuplicateKeyError): person_id {person_id}. 错误: {dk_err}. 这不应该发生，请检查 person_id 生成逻辑和数据库状态。"
+            )
         except OperationFailure as op_err:
-            logger.exception(f"数据库操作失败 (OperationFailure): 用户 {user_id_str}, 群组 {group_id_str}, 绰号 {nickname}({op_err})")
+            logger.exception(
+                f"数据库操作失败 (OperationFailure): 用户 {user_id_str}, 群组 {group_id_str}, 绰号 {nickname}({op_err})"
+            )
         except Exception as e:
             logger.exception(f"更新用户 {user_id_str} 的绰号 '{nickname}' 时发生意外错误：{e}")
 
 
 # --- 使用 queue.Queue ---
-queue_max_size = getattr(global_config, 'NICKNAME_QUEUE_MAX_SIZE', 100)
+queue_max_size = getattr(global_config, "NICKNAME_QUEUE_MAX_SIZE", 100)
 nickname_queue: queue.Queue = queue.Queue(maxsize=queue_max_size)
 
 _nickname_thread: Optional[threading.Thread] = None
 
+
 # --- add_to_nickname_queue (保持不变，已包含 platform) ---
 async def add_to_nickname_queue(
-    chat_history_str: str,
-    bot_reply: str,
-    platform: str,
-    group_id: Optional[str],
-    user_name_map: Dict[str, str]
+    chat_history_str: str, bot_reply: str, platform: str, group_id: Optional[str], user_name_map: Dict[str, str]
 ):
     """将需要分析的数据放入队列。"""
     if not global_config or not global_config.ENABLE_NICKNAME_MAPPING:
@@ -173,7 +175,9 @@ async def add_to_nickname_queue(
     try:
         item = (chat_history_str, bot_reply, platform, str(group_id), user_name_map)
         nickname_queue.put_nowait(item)
-        logger.debug(f"已将项目添加到平台 '{platform}' 群组 '{group_id}' 的绰号队列。当前大小: {nickname_queue.qsize()}")
+        logger.debug(
+            f"已将项目添加到平台 '{platform}' 群组 '{group_id}' 的绰号队列。当前大小: {nickname_queue.qsize()}"
+        )
     except queue.Full:
         logger.warning(f"无法将项目添加到绰号队列：队列已满 (maxsize={nickname_queue.maxsize})。")
     except Exception as e:
@@ -185,7 +189,7 @@ async def _nickname_processing_loop(q: queue.Queue, stop_event: threading.Event)
     """独立线程中的主循环，处理队列任务 (使用全局 db 和 config)。"""
     thread_id = threading.get_ident()
     logger.info(f"绰号处理循环已启动 (线程 ID: {thread_id})。")
-    sleep_interval = getattr(global_config, 'NICKNAME_PROCESS_SLEEP_INTERVAL', 0.5)
+    sleep_interval = getattr(global_config, "NICKNAME_PROCESS_SLEEP_INTERVAL", 0.5)
 
     while not stop_event.is_set():
         try:
@@ -262,14 +266,13 @@ def start_nickname_processor():
         stop_event = get_stop_event()
         stop_event.clear()
         _nickname_thread = threading.Thread(
-            target=_run_processor_thread,
-            args=(nickname_queue, stop_event),
-            daemon=True
+            target=_run_processor_thread, args=(nickname_queue, stop_event), daemon=True
         )
         _nickname_thread.start()
         logger.info(f"绰号处理器线程已启动 (Thread ID: {_nickname_thread.ident})")
     else:
         logger.warning("绰号处理器线程已在运行中。")
+
 
 # --- stop_nickname_processor (保持不变) ---
 def stop_nickname_processor():
@@ -293,10 +296,12 @@ def stop_nickname_processor():
     else:
         logger.info("绰号处理器线程未在运行或已被清理。")
 
+
 # --- Event 控制函数 (保持不变) ---
 def get_stop_event() -> threading.Event:
     """获取全局停止事件"""
     return _stop_event
+
 
 def set_stop_event():
     """设置全局停止事件，通知子线程退出"""

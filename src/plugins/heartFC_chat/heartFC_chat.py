@@ -20,7 +20,11 @@ from src.heart_flow.sub_mind import SubMind
 from src.heart_flow.observation import Observation
 from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
 import contextlib
-from src.plugins.utils.chat_message_builder import num_new_messages_since, get_raw_msg_before_timestamp_with_chat, build_readable_messages
+from src.plugins.utils.chat_message_builder import (
+    num_new_messages_since,
+    get_raw_msg_before_timestamp_with_chat,
+    build_readable_messages,
+)
 from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
 from .heartFC_sender import HeartFCSender
 from src.plugins.chat.utils import process_llm_response
@@ -28,7 +32,7 @@ from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.individuality.individuality import Individuality
 from src.plugins.person_info.relationship_manager import relationship_manager
-from src.plugins.group_nickname.nickname_processor import add_to_nickname_queue # <--- 导入队列添加函数
+from src.plugins.group_nickname.nickname_processor import add_to_nickname_queue  # <--- 导入队列添加函数
 
 
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒
@@ -511,15 +515,15 @@ class HeartFChatting:
             if action == "text_reply":
                 # 调用文本回复处理，它会返回 (bool, thinking_id)
                 success, thinking_id = await handler(reasoning, emoji_query, cycle_timers)
-                return success, thinking_id # 直接返回结果
+                return success, thinking_id  # 直接返回结果
             elif action == "emoji_reply":
                 # 调用表情回复处理，它只返回 bool
                 success = await handler(reasoning, emoji_query)
-                return success, "" # thinking_id 为空字符串
+                return success, ""  # thinking_id 为空字符串
             else:  # no_reply
                 # 调用不回复处理，它只返回 bool
                 success = await handler(reasoning, planner_start_db_time, cycle_timers)
-                return success, "" # thinking_id 为空字符串
+                return success, ""  # thinking_id 为空字符串
         except HeartFCError as e:
             logger.error(f"{self.log_prefix} 处理{action}时出错: {e}")
             # 出错时也重置计数器
@@ -560,7 +564,7 @@ class HeartFChatting:
         if not thinking_id:
             raise PlannerError("无法创建思考消息")
 
-        reply = None # 初始化 reply
+        reply = None  # 初始化 reply
         try:
             # 生成回复
             with Timer("生成回复", cycle_timers):
@@ -703,43 +707,43 @@ class HeartFChatting:
             reply: Bot 生成的回复内容列表。
         """
         if not global_config.ENABLE_NICKNAME_MAPPING:
-            return # 如果功能未开启，则直接返回
+            return  # 如果功能未开启，则直接返回
 
         if not anchor_message or not anchor_message.chat_stream or not anchor_message.chat_stream.group_info:
             logger.debug(f"{self.log_prefix} Skipping nickname analysis: Not a group chat or invalid anchor.")
-            return # 仅在群聊中进行分析
+            return  # 仅在群聊中进行分析
 
         try:
             # 1. 获取原始消息列表
-            history_limit = 30 # 例如，获取最近 30 条消息
+            history_limit = 30  # 例如，获取最近 30 条消息
             history_messages = get_raw_msg_before_timestamp_with_chat(
                 chat_id=anchor_message.chat_stream.stream_id,
-                timestamp=time.time(), # 获取当前时间点的历史
-                limit=history_limit
+                timestamp=time.time(),  # 获取当前时间点的历史
+                limit=history_limit,
             )
 
             # 格式化历史记录
             chat_history_str = await build_readable_messages(
                 messages=history_messages,
                 replace_bot_name=True,  # 在分析时也替换机器人名字，使其与 LLM 交互一致
-                merge_messages=False, # 不合并，保留原始对话流
-                timestamp_mode="relative", # 使用相对时间戳
-                read_mark=0.0, # 不需要已读标记
-                truncate=False # 获取完整内容进行分析
+                merge_messages=False,  # 不合并，保留原始对话流
+                timestamp_mode="relative",  # 使用相对时间戳
+                read_mark=0.0,  # 不需要已读标记
+                truncate=False,  # 获取完整内容进行分析
             )
 
             # 2. 获取 Bot 回复字符串
             bot_reply_str = " ".join(reply)
 
             # 3. 获取群号
-            group_id = str(anchor_message.chat_stream.group_info.group_id) # 确保是字符串
+            group_id = str(anchor_message.chat_stream.group_info.group_id)  # 确保是字符串
 
             # 4. 获取当前上下文中涉及的用户 ID 及其已知名称
             user_ids_in_history = set()
             for msg in history_messages:
-                sender_id = msg["user_info"].get('user_id')
+                sender_id = msg["user_info"].get("user_id")
                 if sender_id:
-                    user_ids_in_history.add(str(sender_id)) # 确保是字符串
+                    user_ids_in_history.add(str(sender_id))  # 确保是字符串
 
             user_name_map = {}
             if user_ids_in_history:
@@ -749,7 +753,7 @@ class HeartFChatting:
 
                 except Exception as e:
                     logger.error(f"Error getting person names: {e}", exc_info=True)
-                    names_data = {} # 出错时置空
+                    names_data = {}  # 出错时置空
                 print(f"\n\nnames_data:\n{names_data}\n\n")
 
                 for user_id in user_ids_in_history:
@@ -757,14 +761,21 @@ class HeartFChatting:
                         user_name_map[user_id] = names_data[user_id]
                     else:
                         # 回退查找 nickname
-                        latest_nickname = next((m.get('sender_nickname') for m in reversed(history_messages) if str(m.get('sender_id')) == user_id), None)
+                        latest_nickname = next(
+                            (
+                                m.get("sender_nickname")
+                                for m in reversed(history_messages)
+                                if str(m.get("sender_id")) == user_id
+                            ),
+                            None,
+                        )
                         if latest_nickname:
-                                user_name_map[user_id] = latest_nickname
+                            user_name_map[user_id] = latest_nickname
                         else:
-                                user_name_map[user_id] = f"未知({user_id})"
+                            user_name_map[user_id] = f"未知({user_id})"
 
             # 5. 添加到队列
-            await add_to_nickname_queue(chat_history_str, bot_reply_str,platform, group_id, user_name_map)
+            await add_to_nickname_queue(chat_history_str, bot_reply_str, platform, group_id, user_name_map)
             logger.debug(f"{self.log_prefix} Triggered nickname analysis for group {group_id}.")
 
         except Exception as e:

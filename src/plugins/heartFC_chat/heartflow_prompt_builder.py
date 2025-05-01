@@ -222,12 +222,11 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
             user_ids_in_context = set()
             if message_list_before_now:
                 for msg in message_list_before_now:
-                    sender_id = msg["user_info"].get('user_id')
+                    sender_id = msg["user_info"].get("user_id")
                     if sender_id:
                         user_ids_in_context.add(str(sender_id))
             else:
                 logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
-
 
             if user_ids_in_context:
                 platform = chat_stream.platform
@@ -439,12 +438,13 @@ class PromptBuilder:
                 user_ids_in_context = set()
                 if message_list_before_now:
                     for msg in message_list_before_now:
-                        sender_id = msg["user_info"].get('user_id')
+                        sender_id = msg["user_info"].get("user_id")
                         if sender_id:
                             user_ids_in_context.add(str(sender_id))
                 else:
-                    logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
-
+                    logger.warning(
+                        "Variable 'message_list_before_now' not found for nickname injection in focus prompt."
+                    )
 
                 if user_ids_in_context:
                     platform = chat_stream.platform
