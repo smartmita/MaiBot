@@ -15,7 +15,6 @@ from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
 from src.plugins.group_nickname.nickname_utils import select_nicknames_for_prompt, format_nickname_prompt_injection
-from src.plugins.person_info.relationship_manager import relationship_manager
 
 logger = get_logger("prompt")
 
