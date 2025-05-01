@@ -764,7 +764,7 @@ class HeartFChatting:
                                 user_name_map[user_id] = f"未知({user_id})"
 
             # 5. 添加到队列
-            await add_to_nickname_queue(chat_history_str, bot_reply_str, group_id, user_name_map)
+            await add_to_nickname_queue(chat_history_str, bot_reply_str,platform, group_id, user_name_map)
             logger.debug(f"{self.log_prefix} Triggered nickname analysis for group {group_id}.")
 
         except Exception as e:

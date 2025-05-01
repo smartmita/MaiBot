@@ -99,11 +99,25 @@ class RelationshipManager:
                 {"_id": 0, "person_id": 1, "user_id": 1, "person_name": 1} # 只查询需要的字段
             )
 
-            for doc in cursor: 
-                original_user_id = doc.get("user_id", "").split("_", 1)[-1]
+            for doc in cursor:
+                user_id_val = doc.get("user_id") # 获取原始值
+                original_user_id = None # 初始化
+
+                if isinstance(user_id_val, (int, float)): # 检查是否是数字类型
+                    original_user_id = str(user_id_val) # 直接转换为字符串
+                elif isinstance(user_id_val, str): # 检查是否是字符串
+                    if "_" in user_id_val: # 如果包含下划线，则分割
+                        original_user_id = user_id_val.split("_", 1)[-1]
+                    else: # 如果不包含下划线，则直接使用该字符串
+                        original_user_id = user_id_val
+                # else: # 其他类型或 None，original_user_id 保持为 None
+
                 person_name = doc.get("person_name")
+
+                # 确保 original_user_id 和 person_name 都有效
                 if original_user_id and person_name:
                     names_map[original_user_id] = person_name
+
             logger.debug(f"批量获取 {len(user_ids)} 个用户的 person_name，找到 {len(names_map)} 个。")
         except AttributeError as e:
             # 如果 db 对象没有 person_info 属性，或者 find 方法不存在
@@ -111,7 +125,6 @@ class RelationshipManager:
         except Exception as e:
             logger.error(f"批量获取 person_name 时出错: {e}", exc_info=True)
         return names_map
-    # --- 结束修改 ---
 
     @staticmethod
     async def get_users_group_nicknames(platform: str, user_ids: List[str], group_id: str) -> Dict[str, List[Dict[str, int]]]:

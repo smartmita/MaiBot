@@ -29,12 +29,14 @@ if global_config.ENABLE_NICKNAME_MAPPING: # 使用全局开关
         llm_mapper = None
 
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
+    """构建用于 LLM 绰号映射的 Prompt"""
+    # user_name_map 包含了 user_id 到 person_name (或 fallback nickname) 的映射
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items()])
-    print(f"\n\n\n{user_list_str}\n\n\n\n")
+    # print(f"\n\n\nKnown User Info for LLM:\n{user_list_str}\n\n\n\n") # Debugging print
     prompt = f"""
 任务：分析以下聊天记录和你的最新回复，判断其中是否包含用户绰号，并确定绰号与用户 ID 之间是否存在明确的一一对应关系。
 
-已知用户信息：
+已知用户信息（ID: 名称）：
 {user_list_str}
 
 聊天记录：
@@ -56,12 +58,12 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
             "用户B数字id": "绰号_B"
         }}
     }}
-    其中 "data" 字段的键是用户的 ID，值是对应的绰号。只包含你能确认映射关系的绰号。
+    其中 "data" 字段的键是用户的 ID (字符串形式)，值是对应的绰号。只包含你能确认映射关系的绰号。
 4.  如果无法建立任何可靠的一一映射关系（例如，绰号指代不明、没有出现绰号、或无法确认绰号与用户的关联），请输出 JSON 对象：
     {{
         "is_exist": false
     }}
-5.  你的昵称后面包含"(你)"，不需要输出你自身的绰号。
+5.  在“已知用户信息”列表中，你的昵称后面可能包含"(你)"，这表示是你自己，不需要输出你自身的绰号映射。请确保不要将你自己的ID和任何词语映射为绰号。
 6.  请严格按照 JSON 格式输出，不要包含任何额外的解释或文本。
 
 输出：
@@ -72,14 +74,12 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
 async def analyze_chat_for_nicknames(
     chat_history_str: str,
     bot_reply: str,
-    user_name_map: Dict[str, str]
+    user_name_map: Dict[str, str] # 这个 map 包含了 user_id -> person_name 的信息
 ) -> Dict[str, Any]:
     """
-    调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射。
+    调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射，并进行过滤。
     """
-    # --- [修改] 使用全局配置开关 ---
     if not global_config.ENABLE_NICKNAME_MAPPING:
-    # --- 结束修改 ---
         logger.debug("绰号映射功能已禁用。")
         return {"is_exist": False}
 
@@ -99,6 +99,7 @@ async def analyze_chat_for_nicknames(
             logger.warning("LLM 返回了空的绰号映射内容。")
             return {"is_exist": False}
 
+        # 清理可能的 Markdown 代码块标记
         response_content = response_content.strip()
         if response_content.startswith("```json"):
             response_content = response_content[7:]
@@ -110,14 +111,51 @@ async def analyze_chat_for_nicknames(
             result = json.loads(response_content)
             if isinstance(result, dict) and "is_exist" in result:
                 if result["is_exist"] is True:
-                    if "data" in result and isinstance(result["data"], dict):
-                        if not result["data"]:
-                            logger.debug("LLM 指示 is_exist=True 但 data 为空。视为 False 处理。")
+                    original_data = result.get("data") # 使用 .get() 更安全
+                    if isinstance(original_data, dict) and original_data: # 确保 data 是非空字典
+                        logger.info(f"LLM 找到的原始绰号映射: {original_data}")
+
+                        # --- 开始过滤 ---
+                        filtered_data = {}
+                        bot_qq_str = str(global_config.BOT_QQ) # 将机器人QQ转为字符串以便比较
+
+                        for user_id, nickname in original_data.items():
+                            # 检查 user_id 是否是字符串，以防万一
+                            if not isinstance(user_id, str):
+                                logger.warning(f"LLM 返回的 user_id '{user_id}' 不是字符串，跳过。")
+                                continue
+
+                            # 条件 1: 排除机器人自身
+                            if user_id == bot_qq_str:
+                                logger.debug(f"过滤掉机器人自身的映射: ID {user_id}")
+                                continue
+
+                            # 条件 2: 排除 nickname 与 person_name 相同的情况
+                            person_name = user_name_map.get(user_id) # 从传入的映射中查找 person_name
+                            if person_name and person_name == nickname:
+                                logger.debug(f"过滤掉用户 {user_id} 的映射: 绰号 '{nickname}' 与其名称 '{person_name}' 相同。")
+                                continue
+
+                            # 如果通过所有过滤条件，则保留
+                            filtered_data[user_id] = nickname
+                        # --- 结束过滤 ---
+
+                        # 检查过滤后是否还有数据
+                        if not filtered_data:
+                            logger.info("所有找到的绰号映射都被过滤掉了。")
                             return {"is_exist": False}
-                        logger.info(f"找到绰号映射: {result['data']}")
-                        return {"is_exist": True, "data": result["data"]}
+                        else:
+                            logger.info(f"过滤后的绰号映射: {filtered_data}")
+                            return {"is_exist": True, "data": filtered_data} # 返回过滤后的数据
+
                     else:
-                        logger.warning("LLM 响应格式错误: is_exist 为 True 但 'data' 缺失或不是字典。")
+                        # is_exist 为 True 但 data 缺失、不是字典或为空
+                        if "data" not in result:
+                            logger.warning("LLM 响应格式错误: is_exist 为 True 但 'data' 键缺失。")
+                        elif not isinstance(result.get("data"), dict):
+                            logger.warning("LLM 响应格式错误: is_exist 为 True 但 'data' 不是字典。")
+                        else: # data 为空字典
+                            logger.debug("LLM 指示 is_exist=True 但 data 为空字典。视为 False 处理。")
                         return {"is_exist": False}
                 elif result["is_exist"] is False:
                     logger.info("LLM 未找到可靠的绰号映射。")
@@ -135,4 +173,3 @@ async def analyze_chat_for_nicknames(
     except Exception as e:
         logger.error(f"绰号映射 LLM 调用或处理过程中出错: {e}", exc_info=True)
         return {"is_exist": False}
-
