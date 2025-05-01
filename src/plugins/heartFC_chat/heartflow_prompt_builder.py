@@ -277,7 +277,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         prompt = await global_prompt_manager.format_prompt(
             template_name,
             info_from_tools=structured_info_prompt,
-        nickname_info=nickname_injection_str,
+            nickname_info=nickname_injection_str,
             sender_name=effective_sender_name,  # Used in private template
             chat_talking_prompt=chat_talking_prompt,
             bot_name=global_config.BOT_NICKNAME,
@@ -478,25 +478,25 @@ class PromptBuilder:
         nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
 
         prompt = await global_prompt_manager.format_prompt(
-                template_name,
-                relation_prompt=relation_prompt,
-                sender_name=effective_sender_name,
-                memory_prompt=memory_prompt,
-                prompt_info=prompt_info,
-                schedule_prompt=schedule_prompt,
+            template_name,
+            relation_prompt=relation_prompt,
+            sender_name=effective_sender_name,
+            memory_prompt=memory_prompt,
+            prompt_info=prompt_info,
+            schedule_prompt=schedule_prompt,
             nickname_info=nickname_injection_str,  # <--- 注入绰号信息
-                chat_talking_prompt=chat_talking_prompt,
-                message_txt=message_txt,
-                bot_name=global_config.BOT_NICKNAME,
-                bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
-                prompt_personality=prompt_personality,
-                mood_prompt=mood_prompt,
-                reply_style1=reply_style1_chosen,
-                reply_style2=reply_style2_chosen,
-                keywords_reaction_prompt=keywords_reaction_prompt,
-                prompt_ger=prompt_ger,
-                moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
-            )
+            chat_talking_prompt=chat_talking_prompt,
+            message_txt=message_txt,
+            bot_name=global_config.BOT_NICKNAME,
+            bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
+            prompt_personality=prompt_personality,
+            mood_prompt=mood_prompt,
+            reply_style1=reply_style1_chosen,
+            reply_style2=reply_style2_chosen,
+            keywords_reaction_prompt=keywords_reaction_prompt,
+            prompt_ger=prompt_ger,
+            moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+        )
         # --- End choosing template ---
 
         return prompt
