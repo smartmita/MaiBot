@@ -1,7 +1,7 @@
 # GroupNickname/nickname_utils.py
 import random
 import time
-from typing import List, Dict, Tuple, Optional, Any
+from typing import List, Dict, Tuple, Optional
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.plugins.person_info.relationship_manager import relationship_manager

@@ -1,6 +1,6 @@
 import random
 import time
-from typing import Union, Optional, List, Dict, Any # 引入 List, Dict, Any
+from typing import Union, Optional
 from ...config.config import global_config
 from src.common.logger_manager import get_logger
 from ...individuality.individuality import Individuality
