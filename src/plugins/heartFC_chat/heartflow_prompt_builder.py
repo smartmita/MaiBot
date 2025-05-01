@@ -1,4 +1,6 @@
 import random
+import time
+from typing import Union, Optional, List, Dict, Any # 引入 List, Dict, Any
 from ...config.config import global_config
 from src.common.logger_manager import get_logger
 from ...individuality.individuality import Individuality
@@ -6,15 +8,13 @@ from src.plugins.utils.prompt_builder import Prompt, global_prompt_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.chat.utils import get_embedding
-import time
-from typing import Union, Optional
 from ...common.database import db
 from ..chat.utils import get_recent_group_speaker
 from ..moods.moods import MoodManager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
-from src.plugins.group_nickname.nickname_utils import select_nicknames_for_prompt, format_nickname_prompt_injection
+from src.plugins.group_nickname.nickname_utils import get_nickname_injection_for_prompt
 
 logger = get_logger("prompt")
 
@@ -23,6 +23,7 @@ def init_prompt():
     Prompt(
         """
 {info_from_tools}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在你想要在群里发言或者回复。\n
@@ -131,6 +132,7 @@ JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
 {relation_prompt}
 {prompt_info}
 {schedule_prompt}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在"{sender_name}"说的:{message_txt}。引起了你的注意，你想要在群里发言或者回复这条消息。\n
@@ -214,40 +216,13 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
 
     logger.debug("开始构建prompt")
 
-    # 注入绰号信息
-    nickname_injection_str = ""
-    if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
-        try:
-            group_id = str(chat_stream.group_info.group_id)
-            user_ids_in_context = set()
-            if message_list_before_now:
-                for msg in message_list_before_now:
-                    sender_id = msg["user_info"].get("user_id")
-                    if sender_id:
-                        user_ids_in_context.add(str(sender_id))
-            else:
-                logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
-
-            if user_ids_in_context:
-                platform = chat_stream.platform
-                # --- 调用批量获取群组绰号的方法 ---
-                all_nicknames_data = await relationship_manager.get_users_group_nicknames(
-                    platform, list(user_ids_in_context), group_id
-                )
-
-                if all_nicknames_data:
-                    selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
-                    nickname_injection_str = format_nickname_prompt_injection(selected_nicknames)
-                    if nickname_injection_str:
-                        logger.debug(f"Injecting nickname info into focus prompt:\n{nickname_injection_str}")
-
-        except Exception as e:
-            logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
-    logger.debug(f"-------------------nickname_injection_str_______________________\n{nickname_injection_str}\n\n")
+    # 调用新的工具函数获取绰号信息
+    nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
 
     prompt = await global_prompt_manager.format_prompt(
         "heart_flow_prompt",
         info_from_tools=structured_info_prompt,
+        nickname_info=nickname_injection_str,
         chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
         if chat_in_group
         else await global_prompt_manager.get_prompt_async("chat_target_private1"),
@@ -299,7 +274,7 @@ class PromptBuilder:
             )
         return None
 
-    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> tuple[str, str]:
+    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> str: # 返回值改为 str
         individuality = Individuality.get_instance()
         prompt_personality = individuality.get_prompt(x_person=2, level=2)
 
@@ -430,38 +405,8 @@ class PromptBuilder:
         else:
             schedule_prompt = ""
 
-        # 注入绰号信息
-        nickname_injection_str = ""
-        if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
-            try:
-                group_id = str(chat_stream.group_info.group_id)
-                user_ids_in_context = set()
-                if message_list_before_now:
-                    for msg in message_list_before_now:
-                        sender_id = msg["user_info"].get("user_id")
-                        if sender_id:
-                            user_ids_in_context.add(str(sender_id))
-                else:
-                    logger.warning(
-                        "Variable 'message_list_before_now' not found for nickname injection in focus prompt."
-                    )
-
-                if user_ids_in_context:
-                    platform = chat_stream.platform
-                    # --- 调用批量获取群组绰号的方法 ---
-                    all_nicknames_data = await relationship_manager.get_users_group_nicknames(
-                        platform, list(user_ids_in_context), group_id
-                    )
-
-                    if all_nicknames_data:
-                        selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
-                        nickname_injection_str = format_nickname_prompt_injection(selected_nicknames)
-                        if nickname_injection_str:
-                            logger.debug(f"Injecting nickname info into focus prompt:\n{nickname_injection_str}")
-
-            except Exception as e:
-                logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
-        logger.debug(f"-------------------nickname_injection_str_______________________\n{nickname_injection_str}\n\n")
+        # 调用新的工具函数获取绰号信息
+        nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
 
         prompt = await global_prompt_manager.format_prompt(
             "reasoning_prompt_main",
@@ -470,6 +415,7 @@ class PromptBuilder:
             memory_prompt=memory_prompt,
             prompt_info=prompt_info,
             schedule_prompt=schedule_prompt,
+            nickname_info=nickname_injection_str, # <--- 注入绰号信息
             chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
             if chat_in_group
             else await global_prompt_manager.get_prompt_async("chat_target_private1"),
