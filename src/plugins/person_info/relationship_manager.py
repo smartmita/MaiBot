@@ -94,18 +94,13 @@ class RelationshipManager:
         person_ids = [person_info_manager.get_person_id(platform, str(uid)) for uid in user_ids]
         names_map = {}
         try:
-            # --- 修改点：直接使用 db.person_info.find ---
-            # !!! 确保 'person_info' 是正确的集合名称 !!!
             cursor = db.person_info.find(
                 {"person_id": {"$in": person_ids}},
-                {"_id": 0, "person_id": 1, "person_name": 1} # 只查询需要的字段
+                {"_id": 0, "person_id": 1, "user_id": 1, "person_name": 1} # 只查询需要的字段
             )
-            # --- 结束修改点 ---
 
-            # 注意：pymongo 的 find 返回的是同步游标，如果你的 db 对象是 motor 客户端，需要使用 await cursor.to_list(length=None)
-            # 假设这里 db 是 pymongo 同步客户端，或者你的环境允许在异步函数中迭代同步游标
-            for doc in cursor: # 如果 db 是 motor，这里会报错，需要改为 async for
-                original_user_id = doc.get("person_id", "").split("_", 1)[-1]
+            for doc in cursor: 
+                original_user_id = doc.get("user_id", "").split("_", 1)[-1]
                 person_name = doc.get("person_name")
                 if original_user_id and person_name:
                     names_map[original_user_id] = person_name

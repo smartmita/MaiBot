@@ -39,7 +39,6 @@ class ChatObserver:
             stream_id: 聊天流ID
         """
         self.last_check_time = None
-        self.last_check_time = None
         self.last_bot_speak_time = None
         self.last_user_speak_time = None
         if stream_id in self._instances:
