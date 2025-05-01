@@ -580,7 +580,7 @@ class HeartFChatting:
                     response_set=reply,
                     send_emoji=emoji_query,
                 )
-                
+
             # 调用工具函数触发绰号分析
             await trigger_nickname_analysis_if_needed(anchor_message, reply, self.chat_stream)
 
