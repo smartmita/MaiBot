@@ -451,7 +451,7 @@ class PromptBuilder:
 
             # 调用新的工具函数获取绰号信息
             nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
-            
+
             prompt = await global_prompt_manager.format_prompt(
                 template_name,
                 relation_prompt=relation_prompt,
