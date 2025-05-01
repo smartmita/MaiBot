@@ -1,5 +1,11 @@
 import time
-from typing import Tuple, Optional  # 增加了 Optional
+from typing import Tuple, Optional, Union  # 增加了 Optional
+from src.plugins.memory_system.Hippocampus import HippocampusManager
+from src.plugins.knowledge.knowledge_lib import qa_manager
+from src.common.database import db
+from src.plugins.chat.utils import get_embedding
+# import jieba # 如果需要旧版知识库的回退，可能需要
+# import re    # 如果需要旧版知识库的回退，可能需要
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -21,20 +27,21 @@ PROMPT_INITIAL_REPLY = """{persona_text}。现在你在参与一场QQ私聊，�
 
 【当前对话目标】
 {goals_str}
-{knowledge_info_str}
-
 【最近行动历史概要】
 {action_history_summary}
+【你想起来的相关知识】
+{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
-{time_since_last_bot_message_info}{timeout_context}
+{time_since_last_bot_message_info}{timeout_context} 
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
+【你的的回忆】
+{retrieved_memory_str}
 
 ------
 可选行动类型以及解释：
-fetch_knowledge: 需要调取知识或记忆，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
 direct_reply: 直接回复对方
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
@@ -54,20 +61,20 @@ PROMPT_FOLLOW_UP = """{persona_text}。现在你在参与一场QQ私聊，刚刚
 
 【当前对话目标】
 {goals_str}
-{knowledge_info_str}
-
 【最近行动历史概要】
 {action_history_summary}
+【你想起来的相关知识】
+{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
 {time_since_last_bot_message_info}{timeout_context} 
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-
+【你的的回忆】
+{retrieved_memory_str}
 ------
 可选行动类型以及解释：
-fetch_knowledge: 需要调取知识，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
 wait: 暂时不说话，留给对方交互空间，等待对方回复（尤其是在你刚发言后、或上次发言因重复、发言过多被拒时、或不确定做什么时，这是不错的选择）
 listening: 倾听对方发言（虽然你刚发过言，但如果对方立刻回复且明显话没说完，可以选择这个）
 send_new_message: 发送一条新消息继续对话，允许适当的追问、补充、深入话题，或开启相关新话题。**但是避免在因重复被拒后立即使用，也不要在对方没有回复的情况下过多的“消息轰炸”或重复发言**
@@ -117,7 +124,133 @@ class ActionPlanner:
         self.name = global_config.BOT_NICKNAME
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-        # self.action_planner_info = ActionPlannerInfo() # 移除未使用的变量
+    
+    async def _get_memory_info(self, text: str) -> str:
+        """根据文本自动检索相关记忆"""
+        memory_prompt = ""
+        related_memory_info = ""
+        try:
+            related_memory = await HippocampusManager.get_instance().get_memory_from_text(
+                text=text,
+                max_memory_num=2, # 最多获取 2 条记忆
+                max_memory_length=2, # 每条记忆长度限制（这个参数含义可能需确认）
+                max_depth=3, # 搜索深度
+                fast_retrieval=False # 是否快速检索
+            )
+            if related_memory:
+                for memory in related_memory:
+                    # memory[0] 是记忆ID, memory[1] 是记忆内容
+                    related_memory_info += memory[1] + "\n" # 将记忆内容拼接起来
+                if related_memory_info:
+                    memory_prompt = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，供参考)\n"
+                    logger.debug(f"[私聊]决策层[{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}...")
+                else:
+                    logger.debug(f"[私聊]决策层[{self.private_name}]自动检索记忆返回为空。")
+            else:
+                logger.debug(f"[私聊]决策层[{self.private_name}]未自动检索到相关记忆。")
+        except Exception as e:
+            logger.error(f"[私聊]决策层[{self.private_name}]自动检索记忆时出错: {e}")
+            # memory_prompt = "检索记忆时出错。\n" # 可以选择是否提示错误
+        return memory_prompt
+
+    async def _get_prompt_info_old(self, message: str, threshold: float) -> str:
+        """
+        旧版的知识检索方法，根据消息文本从旧知识库（knowledges collection）检索。
+        (移植并自 heartflow_prompt_builder.py)
+        """
+        related_info = ""
+        start_time = time.time()
+        logger.debug(f"[私聊]决策层[{self.private_name}]开始使用旧版知识检索，消息: {message[:30]}...")
+
+        # 简化处理：直接使用整个消息进行查询，不再提取主题
+        query_text = message.strip()
+        if not query_text:
+            logger.debug(f"[私聊]决策层[{self.private_name}]旧版知识检索：消息为空，跳过。")
+            return ""
+
+        embedding = None
+        try:
+            embedding = await get_embedding(query_text, request_type="pfc_implicit_knowledge")
+        except Exception as e:
+            logger.error(f"[私聊]决策层[{self.private_name}]旧版知识检索：获取嵌入向量时出错: {str(e)}")
+
+        if not embedding:
+            logger.error(f"[私聊]决策层[{self.private_name}]旧版知识检索：获取嵌入向量失败。")
+            return ""
+
+        # 调用我们之前添加的 get_info_from_db 函数
+        results = get_info_from_db(embedding, limit=5, threshold=threshold, return_raw=True) # 最多查 5 条
+
+        logger.info(f"[私聊][{self.private_name}]旧版知识库查询完成，耗时: {time.time() - start_time:.3f}秒，获取{len(results)}条结果")
+
+        # 去重和格式化
+        unique_contents = set()
+        final_results_content = []
+        for result in results:
+            content = result.get("content", "").strip()
+            similarity = result.get("similarity", 0.0)
+            if content and content not in unique_contents:
+                unique_contents.add(content)
+                # 可以选择性地加入相似度信息，或者只加内容
+                # final_results_content.append(f"[{similarity:.2f}] {content}")
+                final_results_content.append(content)
+
+        if final_results_content:
+            related_info = "\n".join(final_results_content)
+            logger.debug(f"[私聊][{self.private_name}]旧版知识检索格式化后内容: {related_info[:100]}...")
+        else:
+            logger.debug(f"[私聊][{self.private_name}]旧版知识检索未找到合适结果或结果为空。")
+
+        logger.info(f"[私聊][{self.private_name}]旧版知识检索总耗时: {time.time() - start_time:.3f}秒")
+        return related_info
+
+    async def _get_prompt_info(self, message: str, threshold: float = 0.38) -> str:
+        """
+        自动检索相关知识的主函数。优先使用 LPMM，失败则回退到旧版。
+        (移植自 heartflow_prompt_builder.py)
+        """
+        related_info = ""
+        start_time = time.time()
+        message = message.strip()
+        if not message:
+             logger.debug(f"[私聊][{self.private_name}]自动知识检索：输入消息为空。")
+             return ""
+
+        logger.debug(f"[私聊][{self.private_name}]开始自动知识检索，消息: {message[:30]}...")
+
+        # 1. 尝试从 LPMM 知识库获取知识
+        try:
+            found_knowledge_from_lpmm = qa_manager.get_knowledge(message)
+            if found_knowledge_from_lpmm and found_knowledge_from_lpmm.strip():
+                related_info = found_knowledge_from_lpmm.strip()
+                logger.info(f"[私聊][{self.private_name}]从 LPMM 知识库获取到知识，长度: {len(related_info)}")
+                logger.debug(f"[私聊][{self.private_name}]LPMM 知识内容: {related_info[:100]}...")
+                # LPMM 成功获取，直接返回
+                logger.info(f"[私聊][{self.private_name}]自动知识检索(LPMM)耗时: {time.time() - start_time:.3f}秒")
+                return related_info
+            else:
+                logger.debug(f"[私聊][{self.private_name}]LPMM 知识库未返回有效知识，尝试旧版数据库检索。")
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}]调用 LPMM 知识库 (qa_manager.get_knowledge) 时发生异常: {str(e)}，尝试旧版数据库检索。")
+
+        # 2. 如果 LPMM 失败或无结果，尝试旧版数据库
+        try:
+            knowledge_from_old = await self._get_prompt_info_old(message, threshold=threshold)
+            if knowledge_from_old and knowledge_from_old.strip():
+                related_info = knowledge_from_old.strip()
+                logger.info(f"[私聊][{self.private_name}]从旧版数据库检索到知识，长度: {len(related_info)}")
+                # 旧版成功获取，返回
+                logger.info(f"[私聊][{self.private_name}]自动知识检索(旧版)耗时: {time.time() - start_time:.3f}秒")
+                return related_info
+            else:
+                logger.debug(f"[私聊][{self.private_name}]旧版数据库也未检索到有效知识。")
+
+        except Exception as e2:
+            logger.error(f"[私聊][{self.private_name}]调用旧版知识库检索 (_get_prompt_info_old) 时也发生异常: {str(e2)}")
+
+        # 如果两种方法都失败或无结果
+        logger.info(f"[私聊][{self.private_name}]自动知识检索总耗时: {time.time() - start_time:.3f}秒，未找到任何相关知识。")
+        return "" # 返回空字符串
 
     # 修改 plan 方法签名，增加 last_successful_reply_action 参数
     async def plan(
@@ -468,7 +601,6 @@ class ActionPlanner:
                 valid_actions = [
                     "direct_reply",
                     "send_new_message",
-                    "fetch_knowledge",
                     "wait",
                     "listening",
                     "rethink_goal",
@@ -489,3 +621,83 @@ class ActionPlanner:
             # 外层异常处理保持不变
             logger.error(f"[私聊][{self.private_name}]规划行动时调用 LLM 或处理结果出错: {str(e)}")
             return "wait", f"行动规划处理中发生错误，暂时等待: {str(e)}"
+        
+def get_info_from_db(
+    query_embedding: list, limit: int = 1, threshold: float = 0.5, return_raw: bool = False
+) -> Union[str, list]:
+    """
+    从旧知识库 (knowledges collection) 中根据嵌入向量相似度检索信息。
+    (移植自 heartflow_prompt_builder.py)
+    """
+    if not query_embedding:
+        return "" if not return_raw else []
+    # 使用余弦相似度计算
+    pipeline = [
+        {
+            "$addFields": {
+                "dotProduct": {
+                    "$reduce": {
+                        "input": {"$range": [0, {"$size": "$embedding"}]},
+                        "initialValue": 0,
+                        "in": {
+                            "$add": [
+                                "$$value",
+                                {
+                                    "$multiply": [
+                                        {"$arrayElemAt": ["$embedding", "$$this"]},
+                                        {"$arrayElemAt": [query_embedding, "$$this"]},
+                                    ]
+                                },
+                            ]
+                        },
+                    }
+                },
+                "magnitude1": {
+                    "$sqrt": {
+                        "$reduce": {
+                            "input": "$embedding",
+                            "initialValue": 0,
+                            "in": {"$add": ["$$value", {"$multiply": ["$$this", "$$this"]}]},
+                        }
+                    }
+                },
+                "magnitude2": {
+                    "$sqrt": {
+                        "$reduce": {
+                            "input": query_embedding,
+                            "initialValue": 0,
+                            "in": {"$add": ["$$value", {"$multiply": ["$$this", "$$this"]}]},
+                        }
+                    }
+                },
+            }
+        },
+        # 防止除以零错误，添加一个小的 epsilon
+        {"$addFields": {"similarity": {"$divide": ["$dotProduct", {"$max": [{"$multiply": ["$magnitude1", "$magnitude2"]}, 1e-9]}]}}},
+        {
+            "$match": {
+                "similarity": {"$gte": threshold}  # 只保留相似度大于等于阈值的结果
+            }
+        },
+        {"$sort": {"similarity": -1}},
+        {"$limit": limit},
+        {"$project": {"content": 1, "similarity": 1}},
+    ]
+
+    try:
+        results = list(db.knowledges.aggregate(pipeline))
+        # 注意：这里的 logger 需要能访问到，或者在这个函数里获取 logger 实例
+        # logger.debug(f"旧知识库查询结果数量: {len(results)}") # 暂时注释掉，避免 logger 未定义
+    except Exception as e:
+        # logger.error(f"执行旧知识库聚合查询时出错: {e}") # 暂时注释掉
+        results = []
+
+    if not results:
+        return "" if not return_raw else []
+
+    if return_raw:
+        return results
+    else:
+        # 返回所有找到的内容，用换行分隔
+        return "\n".join(str(result["content"]) for result in results)
+
