@@ -274,7 +274,9 @@ class PromptBuilder:
             )
         return None
 
-    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> str: # 返回值改为 str
+    async def _build_prompt_normal(
+        self, chat_stream, message_txt: str, sender_name: str = "某人"
+    ) -> str:  # 返回值改为 str
         individuality = Individuality.get_instance()
         prompt_personality = individuality.get_prompt(x_person=2, level=2)
 
@@ -415,7 +417,7 @@ class PromptBuilder:
             memory_prompt=memory_prompt,
             prompt_info=prompt_info,
             schedule_prompt=schedule_prompt,
-            nickname_info=nickname_injection_str, # <--- 注入绰号信息
+            nickname_info=nickname_injection_str,  # <--- 注入绰号信息
             chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
             if chat_in_group
             else await global_prompt_manager.get_prompt_async("chat_target_private1"),
