@@ -55,6 +55,7 @@ def init_prompt():
     Prompt(
         """你的名字是{bot_name},{prompt_personality}，{chat_context_description}。需要基于以下信息决定如何参与对话：
 {structured_info_block}
+{nickname_info}
 {chat_content_block}
 {current_mind_block}
 {cycle_info_block}
@@ -766,6 +767,7 @@ class PromptBuilder:
         current_mind: Optional[str],
         structured_info: Dict[str, Any],
         current_available_actions: Dict[str, str],
+        nickname_info: str,
         # replan_prompt: str, # Replan logic still simplified
     ) -> str:
         """构建 Planner LLM 的提示词 (获取模板并填充数据)"""
@@ -847,6 +849,7 @@ class PromptBuilder:
 
             prompt = planner_prompt_template.format(
                 bot_name=global_config.BOT_NICKNAME,
+                nickname_info=nickname_info,
                 prompt_personality=prompt_personality,
                 chat_context_description=chat_context_description,
                 structured_info_block=structured_info_block,
