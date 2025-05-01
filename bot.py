@@ -221,15 +221,6 @@ def raw_main():
     env_config = {key: os.getenv(key) for key in os.environ}
     scan_provider(env_config)
 
-    # 在这里启动绰号处理进程
-    logger.info("准备启动绰号处理进程...")
-    start_nickname_processor() # <--- 添加启动调用
-    logger.info("已调用启动绰号处理进程。")
-
-    # 注册退出处理函数 (确保进程能被关闭)
-    atexit.register(stop_nickname_processor) # <--- 在这里注册停止函数
-    logger.info("已注册绰号处理进程的退出处理程序。")
-
     # 返回MainSystem实例
     return MainSystem()
 
@@ -238,6 +229,15 @@ if __name__ == "__main__":
     try:
         # 获取MainSystem实例
         main_system = raw_main()
+
+        # 在这里启动绰号处理进程
+        logger.info("准备启动绰号处理线程...")
+        start_nickname_processor() # <--- 添加启动调用
+        logger.info("已调用启动绰号处理线程。")
+
+        # 注册退出处理函数 (确保进程能被关闭)
+        atexit.register(stop_nickname_processor) # <--- 在这里注册停止函数
+        logger.info("已注册绰号处理线程的退出处理程序。")
 
         # 创建事件循环
         loop = asyncio.new_event_loop()
