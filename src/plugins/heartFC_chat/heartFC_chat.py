@@ -33,7 +33,6 @@ from src.plugins.group_nickname.nickname_utils import trigger_nickname_analysis_
 install(show_locals=True, extra_lines=3)
 
 
-
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒
 
 EMOJI_SEND_PRO = 0.3  # 设置一个概率，比如 30% 才真的发
