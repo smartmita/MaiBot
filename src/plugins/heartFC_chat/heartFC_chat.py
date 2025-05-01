@@ -750,7 +750,7 @@ class HeartFChatting:
                 except Exception as e:
                     logger.error(f"Error getting person names: {e}", exc_info=True)
                     names_data = {} # 出错时置空
-
+                print(f"\n\nnames_data:\n{names_data}\n\n")
 
                 for user_id in user_ids_in_history:
                     if user_id in names_data:

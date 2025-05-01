@@ -440,7 +440,6 @@ class PromptBuilder:
                 user_ids_in_context = set()
                 if message_list_before_now:
                     for msg in message_list_before_now:
-                        print(msg)
                         sender_id = msg["user_info"].get('user_id')
                         if sender_id:
                             user_ids_in_context.add(str(sender_id))
