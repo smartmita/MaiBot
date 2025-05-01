@@ -259,6 +259,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         prompt = await global_prompt_manager.format_prompt(
             template_name,
             info_from_tools=structured_info_prompt,
+            nickname_info=nickname_injection_str,
             chat_target=chat_target_1,  # Used in group template
             chat_talking_prompt=chat_talking_prompt,
             bot_name=global_config.BOT_NICKNAME,
@@ -277,7 +278,6 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         prompt = await global_prompt_manager.format_prompt(
             template_name,
             info_from_tools=structured_info_prompt,
-            nickname_info=nickname_injection_str,
             sender_name=effective_sender_name,  # Used in private template
             chat_talking_prompt=chat_talking_prompt,
             bot_name=global_config.BOT_NICKNAME,
@@ -449,6 +449,9 @@ class PromptBuilder:
             chat_target_1 = await global_prompt_manager.get_prompt_async("chat_target_group1")
             chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
+            # 调用新的工具函数获取绰号信息
+            nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
+            
             prompt = await global_prompt_manager.format_prompt(
                 template_name,
                 relation_prompt=relation_prompt,
@@ -456,6 +459,7 @@ class PromptBuilder:
                 memory_prompt=memory_prompt,
                 prompt_info=prompt_info,
                 schedule_prompt=schedule_prompt,
+                nickname_info=nickname_injection_str,  # <--- 注入绰号信息
                 chat_target=chat_target_1,
                 chat_target_2=chat_target_2,
                 chat_talking_prompt=chat_talking_prompt,
@@ -474,9 +478,6 @@ class PromptBuilder:
             template_name = "reasoning_prompt_private_main"
             effective_sender_name = sender_name
 
-            # 调用新的工具函数获取绰号信息
-            nickname_injection_str = await get_nickname_injection_for_prompt(chat_stream, message_list_before_now)
-
             prompt = await global_prompt_manager.format_prompt(
                 template_name,
                 relation_prompt=relation_prompt,
@@ -484,7 +485,6 @@ class PromptBuilder:
                 memory_prompt=memory_prompt,
                 prompt_info=prompt_info,
                 schedule_prompt=schedule_prompt,
-                nickname_info=nickname_injection_str,  # <--- 注入绰号信息
                 chat_talking_prompt=chat_talking_prompt,
                 message_txt=message_txt,
                 bot_name=global_config.BOT_NICKNAME,
