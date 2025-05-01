@@ -27,7 +27,11 @@ from src.plugins.chat.utils import process_llm_response
 from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from rich.traceback import install
 from src.plugins.group_nickname.nickname_utils import trigger_nickname_analysis_if_needed
+
+install(show_locals=True, extra_lines=3)
+
 
 
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒

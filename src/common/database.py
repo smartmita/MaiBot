@@ -1,6 +1,9 @@
 import os
 from pymongo import MongoClient
 from pymongo.database import Database
+from rich.traceback import install
+
+install(show_locals=True, extra_lines=3)
 
 _client = None
 _db = None

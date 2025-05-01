@@ -13,11 +13,15 @@ from src.common.logger_manager import get_logger
 # from src.common.logger import LogConfig, CONFIRM_STYLE_CONFIG
 from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
+from rich.traceback import install
 from src.plugins.group_nickname.nickname_processor import (
     start_nickname_processor,
     stop_nickname_processor,
-)  # <--- 添加这行导入
+)
 import atexit
+
+install(show_locals=True, extra_lines=3)
+
 
 logger = get_logger("main")
 confirm_logger = get_logger("confirm")

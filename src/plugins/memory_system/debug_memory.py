@@ -8,6 +8,9 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 from src.plugins.memory_system.Hippocampus import HippocampusManager
 from src.config.config import global_config
+from rich.traceback import install
+
+install(show_locals=True, extra_lines=3)
 
 
 async def test_memory_system():

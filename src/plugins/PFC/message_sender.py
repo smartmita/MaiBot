@@ -8,6 +8,9 @@ from src.plugins.chat.message import MessageSending, MessageSet
 from src.plugins.chat.message_sender import message_manager
 from ..storage.storage import MessageStorage
 from ...config.config import global_config
+from rich.traceback import install
+
+install(show_locals=True, extra_lines=3)
 
 
 logger = get_module_logger("message_sender")

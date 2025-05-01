@@ -4,6 +4,9 @@ import importlib
 import pkgutil
 import os
 from src.common.logger_manager import get_logger
+from rich.traceback import install
+
+install(show_locals=True, extra_lines=3)
 
 logger = get_logger("base_tool")
 

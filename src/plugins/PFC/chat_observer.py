@@ -7,6 +7,9 @@ from maim_message import UserInfo
 from ...config.config import global_config
 from .chat_states import NotificationManager, create_new_message_notification, create_cold_chat_notification
 from .message_storage import MongoDBMessageStorage
+from rich.traceback import install
+
+install(show_locals=True, extra_lines=3)
 
 logger = get_module_logger("chat_observer")
 
