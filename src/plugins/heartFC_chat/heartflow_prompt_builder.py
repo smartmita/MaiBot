@@ -274,9 +274,7 @@ class PromptBuilder:
             )
         return None
 
-    async def _build_prompt_normal(
-        self, chat_stream, message_txt: str, sender_name: str = "某人"
-    ) -> str:  # 返回值改为 str
+    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> tuple[str, str]:
         individuality = Individuality.get_instance()
         prompt_personality = individuality.get_prompt(x_person=2, level=2)
 

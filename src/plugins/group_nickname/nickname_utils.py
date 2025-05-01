@@ -1,4 +1,3 @@
-# GroupNickname/nickname_utils.py
 import random
 import time
 from typing import List, Dict, Tuple, Optional

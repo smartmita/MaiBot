@@ -1,5 +1,3 @@
-# nickname_processor.py (多线程版本 - 使用全局 config - 修复 Race Condition on person_id)
-
 import asyncio
 import traceback
 import threading
