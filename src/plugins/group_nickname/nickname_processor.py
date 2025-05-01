@@ -14,6 +14,7 @@ logger = get_logger("nickname_processor")
 
 _stop_event = threading.Event()
 
+
 def _upsert_person(collection: Collection, person_id: str, user_id_int: int, platform: str):
     """
     确保数据库中存在指定 person_id 的文档 (Upsert)。
@@ -41,7 +42,7 @@ def _upsert_person(collection: Collection, person_id: str, user_id_int: int, pla
             {
                 "$setOnInsert": {
                     "person_id": person_id,
-                    "user_id": user_id_int, # 确保这里使用传入的 user_id_int
+                    "user_id": user_id_int,  # 确保这里使用传入的 user_id_int
                     "platform": platform,
                     "group_nicknames": [],  # 初始化 group_nicknames 数组
                 }
@@ -59,10 +60,10 @@ def _upsert_person(collection: Collection, person_id: str, user_id_int: int, pla
         logger.error(
             f"数据库操作失败 (DuplicateKeyError): person_id {person_id}. 错误: {dk_err}. 这不应该发生，请检查 person_id 生成逻辑和数据库状态。"
         )
-        raise # 将异常向上抛出，让调用者处理
+        raise  # 将异常向上抛出，让调用者处理
     except Exception as e:
         logger.exception(f"对 person_id {person_id} 执行 Upsert 时失败: {e}")
-        raise # 将异常向上抛出
+        raise  # 将异常向上抛出
 
 
 def _update_group_nickname(collection: Collection, person_id: str, group_id_str: str, nickname: str):
@@ -80,9 +81,7 @@ def _update_group_nickname(collection: Collection, person_id: str, group_id_str:
     result_inc = collection.update_one(
         {
             "person_id": person_id,
-            "group_nicknames": {
-                "$elemMatch": {"group_id": group_id_str, "nicknames.name": nickname}
-            },
+            "group_nicknames": {"$elemMatch": {"group_id": group_id_str, "nicknames.name": nickname}},
         },
         {"$inc": {"group_nicknames.$[group].nicknames.$[nick].count": 1}},
         array_filters=[
@@ -92,20 +91,20 @@ def _update_group_nickname(collection: Collection, person_id: str, group_id_str:
     )
     if result_inc.modified_count > 0:
         # logger.debug(f"成功增加 person_id {person_id} 在群组 {group_id_str} 中绰号 '{nickname}' 的计数。")
-        return # 成功增加计数，操作完成
+        return  # 成功增加计数，操作完成
 
     # 3b. 如果上一步未修改 (绰号不存在于该群组)，尝试将新绰号添加到现有群组
     result_push_nick = collection.update_one(
         {
             "person_id": person_id,
-            "group_nicknames.group_id": group_id_str, # 检查群组是否存在
+            "group_nicknames.group_id": group_id_str,  # 检查群组是否存在
         },
         {"$push": {"group_nicknames.$[group].nicknames": {"name": nickname, "count": 1}}},
         array_filters=[{"group.group_id": group_id_str}],
     )
     if result_push_nick.modified_count > 0:
         logger.debug(f"成功为 person_id {person_id} 在现有群组 {group_id_str} 中添加新绰号 '{nickname}'。")
-        return # 成功添加绰号，操作完成
+        return  # 成功添加绰号，操作完成
 
     # 3c. 如果上一步也未修改 (群组条目本身不存在)，则添加新的群组条目和绰号
     # 确保 group_nicknames 数组存在 (作为保险措施)
@@ -117,7 +116,7 @@ def _update_group_nickname(collection: Collection, person_id: str, group_id_str:
     result_push_group = collection.update_one(
         {
             "person_id": person_id,
-            "group_nicknames.group_id": {"$ne": group_id_str}, # 确保该群组 ID 尚未存在
+            "group_nicknames.group_id": {"$ne": group_id_str},  # 确保该群组 ID 尚未存在
         },
         {
             "$push": {
@@ -131,9 +130,10 @@ def _update_group_nickname(collection: Collection, person_id: str, group_id_str:
     if result_push_group.modified_count > 0:
         logger.debug(f"为 person_id {person_id} 添加了新的群组 {group_id_str} 和绰号 '{nickname}'。")
     # else:
-        # 如果连添加群组也失败 (例如 group_id 已存在但之前的步骤都未匹配，理论上不太可能)，
-        # 可能需要进一步的日志或错误处理，但这通常意味着数据状态异常。
-        # logger.warning(f"尝试为 person_id {person_id} 添加新群组 {group_id_str} 失败，可能群组已存在但结构不符合预期。")
+    # 如果连添加群组也失败 (例如 group_id 已存在但之前的步骤都未匹配，理论上不太可能)，
+    # 可能需要进一步的日志或错误处理，但这通常意味着数据状态异常。
+    # logger.warning(f"尝试为 person_id {person_id} 添加新群组 {group_id_str} 失败，可能群组已存在但结构不符合预期。")
+
 
 async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dict[str, str]):
     """
@@ -185,13 +185,14 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
             _update_group_nickname(person_info_collection, person_id, group_id_str, nickname)
 
         # --- 统一处理数据库操作可能抛出的异常 ---
-        except (OperationFailure, DuplicateKeyError) as db_err: # 捕获特定的数据库错误
+        except (OperationFailure, DuplicateKeyError) as db_err:  # 捕获特定的数据库错误
             logger.exception(
                 f"数据库操作失败 ({type(db_err).__name__}): 用户 {user_id_str}, 群组 {group_id_str}, 绰号 {nickname}. 错误: {db_err}"
             )
         except Exception as e:
             # 捕获其他所有可能的错误 (例如 person_id 生成、辅助函数内部未捕获的错误等)
             logger.exception(f"处理用户 {user_id_str} 的绰号 '{nickname}' 时发生意外错误：{e}")
+
 
 # --- 使用 queue.Queue ---
 queue_max_size = getattr(global_config, "NICKNAME_QUEUE_MAX_SIZE", 100)

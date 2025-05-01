@@ -55,11 +55,15 @@ def select_nicknames_for_prompt(all_nicknames_info: Dict[str, List[Dict[str, int
 
         # 如果抽样结果数量不足（例如权重问题导致提前退出），可以考虑是否需要补充
         if len(selected_candidates_with_weight) < num_to_select:
-            logger.debug(f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，补充选择次数最多的。")
+            logger.debug(
+                f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，补充选择次数最多的。"
+            )
             # 筛选出未被选中的候选
-            selected_ids = set((c[0], c[1]) for c in selected_candidates_with_weight) # 使用 (用户名, 绰号) 作为唯一标识
+            selected_ids = set(
+                (c[0], c[1]) for c in selected_candidates_with_weight
+            )  # 使用 (用户名, 绰号) 作为唯一标识
             remaining_candidates = [c for c in candidates if (c[0], c[1]) not in selected_ids]
-            remaining_candidates.sort(key=lambda x: x[2], reverse=True) # 按原始次数排序
+            remaining_candidates.sort(key=lambda x: x[2], reverse=True)  # 按原始次数排序
             needed = num_to_select - len(selected_candidates_with_weight)
             selected_candidates_with_weight.extend(remaining_candidates[:needed])
 
@@ -67,15 +71,14 @@ def select_nicknames_for_prompt(all_nicknames_info: Dict[str, List[Dict[str, int
         # 日志：记录加权随机选择时发生的错误，并回退到简单选择
         logger.error(f"绰号加权随机选择时出错: {e}。将回退到选择次数最多的 Top N。", exc_info=True)
         # 出错时回退到选择次数最多的 N 个
-        candidates.sort(key=lambda x: x[2], reverse=True) # 按原始次数排序
+        candidates.sort(key=lambda x: x[2], reverse=True)  # 按原始次数排序
         # 注意：这里需要选择包含权重的元组，或者调整后续处理
         selected_candidates_with_weight = candidates[:num_to_select]
-
 
     # 格式化输出结果为 (用户名, 绰号, 次数)，移除权重
     result = [(user, nick, count) for user, nick, count, _weight in selected_candidates_with_weight]
 
-    result.sort(key=lambda x: x[2], reverse=True) # 按次数降序
+    result.sort(key=lambda x: x[2], reverse=True)  # 按次数降序
 
     logger.debug(f"为 Prompt 选择的绰号: {result}")
     return result
@@ -285,7 +288,10 @@ async def trigger_nickname_analysis_if_needed(
         # 日志：记录触发分析过程中发生的任何其他错误
         logger.error(f"{log_prefix} 触发绰号分析时出错: {e}", exc_info=True)
 
-def weighted_sample_without_replacement(candidates: List[Tuple[str, str, int, float]], k: int) -> List[Tuple[str, str, int, float]]:
+
+def weighted_sample_without_replacement(
+    candidates: List[Tuple[str, str, int, float]], k: int
+) -> List[Tuple[str, str, int, float]]:
     """
     执行不重复的加权随机抽样。
 
@@ -300,18 +306,18 @@ def weighted_sample_without_replacement(candidates: List[Tuple[str, str, int, fl
         return []
     if k >= len(candidates):
         # 如果需要选择的数量大于或等于候选数量，直接返回所有候选
-        return candidates[:] # 返回副本以避免修改原始列表
+        return candidates[:]  # 返回副本以避免修改原始列表
 
-    pool = candidates[:] # 创建候选列表的副本进行操作
+    pool = candidates[:]  # 创建候选列表的副本进行操作
     selected = []
     # 注意：原评论代码中计算 total_weight 但未使用，这里也省略。
     # random.choices 内部会处理权重的归一化。
 
-    for _ in range(min(k, len(pool))): # 确保迭代次数不超过池中剩余元素
-        if not pool: # 如果池已空，提前结束
+    for _ in range(min(k, len(pool))):  # 确保迭代次数不超过池中剩余元素
+        if not pool:  # 如果池已空，提前结束
             break
 
-        weights = [c[3] for c in pool] # 获取当前池中所有元素的权重
+        weights = [c[3] for c in pool]  # 获取当前池中所有元素的权重
         # 检查权重是否有效
         if sum(weights) <= 0:
             # 如果所有剩余权重无效，随机选择一个（或根据需要采取其他策略）
@@ -322,7 +328,7 @@ def weighted_sample_without_replacement(candidates: List[Tuple[str, str, int, fl
             # 使用 random.choices 进行加权抽样，选择 1 个
             # random.choices 返回一个列表，所以取第一个元素 [0]
             chosen = random.choices(pool, weights=weights, k=1)[0]
-            pool.remove(chosen) # 从池中移除选中的元素，实现不重复抽样
+            pool.remove(chosen)  # 从池中移除选中的元素，实现不重复抽样
 
         selected.append(chosen)
 
