@@ -127,6 +127,8 @@ class SubHeartflowManager:
 
                 # 添加聊天观察者
                 observation = ChattingObservation(chat_id=subheartflow_id)
+                await observation.initialize()
+
                 new_subflow.add_observation(observation)
 
                 # 注册子心流
@@ -335,27 +337,36 @@ class SubHeartflowManager:
 
     async def sbhf_absent_into_chat(self):
         """
-        随机选一个 ABSENT 状态的子心流，评估是否应转换为 CHAT 状态。
+        随机选一个 ABSENT 状态的 *群聊* 子心流，评估是否应转换为 CHAT 状态。
         每次调用最多转换一个。
+        私聊会被忽略。
         """
         current_mai_state = self.mai_state_info.get_current_state()
         chat_limit = current_mai_state.get_normal_chat_max_num()
 
         async with self._lock:
-            # 1. 筛选出所有 ABSENT 状态的子心流
-            absent_subflows = [
-                hf for hf in self.subheartflows.values() if hf.chat_state.chat_status == ChatState.ABSENT
+            # 1. 筛选出所有 ABSENT 状态的 *群聊* 子心流
+            absent_group_subflows = [
+                hf
+                for hf in self.subheartflows.values()
+                if hf.chat_state.chat_status == ChatState.ABSENT and hf.is_group_chat
             ]
 
-            if not absent_subflows:
-                logger.debug("没有摸鱼的子心流可以评估。")  # 日志太频繁，注释掉
+            if not absent_group_subflows:
+                # logger.debug("没有摸鱼的群聊子心流可以评估。") # 日志太频繁
                 return  # 没有目标，直接返回
 
             # 2. 随机选一个幸运儿
-            sub_hf_to_evaluate = random.choice(absent_subflows)
+            sub_hf_to_evaluate = random.choice(absent_group_subflows)
             flow_id = sub_hf_to_evaluate.subheartflow_id
             stream_name = chat_manager.get_stream_name(flow_id) or flow_id
             log_prefix = f"[{stream_name}]"
+
+            # --- Private chat check (redundant due to filter above, but safe) ---
+            # if not sub_hf_to_evaluate.is_group_chat:
+            #     logger.debug(f"{log_prefix} 是私聊，跳过 CHAT 状态评估。")
+            #     return
+            # --- End check ---
 
             # 3. 检查 CHAT 上限
             current_chat_count = self.count_subflows_by_state_nolock(ChatState.CHAT)
@@ -658,8 +669,10 @@ class SubHeartflowManager:
     # --- 新增：处理来自 HeartFChatting 的状态转换请求 --- #
     async def sbhf_focus_into_absent(self, subflow_id: Any):
         """
-        接收来自 HeartFChatting 的请求，将特定子心流的状态转换为 ABSENT。
+        接收来自 HeartFChatting 的请求，将特定子心流的状态转换为 ABSENT 或 CHAT。
         通常在连续多次 "no_reply" 后被调用。
+        对于私聊，总是转换为 ABSENT。
+        对于群聊，随机决定转换为 ABSENT 或 CHAT (如果 CHAT 未达上限)。
 
         Args:
             subflow_id: 需要转换状态的子心流 ID。
@@ -667,50 +680,46 @@ class SubHeartflowManager:
         async with self._lock:
             subflow = self.subheartflows.get(subflow_id)
             if not subflow:
-                logger.warning(f"[状态转换请求] 尝试转换不存在的子心流 {subflow_id} 到 ABSENT")
+                logger.warning(f"[状态转换请求] 尝试转换不存在的子心流 {subflow_id} 到 ABSENT/CHAT")
                 return
 
             stream_name = chat_manager.get_stream_name(subflow_id) or subflow_id
             current_state = subflow.chat_state.chat_status
 
-            # 仅当子心流处于 FOCUSED 状态时才进行转换
-            # 因为 HeartFChatting 只在 FOCUSED 状态下运行
             if current_state == ChatState.FOCUSED:
-                target_state = ChatState.ABSENT  # 默认目标状态
-                log_reason = "默认转换"
+                target_state = ChatState.ABSENT  # Default target
+                log_reason = "默认转换 (私聊或群聊)"
 
-                # 决定是去 ABSENT 还是 CHAT
-                if random.random() < 0.5:
-                    target_state = ChatState.ABSENT
-                    log_reason = "随机选择 ABSENT"
-                    logger.debug(f"[状态转换请求] {stream_name} ({current_state.value}) 随机决定进入 ABSENT")
-                else:
-                    # 尝试进入 CHAT，先检查限制
-                    current_mai_state = self.mai_state_info.get_current_state()
-                    chat_limit = current_mai_state.get_normal_chat_max_num()
-                    # 使用不上锁的版本，因为我们已经在锁内
-                    current_chat_count = self.count_subflows_by_state_nolock(ChatState.CHAT)
+                # --- Modify logic based on chat type --- #
+                if subflow.is_group_chat:
+                    # Group chat: Decide between ABSENT or CHAT
+                    if random.random() < 0.5:  # 50% chance to try CHAT
+                        current_mai_state = self.mai_state_info.get_current_state()
+                        chat_limit = current_mai_state.get_normal_chat_max_num()
+                        current_chat_count = self.count_subflows_by_state_nolock(ChatState.CHAT)
 
-                    if current_chat_count < chat_limit:
-                        target_state = ChatState.CHAT
-                        log_reason = f"随机选择 CHAT (当前 {current_chat_count}/{chat_limit})"
-                        logger.debug(
-                            f"[状态转换请求] {stream_name} ({current_state.value}) 随机决定进入 CHAT，未达上限 ({current_chat_count}/{chat_limit})"
-                        )
-                    else:
+                        if current_chat_count < chat_limit:
+                            target_state = ChatState.CHAT
+                            log_reason = f"群聊随机选择 CHAT (当前 {current_chat_count}/{chat_limit})"
+                        else:
+                            target_state = ChatState.ABSENT  # Fallback to ABSENT if CHAT limit reached
+                            log_reason = (
+                                f"群聊随机选择 CHAT 但已达上限 ({current_chat_count}/{chat_limit})，转为 ABSENT"
+                            )
+                    else:  # 50% chance to go directly to ABSENT
                         target_state = ChatState.ABSENT
-                        log_reason = f"随机选择 CHAT 但已达上限 ({current_chat_count}/{chat_limit})，转为 ABSENT"
-                        logger.debug(
-                            f"[状态转换请求] {stream_name} ({current_state.value}) 随机决定进入 CHAT，但已达上限 ({current_chat_count}/{chat_limit})，改为进入 ABSENT"
-                        )
+                        log_reason = "群聊随机选择 ABSENT"
+                else:
+                    # Private chat: Always go to ABSENT
+                    target_state = ChatState.ABSENT
+                    log_reason = "私聊退出 FOCUSED，转为 ABSENT"
+                # --- End modification --- #
 
-                # 开始转换
                 logger.info(
                     f"[状态转换请求] 接收到请求，将 {stream_name} (当前: {current_state.value}) 尝试转换为 {target_state.value} ({log_reason})"
                 )
                 try:
                     await subflow.change_chat_state(target_state)
-                    # 检查最终状态
                     final_state = subflow.chat_state.chat_status
                     if final_state == target_state:
                         logger.debug(f"[状态转换请求] {stream_name} 状态已成功转换为 {final_state.value}")
@@ -730,3 +739,106 @@ class SubHeartflowManager:
                 )
 
     # --- 结束新增 --- #
+
+    # --- 新增：处理私聊从 ABSENT 直接到 FOCUSED 的逻辑 --- #
+    async def sbhf_absent_private_into_focus(self):
+        """检查 ABSENT 状态的私聊子心流是否有新活动，若有且未达 FOCUSED 上限，则直接转换为 FOCUSED。"""
+        log_prefix_task = "[私聊激活检查]"
+        transitioned_count = 0
+        checked_count = 0
+
+        # --- 获取当前状态和 FOCUSED 上限 --- #
+        current_mai_state = self.mai_state_info.get_current_state()
+        focused_limit = current_mai_state.get_focused_chat_max_num()
+
+        # --- 检查是否允许 FOCUS 模式 --- #
+        if not global_config.allow_focus_mode:
+            # Log less frequently to avoid spam
+            # if int(time.time()) % 60 == 0:
+            #     logger.debug(f"{log_prefix_task} 配置不允许进入 FOCUSED 状态")
+            return
+
+        if focused_limit <= 0:
+            # logger.debug(f"{log_prefix_task} 当前状态 ({current_mai_state.value}) 不允许 FOCUSED 子心流")
+            return
+
+        async with self._lock:
+            # --- 获取当前 FOCUSED 计数 (不上锁版本) --- #
+            current_focused_count = self.count_subflows_by_state_nolock(ChatState.FOCUSED)
+
+            # --- 筛选出所有 ABSENT 状态的私聊子心流 --- #
+            eligible_subflows = [
+                hf
+                for hf in self.subheartflows.values()
+                if hf.chat_state.chat_status == ChatState.ABSENT and not hf.is_group_chat
+            ]
+            checked_count = len(eligible_subflows)
+
+            if not eligible_subflows:
+                # logger.debug(f"{log_prefix_task} 没有 ABSENT 状态的私聊子心流可以评估。")
+                return
+
+            # --- 遍历评估每个符合条件的私聊 --- #
+            for sub_hf in eligible_subflows:
+                # --- 再次检查 FOCUSED 上限，因为可能有多个同时激活 --- #
+                if current_focused_count >= focused_limit:
+                    logger.debug(
+                        f"{log_prefix_task} 已达专注上限 ({current_focused_count}/{focused_limit})，停止检查后续私聊。"
+                    )
+                    break  # 已满，无需再检查其他私聊
+
+                flow_id = sub_hf.subheartflow_id
+                stream_name = chat_manager.get_stream_name(flow_id) or flow_id
+                log_prefix = f"[{stream_name}]({log_prefix_task})"
+
+                try:
+                    # --- 检查是否有新活动 --- #
+                    observation = sub_hf._get_primary_observation()  # 获取主要观察者
+                    is_active = False
+                    if observation:
+                        # 检查自上次状态变为 ABSENT 后是否有新消息
+                        # 使用 chat_state_changed_time 可能更精确
+                        # 加一点点缓冲时间（例如 1 秒）以防时间戳完全相等
+                        timestamp_to_check = sub_hf.chat_state_changed_time - 1
+                        has_new = await observation.has_new_messages_since(timestamp_to_check)
+                        if has_new:
+                            is_active = True
+                            logger.debug(f"{log_prefix} 检测到新消息，标记为活跃。")
+                    # 可选：检查兴趣度是否大于0 (如果需要)
+                    # interest_level = await sub_hf.interest_chatting.get_interest()
+                    # if interest_level > 0:
+                    #    is_active = True
+                    #    logger.debug(f"{log_prefix} 检测到兴趣度 > 0 ({interest_level:.2f})，标记为活跃。")
+                    else:
+                        logger.warning(f"{log_prefix} 无法获取主要观察者来检查活动状态。")
+
+                    # --- 如果活跃且未达上限，则尝试转换 --- #
+                    if is_active:
+                        logger.info(
+                            f"{log_prefix} 检测到活跃且未达专注上限 ({current_focused_count}/{focused_limit})，尝试转换为 FOCUSED。"
+                        )
+                        await sub_hf.change_chat_state(ChatState.FOCUSED)
+                        # 确认转换成功
+                        if sub_hf.chat_state.chat_status == ChatState.FOCUSED:
+                            transitioned_count += 1
+                            current_focused_count += 1  # 更新计数器以供本轮后续检查
+                            logger.info(f"{log_prefix} 成功进入 FOCUSED 状态。")
+                        else:
+                            logger.warning(
+                                f"{log_prefix} 尝试进入 FOCUSED 状态失败。当前状态: {sub_hf.chat_state.chat_status.value}"
+                            )
+                    # else: # 不活跃，无需操作
+                    #    logger.debug(f"{log_prefix} 未检测到新活动，保持 ABSENT。")
+
+                except Exception as e:
+                    logger.error(f"{log_prefix} 检查私聊活动或转换状态时出错: {e}", exc_info=True)
+
+        # --- 循环结束后记录总结日志 --- #
+        if transitioned_count > 0:
+            logger.debug(
+                f"{log_prefix_task} 完成，共检查 {checked_count} 个私聊，{transitioned_count} 个转换为 FOCUSED。"
+            )
+
+    # --- 结束新增 --- #
+
+    # --- 结束新增：处理来自 HeartFChatting 的状态转换请求 --- #

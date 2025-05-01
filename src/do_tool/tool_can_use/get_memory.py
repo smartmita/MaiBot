@@ -10,7 +10,7 @@ class GetMemoryTool(BaseTool):
     """从记忆系统中获取相关记忆的工具"""
 
     name = "get_memory"
-    description = "从记忆系统中获取相关记忆"
+    description = "使用工具从记忆系统中获取相关记忆"
     parameters = {
         "type": "object",
         "properties": {
@@ -53,10 +53,11 @@ class GetMemoryTool(BaseTool):
             else:
                 content = f"{topic}的记忆，你记不太清"
 
-            return {"name": "get_memory", "content": content}
+            return {"type": "memory", "id": topic_list, "content": content}
         except Exception as e:
             logger.error(f"记忆获取工具执行失败: {str(e)}")
-            return {"name": "get_memory", "content": f"记忆获取失败: {str(e)}"}
+            # 在失败时也保持格式一致，但id可能不适用或设为None/Error
+            return {"type": "memory_error", "id": topic_list, "content": f"记忆获取失败: {str(e)}"}
 
 
 # 注册工具

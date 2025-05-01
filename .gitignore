@@ -5,6 +5,8 @@ NapCat.Framework.Windows.Once/
 log/
 logs/
 tool_call_benchmark.py
+run_maibot_core.bat
+run_napcat_adapter.bat
 run_ad.bat
 llm_tool_benchmark_results.json
 MaiBot-Napcat-Adapter-main

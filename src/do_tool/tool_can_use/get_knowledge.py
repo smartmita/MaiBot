@@ -11,7 +11,7 @@ class SearchKnowledgeTool(BaseTool):
     """从知识库中搜索相关信息的工具"""
 
     name = "search_knowledge"
-    description = "从知识库中搜索相关信息"
+    description = "使用工具从知识库中搜索相关信息"
     parameters = {
         "type": "object",
         "properties": {
@@ -42,11 +42,11 @@ class SearchKnowledgeTool(BaseTool):
                     content = f"你知道这些知识: {knowledge_info}"
                 else:
                     content = f"你不太了解有关{query}的知识"
-                return {"name": "search_knowledge", "content": content}
-            return {"name": "search_knowledge", "content": f"无法获取关于'{query}'的嵌入向量"}
+                return {"type": "knowledge", "id": query, "content": content}
+            return {"type": "info", "id": query, "content": f"无法获取关于'{query}'的嵌入向量，你知识库炸了"}
         except Exception as e:
             logger.error(f"知识库搜索工具执行失败: {str(e)}")
-            return {"name": "search_knowledge", "content": f"知识库搜索失败: {str(e)}"}
+            return {"type": "info", "id": query, "content": f"知识库搜索失败，炸了: {str(e)}"}
 
     @staticmethod
     def get_info_from_db(

@@ -209,24 +209,31 @@ class MessageManager:
             _ = message.update_thinking_time()  # 更新思考时间
             thinking_start_time = message.thinking_start_time
             now_time = time.time()
+            logger.debug(f"thinking_start_time:{thinking_start_time},now_time:{now_time}")
             thinking_messages_count, thinking_messages_length = count_messages_between(
                 start_time=thinking_start_time, end_time=now_time, stream_id=message.chat_stream.stream_id
             )
+            # print(f"message.reply:{message.reply}")
 
             # --- 条件应用 set_reply 逻辑 ---
+            logger.debug(
+                f"[message.apply_set_reply_logic:{message.apply_set_reply_logic},message.is_head:{message.is_head},thinking_messages_count:{thinking_messages_count},thinking_messages_length:{thinking_messages_length},message.is_private_message():{message.is_private_message()}]"
+            )
             if (
                 message.apply_set_reply_logic  # 检查标记
                 and message.is_head
-                and (thinking_messages_count > 4 or thinking_messages_length > 250)
+                and (thinking_messages_count > 3 or thinking_messages_length > 200)
                 and not message.is_private_message()
             ):
                 logger.debug(
                     f"[{message.chat_stream.stream_id}] 应用 set_reply 逻辑: {message.processed_plain_text[:20]}..."
                 )
-                message.set_reply()
+                message.set_reply(message.reply)
             # --- 结束条件 set_reply ---
 
             await message.process()  # 预处理消息内容
+
+            logger.debug(f"{message}")
 
             # 使用全局 message_sender 实例
             await send_message(message)

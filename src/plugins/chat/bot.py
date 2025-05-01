@@ -83,6 +83,13 @@ class ChatBot:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
+            if groupinfo is None:
+                logger.trace("检测到私聊消息，检查")
+                # 好友黑名单拦截
+                if userinfo.user_id not in global_config.talk_allowed_private:
+                    logger.debug(f"用户{userinfo.user_id}没有私聊权限")
+                    return
+
             # 群聊黑名单拦截
             if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
                 logger.trace(f"群{groupinfo.group_id}被禁止回复")
