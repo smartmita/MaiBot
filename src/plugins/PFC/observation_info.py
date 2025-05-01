@@ -1,7 +1,6 @@
 from typing import List, Optional, Dict, Any, Set
 from maim_message import UserInfo
 import time
-from dataclasses import dataclass, field
 from src.common.logger import get_module_logger
 from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
@@ -148,7 +147,6 @@ class ObservationInfo:
     chat_observer: Optional[ChatObserver]
     handler: Optional[ObservationInfoHandler]
 
-
     def __init__(self, private_name: str):
         """
         手动初始化 ObservationInfo 的所有实例变量。
@@ -198,9 +196,9 @@ class ObservationInfo:
 
         self.chat_observer = chat_observer
         try:
-            if not self.handler: # 确保 handler 已经被创建
+            if not self.handler:  # 确保 handler 已经被创建
                 logger.error(f"[私聊][{self.private_name}] 尝试绑定时 handler 未初始化！")
-                self.chat_observer = None # 重置，防止后续错误
+                self.chat_observer = None  # 重置，防止后续错误
                 return
 
             # 注册关心的通知类型
@@ -221,7 +219,9 @@ class ObservationInfo:
 
     def unbind_from_chat_observer(self):
         """解除与chat_observer的绑定"""
-        if self.chat_observer and hasattr(self.chat_observer, "notification_manager") and self.handler: # 增加 handler 检查
+        if (
+            self.chat_observer and hasattr(self.chat_observer, "notification_manager") and self.handler
+        ):  # 增加 handler 检查
             try:
                 self.chat_observer.notification_manager.unregister_handler(
                     target="observation_info", notification_type=NotificationType.NEW_MESSAGE, handler=self.handler
