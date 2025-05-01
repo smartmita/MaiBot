@@ -364,7 +364,6 @@ class Hippocampus:
         logger.debug(f"有效的关键词: {', '.join(valid_keywords)}")
 
         # 从每个关键词获取记忆
-        all_memories = []
         activate_map = {}  # 存储每个词的累计激活值
 
         # 对每个关键词进行扩散式检索
@@ -511,7 +510,7 @@ class Hippocampus:
         """从文本中提取关键词并获取相关记忆。
 
         Args:
-            topic (str): 记忆主题
+            keywords (list): 输入文本
             max_memory_num (int, optional): 返回的记忆条目数量上限。默认为3，表示最多返回3条与输入文本相关度最高的记忆。
             max_memory_length (int, optional): 每个主题最多返回的记忆条目数量。默认为2，表示每个主题最多返回2条相似度最高的记忆。
             max_depth (int, optional): 记忆检索深度。默认为3。值越大，检索范围越广，可以获取更多间接相关的记忆，但速度会变慢。
@@ -536,7 +535,6 @@ class Hippocampus:
         logger.debug(f"有效的关键词: {', '.join(valid_keywords)}")
 
         # 从每个关键词获取记忆
-        all_memories = []
         activate_map = {}  # 存储每个词的累计激活值
 
         # 对每个关键词进行扩散式检索
@@ -829,7 +827,7 @@ class EntorhinalCortex:
         return chat_samples
 
     @staticmethod
-    def random_get_msg_snippet(target_timestamp: float, chat_size: int, max_memorized_time_per_msg: int) -> list:
+    def random_get_msg_snippet(target_timestamp: float, chat_size: int, max_memorized_time_per_msg: int) -> list | None:
         """从数据库中随机获取指定时间戳附近的消息片段 (使用 chat_message_builder)"""
         try_count = 0
         time_window_seconds = random.randint(300, 1800)  # 随机时间窗口，5到30分钟

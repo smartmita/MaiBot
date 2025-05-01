@@ -22,7 +22,7 @@ logger = get_logger("config")
 # 考虑到，实际上配置文件中的mai_version是不会自动更新的,所以采用硬编码
 is_test = False
 mai_version_main = "0.6.3"
-mai_version_fix = ""
+mai_version_fix = "fix-1"
 
 if mai_version_fix:
     if is_test:
@@ -278,8 +278,8 @@ class BotConfig:
     NICKNAME_PROCESS_SLEEP_INTERVAL: float = 0.5 # 绰号处理进程休眠间隔（秒）
 
     # 模型配置
-    llm_reasoning: Dict[str, str] = field(default_factory=lambda: {})
-    # llm_reasoning_minor: Dict[str, str] = field(default_factory=lambda: {})
+    llm_reasoning: dict[str, str] = field(default_factory=lambda: {})
+    # llm_reasoning_minor: dict[str, str] = field(default_factory=lambda: {})
     llm_normal: Dict[str, str] = field(default_factory=lambda: {})
     llm_topic_judge: Dict[str, str] = field(default_factory=lambda: {})
     llm_summary: Dict[str, str] = field(default_factory=lambda: {})

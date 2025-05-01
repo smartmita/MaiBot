@@ -2,7 +2,7 @@ from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.plugins.chat.utils import get_embedding
 from src.common.database import db
 from src.common.logger_manager import get_logger
-from typing import Dict, Any, Union
+from typing import Any, Union
 
 logger = get_logger("get_knowledge_tool")
 
@@ -21,15 +21,14 @@ class SearchKnowledgeTool(BaseTool):
         "required": ["query"],
     }
 
-    async def execute(self, function_args: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:
         """执行知识库搜索
 
         Args:
             function_args: 工具参数
-            message_txt: 原始消息文本
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         try:
             query = function_args.get("query")

@@ -158,6 +158,10 @@ class ObservationInfo:
     # meta_plan_trigger: bool = False
 
     # --- 修改：移除 __post_init__ 的参数 ---
+    def __init__(self):
+        self.chat_observer = None
+        self.chat_observer = None
+
     def __post_init__(self):
         """初始化后创建handler并进行必要的设置"""
         self.chat_observer: Optional[ChatObserver] = None  # 添加类型提示

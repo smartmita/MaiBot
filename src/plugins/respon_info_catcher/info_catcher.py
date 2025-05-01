@@ -187,7 +187,6 @@ class InfoCatcher:
 
             thinking_log_data = {
                 "chat_id": self.chat_id,
-                # "response_mode": self.response_mode, # 这个也删掉喵~
                 "trigger_text": self.trigger_response_text,
                 "response_text": self.response_text,
                 "trigger_info": {
@@ -202,6 +201,8 @@ class InfoCatcher:
                 "chat_history": self.message_list_to_dict(self.chat_history),
                 "chat_history_in_thinking": self.message_list_to_dict(self.chat_history_in_thinking),
                 "chat_history_after_response": self.message_list_to_dict(self.chat_history_after_response),
+                "heartflow_data": self.heartflow_data,
+                "reasoning_data": self.reasoning_data,
             }
 
             # 根据不同的响应模式添加相应的数据喵~ # 现在直接都加上去好了喵~
@@ -209,8 +210,6 @@ class InfoCatcher:
             #     thinking_log_data["mode_specific_data"] = self.heartflow_data
             # elif self.response_mode == "reasoning":
             #     thinking_log_data["mode_specific_data"] = self.reasoning_data
-            thinking_log_data["heartflow_data"] = self.heartflow_data
-            thinking_log_data["reasoning_data"] = self.reasoning_data
 
             # 将数据插入到 thinking_log 集合中喵~
             db.thinking_log.insert_one(thinking_log_data)

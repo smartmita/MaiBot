@@ -262,7 +262,6 @@ class ActionPlanner:
         # --- 知识信息字符串构建结束 ---
 
         # 获取聊天历史记录 (chat_history_text)
-        chat_history_text = ""
         try:
             if hasattr(observation_info, "chat_history") and observation_info.chat_history:
                 chat_history_text = observation_info.chat_history_str

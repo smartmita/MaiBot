@@ -358,7 +358,9 @@ class NormalChat:
         processed_count = 0
         # --- 修改：迭代前创建要处理的ID列表副本，防止迭代时修改 ---
         messages_to_process_initially = list(messages_to_reply)  # 创建副本
-        # --- 修改结束 ---
+        # --- 新增：限制最多处理两条消息 ---
+        messages_to_process_initially = messages_to_process_initially[:2]
+        # --- 新增结束 ---
         for item in messages_to_process_initially:  # 使用副本迭代
             msg_id, (message, interest_value, is_mentioned) = item
             # --- 修改：在处理前尝试 pop，防止竞争 ---
@@ -443,7 +445,7 @@ class NormalChat:
                 logger.error(f"[{self.stream_name}] 任务异常: {exc}")
                 logger.error(traceback.format_exc())
         except asyncio.CancelledError:
-            logger.info(f"[{self.stream_name}] 任务已取消")
+            logger.debug(f"[{self.stream_name}] 任务已取消")
         except Exception as e:
             logger.error(f"[{self.stream_name}] 回调处理错误: {e}")
         finally:
@@ -456,12 +458,12 @@ class NormalChat:
         """停止当前实例的兴趣监控任务。"""
         if self._chat_task and not self._chat_task.done():
             task = self._chat_task
-            logger.info(f"[{self.stream_name}] 尝试取消聊天任务。")
+            logger.debug(f"[{self.stream_name}] 尝试取消normal聊天任务。")
             task.cancel()
             try:
                 await task  # 等待任务响应取消
             except asyncio.CancelledError:
-                logger.info(f"[{self.stream_name}] 聊天任务已成功取消。")
+                logger.info(f"[{self.stream_name}] 结束一般聊天模式。")
             except Exception as e:
                 # 回调函数 _handle_task_completion 会处理异常日志
                 logger.warning(f"[{self.stream_name}] 等待监控任务取消时捕获到异常 (可能已在回调中记录): {e}")

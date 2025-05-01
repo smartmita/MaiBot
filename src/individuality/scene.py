@@ -1,9 +1,9 @@
 import json
-from typing import Dict
 import os
+from typing import Any
 
 
-def load_scenes() -> Dict:
+def load_scenes() -> dict[str, Any]:
     """
     从JSON文件加载场景数据
 
@@ -20,7 +20,7 @@ def load_scenes() -> Dict:
 PERSONALITY_SCENES = load_scenes()
 
 
-def get_scene_by_factor(factor: str) -> Dict:
+def get_scene_by_factor(factor: str) -> dict | None:
     """
     根据人格因子获取对应的情景测试
 
@@ -28,12 +28,12 @@ def get_scene_by_factor(factor: str) -> Dict:
         factor (str): 人格因子名称
 
     Returns:
-        Dict: 包含情景描述的字典
+        dict: 包含情景描述的字典
     """
     return PERSONALITY_SCENES.get(factor, None)
 
 
-def get_all_scenes() -> Dict:
+def get_all_scenes() -> dict:
     """
     获取所有情景测试
 

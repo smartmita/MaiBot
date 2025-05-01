@@ -123,7 +123,7 @@ def num_new_messages_since(chat_id: str, timestamp_start: float = 0.0, timestamp
         return 0  # 起始时间大于等于结束时间，没有新消息
 
     filter_query = {"chat_id": chat_id, "time": {"$gt": timestamp_start, "$lt": _timestamp_end}}
-    return count_messages(filter=filter_query)
+    return count_messages(message_filter=filter_query)
 
 
 def num_new_messages_since_with_users(
@@ -137,7 +137,7 @@ def num_new_messages_since_with_users(
         "time": {"$gt": timestamp_start, "$lt": timestamp_end},
         "user_id": {"$in": person_ids},
     }
-    return count_messages(filter=filter_query)
+    return count_messages(message_filter=filter_query)
 
 
 async def _build_readable_messages_internal(
@@ -227,7 +227,7 @@ async def _build_readable_messages_internal(
                 replace_content = "......（太长了）"
 
             truncated_content = content
-            if limit > 0 and original_len > limit:
+            if 0 < limit < original_len:
                 truncated_content = f"{content[:limit]}{replace_content}"
 
             message_details.append((timestamp, name, truncated_content))

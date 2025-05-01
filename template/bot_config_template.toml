@@ -104,8 +104,8 @@ mentioned_bot_inevitable_reply = false # 提及 bot 必然回复
 at_bot_inevitable_reply = false # @bot 必然回复
 
 [focus_chat] #专注聊天
-reply_trigger_threshold = 3.5 # 专注聊天触发阈值，越低越容易进入专注聊天
-default_decay_rate_per_second = 0.98 # 默认衰减率，越大衰减越快，越高越难进入专注聊天
+reply_trigger_threshold = 3.6 # 专注聊天触发阈值，越低越容易进入专注聊天
+default_decay_rate_per_second = 0.95 # 默认衰减率，越大衰减越快，越高越难进入专注聊天
 consecutive_no_reply_threshold = 3 # 连续不回复的阈值，越低越容易结束专注聊天
 
 # 以下选项暂时无效

@@ -49,17 +49,15 @@ def init_prompt():
         "info_from_tools",
     )
 
-    # Planner提示词 - 优化版
+    # Planner提示词 - 修改为要求 JSON 输出
     Prompt(
         """你的名字是{bot_name},{prompt_personality}，你现在正在一个群聊中。需要基于以下信息决定如何参与对话：
 {structured_info_block}
 {chat_content_block}
-你的内心想法：
 {current_mind_block}
-{replan}
 {cycle_info_block}
 
-请综合分析聊天内容和你看到的新消息，参考内心想法，使用'decide_reply_action'工具做出决策。决策时请注意：
+请综合分析聊天内容和你看到的新消息，参考内心想法，并根据以下原则和可用动作做出决策。
 
 【回复原则】
 1. 不回复(no_reply)适用：
@@ -83,14 +81,34 @@ def init_prompt():
 - 避免重复或评价自己的发言
 - 不要和自己聊天
 
-【必须遵守】
-- 遵守回复原则
-- 必须调用工具并包含action和reasoning
-- 你可以选择文字回复(text_reply)，纯表情回复(emoji_reply)，不回复(no_reply)
-- 并不是所有选择都可用
-- 选择text_reply或emoji_reply时必须提供emoji_query
-- 保持回复自然，符合日常聊天习惯""",
-        "planner_prompt",
+【决策任务】
+{action_options_text}
+
+你必须从上面列出的可用行动中选择一个，并说明原因。
+你的决策必须以严格的 JSON 格式输出，且仅包含 JSON 内容，不要有任何其他文字或解释。
+JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
+{{
+  "action": "string", // 必须是上面提供的可用行动之一 (例如: '{example_action}')
+  "reasoning": "string", // 做出此决定的详细理由和思考过程，说明你如何应用了回复原则
+  "emoji_query": "string" // 可选。如果行动是 'emoji_reply'，必须提供表情主题(填写表情包的适用场合)；如果行动是 'text_reply' 且你想附带表情，也在此提供表情主题，否则留空字符串 ""。遵循回复原则，不要滥用。
+}}
+
+例如:
+{{
+  "action": "text_reply",
+  "reasoning": "用户提到了我，且问题比较具体，适合用文本回复。考虑到内容，可以带上一个微笑表情。",
+  "emoji_query": "微笑"
+}}
+或
+{{
+  "action": "no_reply",
+  "reasoning": "我已经连续回复了两次，而且这个话题我不太感兴趣，根据回复原则，选择不回复，等待其他人发言。",
+  "emoji_query": ""
+}}
+
+请输出你的决策 JSON：
+""",  # 使用三引号避免内部引号问题
+        "planner_prompt",  # 保持名称不变，替换内容
     )
 
     Prompt(
@@ -135,6 +153,126 @@ def init_prompt():
     Prompt("\n你有以下这些**知识**：\n{prompt_info}\n请你**记住上面的知识**，之后可能会用到。\n", "knowledge_prompt")
 
 
+async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_stream, sender_name) -> tuple[str, str]:
+    individuality = Individuality.get_instance()
+    prompt_personality = individuality.get_prompt(x_person=0, level=2)
+    # 日程构建
+    # schedule_prompt = f'''你现在正在做的事情是：{bot_schedule.get_current_num_task(num = 1,time_info = False)}'''
+
+    if chat_stream.group_info:
+        chat_in_group = True
+    else:
+        chat_in_group = False
+
+    message_list_before_now = get_raw_msg_before_timestamp_with_chat(
+        chat_id=chat_stream.stream_id,
+        timestamp=time.time(),
+        limit=global_config.observation_context_size,
+    )
+
+    chat_talking_prompt = await build_readable_messages(
+        message_list_before_now,
+        replace_bot_name=True,
+        merge_messages=False,
+        timestamp_mode="normal",
+        read_mark=0.0,
+        truncate=True,
+    )
+
+    # 中文高手(新加的好玩功能)
+    prompt_ger = ""
+    if random.random() < 0.04:
+        prompt_ger += "你喜欢用倒装句"
+    if random.random() < 0.02:
+        prompt_ger += "你喜欢用反问句"
+
+    reply_styles1 = [
+        ("给出日常且口语化的回复，平淡一些", 0.4),  # 40%概率
+        ("给出非常简短的回复", 0.4),  # 40%概率
+        ("给出缺失主语的回复，简短", 0.15),  # 15%概率
+        ("给出带有语病的回复，朴实平淡", 0.05),  # 5%概率
+    ]
+    reply_style1_chosen = random.choices(
+        [style[0] for style in reply_styles1], weights=[style[1] for style in reply_styles1], k=1
+    )[0]
+
+    reply_styles2 = [
+        ("不要回复的太有条理，可以有个性", 0.6),  # 60%概率
+        ("不要回复的太有条理，可以复读", 0.15),  # 15%概率
+        ("回复的认真一些", 0.2),  # 20%概率
+        ("可以回复单个表情符号", 0.05),  # 5%概率
+    ]
+    reply_style2_chosen = random.choices(
+        [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
+    )[0]
+
+    if structured_info:
+        structured_info_prompt = await global_prompt_manager.format_prompt(
+            "info_from_tools", structured_info=structured_info
+        )
+    else:
+        structured_info_prompt = ""
+
+    logger.debug("开始构建prompt")
+
+    # 注入绰号信息
+    nickname_injection_str = ""
+    if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
+        try:
+            group_id = str(chat_stream.group_info.group_id)
+            user_ids_in_context = set()
+            if message_list_before_now:
+                for msg in message_list_before_now:
+                    sender_id = msg["user_info"].get('user_id')
+                    if sender_id:
+                        user_ids_in_context.add(str(sender_id))
+            else:
+                logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
+
+
+            if user_ids_in_context:
+                platform = chat_stream.platform
+                # --- 调用批量获取群组绰号的方法 ---
+                all_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                    platform, list(user_ids_in_context), group_id
+                )
+
+                if all_nicknames_data:
+                    selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
+                    nickname_injection_str = format_nickname_prompt_injection(selected_nicknames)
+                    if nickname_injection_str:
+                        logger.debug(f"Injecting nickname info into focus prompt:\n{nickname_injection_str}")
+
+        except Exception as e:
+            logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
+    logger.debug(f"-------------------nickname_injection_str_______________________\n{nickname_injection_str}\n\n")
+
+    prompt = await global_prompt_manager.format_prompt(
+        "heart_flow_prompt",
+        info_from_tools=structured_info_prompt,
+        chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
+        if chat_in_group
+        else await global_prompt_manager.get_prompt_async("chat_target_private1"),
+        chat_talking_prompt=chat_talking_prompt,
+        bot_name=global_config.BOT_NICKNAME,
+        prompt_personality=prompt_personality,
+        chat_target_2=await global_prompt_manager.get_prompt_async("chat_target_group2")
+        if chat_in_group
+        else await global_prompt_manager.get_prompt_async("chat_target_private2"),
+        current_mind_info=current_mind_info,
+        reply_style2=reply_style2_chosen,
+        reply_style1=reply_style1_chosen,
+        reason=reason,
+        prompt_ger=prompt_ger,
+        moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+        sender_name=sender_name,
+    )
+
+    logger.debug(f"focus_chat_prompt: \n{prompt}")
+
+    return prompt
+
+
 class PromptBuilder:
     def __init__(self):
         self.prompt_built = ""
@@ -154,131 +292,14 @@ class PromptBuilder:
             return await self._build_prompt_normal(chat_stream, message_txt, sender_name)
 
         elif build_mode == "focus":
-            return await self._build_prompt_focus(
+            return await _build_prompt_focus(
                 reason,
                 current_mind_info,
                 structured_info,
                 chat_stream,
+                sender_name,
             )
         return None
-
-    async def _build_prompt_focus(self, reason, current_mind_info, structured_info, chat_stream) -> tuple[str, str]:
-        individuality = Individuality.get_instance()
-        prompt_personality = individuality.get_prompt(x_person=0, level=2)
-        # 日程构建
-        # schedule_prompt = f'''你现在正在做的事情是：{bot_schedule.get_current_num_task(num = 1,time_info = False)}'''
-
-        if chat_stream.group_info:
-            chat_in_group = True
-        else:
-            chat_in_group = False
-
-        message_list_before_now = get_raw_msg_before_timestamp_with_chat(
-            chat_id=chat_stream.stream_id,
-            timestamp=time.time(),
-            limit=global_config.observation_context_size,
-        )
-
-        chat_talking_prompt = await build_readable_messages(
-            message_list_before_now,
-            replace_bot_name=True,
-            merge_messages=False,
-            timestamp_mode="normal",
-            read_mark=0.0,
-            truncate=True,
-        )
-
-        # 中文高手(新加的好玩功能)
-        prompt_ger = ""
-        if random.random() < 0.04:
-            prompt_ger += "你喜欢用倒装句"
-        if random.random() < 0.02:
-            prompt_ger += "你喜欢用反问句"
-
-        reply_styles1 = [
-            ("给出日常且口语化的回复，平淡一些", 0.4),  # 40%概率
-            ("给出非常简短的回复", 0.4),  # 40%概率
-            ("给出缺失主语的回复，简短", 0.15),  # 15%概率
-            ("给出带有语病的回复，朴实平淡", 0.05),  # 5%概率
-        ]
-        reply_style1_chosen = random.choices(
-            [style[0] for style in reply_styles1], weights=[style[1] for style in reply_styles1], k=1
-        )[0]
-
-        reply_styles2 = [
-            ("不要回复的太有条理，可以有个性", 0.6),  # 60%概率
-            ("不要回复的太有条理，可以复读", 0.15),  # 15%概率
-            ("回复的认真一些", 0.2),  # 20%概率
-            ("可以回复单个表情符号", 0.05),  # 5%概率
-        ]
-        reply_style2_chosen = random.choices(
-            [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
-        )[0]
-
-        if structured_info:
-            structured_info_prompt = await global_prompt_manager.format_prompt(
-                "info_from_tools", structured_info=structured_info
-            )
-        else:
-            structured_info_prompt = ""
-
-        logger.debug("开始构建prompt")
-
-        # 注入绰号信息
-        nickname_injection_str = ""
-        if global_config.ENABLE_NICKNAME_MAPPING and chat_stream.group_info:
-            try:
-                group_id = str(chat_stream.group_info.group_id)
-                user_ids_in_context = set()
-                if message_list_before_now:
-                    for msg in message_list_before_now:
-                        sender_id = msg["user_info"].get('user_id')
-                        if sender_id:
-                            user_ids_in_context.add(str(sender_id))
-                else:
-                    logger.warning("Variable 'message_list_before_now' not found for nickname injection in focus prompt.")
-
-
-                if user_ids_in_context:
-                    platform = chat_stream.platform
-                    # --- 调用批量获取群组绰号的方法 ---
-                    all_nicknames_data = await relationship_manager.get_users_group_nicknames(
-                        platform, list(user_ids_in_context), group_id
-                    )
-
-                    if all_nicknames_data:
-                        selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
-                        nickname_injection_str = format_nickname_prompt_injection(selected_nicknames)
-                        if nickname_injection_str:
-                            logger.debug(f"Injecting nickname info into focus prompt:\n{nickname_injection_str}")
-
-            except Exception as e:
-                logger.error(f"Error getting or formatting nickname info for focus prompt: {e}", exc_info=True)
-        logger.debug(f"-------------------nickname_injection_str_______________________\n{nickname_injection_str}\n\n")
-
-        prompt = await global_prompt_manager.format_prompt(
-            "heart_flow_prompt",
-            info_from_tools=structured_info_prompt,
-            chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
-            if chat_in_group
-            else await global_prompt_manager.get_prompt_async("chat_target_private1"),
-            chat_talking_prompt=chat_talking_prompt,
-            bot_name=global_config.BOT_NICKNAME,
-            prompt_personality=prompt_personality,
-            chat_target_2=await global_prompt_manager.get_prompt_async("chat_target_group2")
-            if chat_in_group
-            else await global_prompt_manager.get_prompt_async("chat_target_private2"),
-            current_mind_info=current_mind_info,
-            reply_style2=reply_style2_chosen,
-            reply_style1=reply_style1_chosen,
-            reason=reason,
-            prompt_ger=prompt_ger,
-            moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
-        )
-
-        logger.debug(f"focus_chat_prompt: \n{prompt}")
-
-        return prompt
 
     async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> tuple[str, str]:
         individuality = Individuality.get_instance()

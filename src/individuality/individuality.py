@@ -113,7 +113,6 @@ class Individuality:
             p_pronoun = "我"
             prompt_personality = f"{p_pronoun}{self.personality.personality_core}"
         else:  # x_person == 0
-            p_pronoun = ""  # 无人称
             # 对于无人称，直接描述核心特征
             prompt_personality = f"{self.personality.personality_core}"
 

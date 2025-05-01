@@ -32,6 +32,40 @@ INACTIVE_THRESHOLD_SECONDS = 3600  # 子心流不活跃超时时间(秒)
 NORMAL_CHAT_TIMEOUT_SECONDS = 30 * 60  # 30分钟
 
 
+async def _try_set_subflow_absent_internal(subflow: "SubHeartflow", log_prefix: str) -> bool:
+    """
+    尝试将给定的子心流对象状态设置为 ABSENT (内部方法，不处理锁)。
+
+    Args:
+        subflow: 子心流对象。
+        log_prefix: 用于日志记录的前缀 (例如 "[子心流管理]" 或 "[停用]")。
+
+    Returns:
+        bool: 如果状态成功变为 ABSENT 或原本就是 ABSENT，返回 True；否则返回 False。
+    """
+    flow_id = subflow.subheartflow_id
+    stream_name = chat_manager.get_stream_name(flow_id) or flow_id
+
+    if subflow.chat_state.chat_status != ChatState.ABSENT:
+        logger.debug(f"{log_prefix} 设置 {stream_name} 状态为 ABSENT")
+        try:
+            await subflow.change_chat_state(ChatState.ABSENT)
+            # 再次检查以确认状态已更改 (change_chat_state 内部应确保)
+            if subflow.chat_state.chat_status == ChatState.ABSENT:
+                return True
+            else:
+                logger.warning(
+                    f"{log_prefix} 调用 change_chat_state 后，{stream_name} 状态仍为 {subflow.chat_state.chat_status.value}"
+                )
+                return False
+        except Exception as e:
+            logger.error(f"{log_prefix} 设置 {stream_name} 状态为 ABSENT 时失败: {e}", exc_info=True)
+            return False
+    else:
+        logger.debug(f"{log_prefix} {stream_name} 已是 ABSENT 状态")
+        return True  # 已经是目标状态，视为成功
+
+
 class SubHeartflowManager:
     """管理所有活跃的 SubHeartflow 实例。"""
 
@@ -109,38 +143,6 @@ class SubHeartflowManager:
                 return None
 
     # --- 新增：内部方法，用于尝试将单个子心流设置为 ABSENT ---
-    async def _try_set_subflow_absent_internal(self, subflow: "SubHeartflow", log_prefix: str) -> bool:
-        """
-        尝试将给定的子心流对象状态设置为 ABSENT (内部方法，不处理锁)。
-
-        Args:
-            subflow: 子心流对象。
-            log_prefix: 用于日志记录的前缀 (例如 "[子心流管理]" 或 "[停用]")。
-
-        Returns:
-            bool: 如果状态成功变为 ABSENT 或原本就是 ABSENT，返回 True；否则返回 False。
-        """
-        flow_id = subflow.subheartflow_id
-        stream_name = chat_manager.get_stream_name(flow_id) or flow_id
-
-        if subflow.chat_state.chat_status != ChatState.ABSENT:
-            logger.debug(f"{log_prefix} 设置 {stream_name} 状态为 ABSENT")
-            try:
-                await subflow.change_chat_state(ChatState.ABSENT)
-                # 再次检查以确认状态已更改 (change_chat_state 内部应确保)
-                if subflow.chat_state.chat_status == ChatState.ABSENT:
-                    return True
-                else:
-                    logger.warning(
-                        f"{log_prefix} 调用 change_chat_state 后，{stream_name} 状态仍为 {subflow.chat_state.chat_status.value}"
-                    )
-                    return False
-            except Exception as e:
-                logger.error(f"{log_prefix} 设置 {stream_name} 状态为 ABSENT 时失败: {e}", exc_info=True)
-                return False
-        else:
-            logger.debug(f"{log_prefix} {stream_name} 已是 ABSENT 状态")
-            return True  # 已经是目标状态，视为成功
 
     # --- 结束新增 ---
 
@@ -154,7 +156,7 @@ class SubHeartflowManager:
             logger.info(f"{log_prefix} 正在停止 {stream_name}, 原因: {reason}")
 
             # 调用内部方法处理状态变更
-            success = await self._try_set_subflow_absent_internal(subheartflow, log_prefix)
+            success = await _try_set_subflow_absent_internal(subheartflow, log_prefix)
 
             return success
         # 锁在此处自动释放
@@ -241,7 +243,7 @@ class SubHeartflowManager:
                 # 记录原始状态，以便统计实际改变的数量
                 original_state_was_absent = subflow.chat_state.chat_status == ChatState.ABSENT
 
-                success = await self._try_set_subflow_absent_internal(subflow, log_prefix)
+                success = await _try_set_subflow_absent_internal(subflow, log_prefix)
 
                 # 如果成功设置为 ABSENT 且原始状态不是 ABSENT，则计数
                 if success and not original_state_was_absent:

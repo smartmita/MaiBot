@@ -29,7 +29,6 @@ class SearchKnowledgeFromLPMMTool(BaseTool):
 
         Args:
             function_args: 工具参数
-            message_txt: 原始消息文本
 
         Returns:
             Dict: 工具执行结果

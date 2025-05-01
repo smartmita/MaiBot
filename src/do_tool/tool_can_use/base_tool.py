@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Optional, Type
+from typing import List, Any, Optional, Type
 import inspect
 import importlib
 import pkgutil
@@ -22,11 +22,11 @@ class BaseTool:
     parameters = None
 
     @classmethod
-    def get_tool_definition(cls) -> Dict[str, Any]:
+    def get_tool_definition(cls) -> dict[str, Any]:
         """获取工具定义，用于LLM工具调用
 
         Returns:
-            Dict: 工具定义字典
+            dict: 工具定义字典
         """
         if not cls.name or not cls.description or not cls.parameters:
             raise NotImplementedError(f"工具类 {cls.__name__} 必须定义 name, description 和 parameters 属性")
@@ -36,14 +36,14 @@ class BaseTool:
             "function": {"name": cls.name, "description": cls.description, "parameters": cls.parameters},
         }
 
-    async def execute(self, function_args: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:
         """执行工具函数
 
         Args:
             function_args: 工具调用参数
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         raise NotImplementedError("子类必须实现execute方法")
 
@@ -88,11 +88,11 @@ def discover_tools():
     logger.info(f"工具发现完成，共注册 {len(TOOL_REGISTRY)} 个工具")
 
 
-def get_all_tool_definitions() -> List[Dict[str, Any]]:
+def get_all_tool_definitions() -> List[dict[str, Any]]:
     """获取所有已注册工具的定义
 
     Returns:
-        List[Dict]: 工具定义列表
+        List[dict]: 工具定义列表
     """
     return [tool_class().get_tool_definition() for tool_class in TOOL_REGISTRY.values()]
 

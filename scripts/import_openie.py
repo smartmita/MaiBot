@@ -8,7 +8,6 @@ import sys
 import os
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from typing import Dict, List
 
 from src.plugins.knowledge.src.lpmmconfig import PG_NAMESPACE, global_config
 from src.plugins.knowledge.src.embedding_store import EmbeddingManager
@@ -26,8 +25,8 @@ logger = get_module_logger("LPMM知识库-OpenIE导入")
 
 
 def hash_deduplicate(
-    raw_paragraphs: Dict[str, str],
-    triple_list_data: Dict[str, List[List[str]]],
+    raw_paragraphs: dict[str, str],
+    triple_list_data: dict[str, list[list[str]]],
     stored_pg_hashes: set,
     stored_paragraph_hashes: set,
 ):
@@ -126,7 +125,7 @@ def main():
         )
 
     # 初始化Embedding库
-    embed_manager = embed_manager = EmbeddingManager(llm_client_list[global_config["embedding"]["provider"]])
+    embed_manager = EmbeddingManager(llm_client_list[global_config["embedding"]["provider"]])
     logger.info("正在从文件加载Embedding库")
     try:
         embed_manager.load_from_file()

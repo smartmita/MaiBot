@@ -1,6 +1,7 @@
 import time
+from abc import abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Union
+from typing import Optional, Any
 
 import urllib3
 
@@ -58,12 +59,37 @@ class Message(MessageBase):
         # 回复消息
         self.reply = reply
 
+    async def _process_message_segments(self, segment: Seg) -> str:
+        """递归处理消息段，转换为文字描述
+
+        Args:
+            segment: 要处理的消息段
+
+        Returns:
+            str: 处理后的文本
+        """
+        if segment.type == "seglist":
+            # 处理消息段列表
+            segments_text = []
+            for seg in segment.data:
+                processed = await self._process_message_segments(seg)
+                if processed:
+                    segments_text.append(processed)
+            return " ".join(segments_text)
+        else:
+            # 处理单个消息段
+            return await self._process_single_segment(segment)
+
+    @abstractmethod
+    async def _process_single_segment(self, segment):
+        pass
+
 
 @dataclass
 class MessageRecv(Message):
     """接收消息类，用于处理从MessageCQ序列化的消息"""
 
-    def __init__(self, message_dict: Dict):
+    def __init__(self, message_dict: dict[str, Any]):
         """从MessageCQ的字典初始化
 
         Args:
@@ -89,27 +115,6 @@ class MessageRecv(Message):
         """
         self.processed_plain_text = await self._process_message_segments(self.message_segment)
         self.detailed_plain_text = self._generate_detailed_text()
-
-    async def _process_message_segments(self, segment: Seg) -> str:
-        """递归处理消息段，转换为文字描述
-
-        Args:
-            segment: 要处理的消息段
-
-        Returns:
-            str: 处理后的文本
-        """
-        if segment.type == "seglist":
-            # 处理消息段列表
-            segments_text = []
-            for seg in segment.data:
-                processed = await self._process_message_segments(seg)
-                if processed:
-                    segments_text.append(processed)
-            return " ".join(segments_text)
-        else:
-            # 处理单个消息段
-            return await self._process_single_segment(segment)
 
     async def _process_single_segment(self, seg: Seg) -> str:
         """处理单个消息段
@@ -179,28 +184,7 @@ class MessageProcessBase(Message):
         self.thinking_time = round(time.time() - self.thinking_start_time, 2)
         return self.thinking_time
 
-    async def _process_message_segments(self, segment: Seg) -> str:
-        """递归处理消息段，转换为文字描述
-
-        Args:
-            segment: 要处理的消息段
-
-        Returns:
-            str: 处理后的文本
-        """
-        if segment.type == "seglist":
-            # 处理消息段列表
-            segments_text = []
-            for seg in segment.data:
-                processed = await self._process_message_segments(seg)
-                if processed:
-                    segments_text.append(processed)
-            return " ".join(segments_text)
-        else:
-            # 处理单个消息段
-            return await self._process_single_segment(segment)
-
-    async def _process_single_segment(self, seg: Seg) -> Union[str, None]:
+    async def _process_single_segment(self, seg: Seg) -> str | None:
         """处理单个消息段
 
         Args:
@@ -278,7 +262,7 @@ class MessageSending(MessageProcessBase):
         message_id: str,
         chat_stream: ChatStream,
         bot_user_info: UserInfo,
-        sender_info: UserInfo,  # 用来记录发送者信息,用于私聊回复
+        sender_info: UserInfo | None,  # 用来记录发送者信息,用于私聊回复
         message_segment: Seg,
         reply: Optional["MessageRecv"] = None,
         is_head: bool = False,
@@ -303,7 +287,7 @@ class MessageSending(MessageProcessBase):
         self.is_emoji = is_emoji
         self.apply_set_reply_logic = apply_set_reply_logic
 
-    def set_reply(self, reply: Optional["MessageRecv"] = None) -> None:
+    def set_reply(self, reply: Optional["MessageRecv"] = None):
         """设置回复消息"""
         if self.message_info.format_info is not None and "reply" in self.message_info.format_info.accept_format:
             if reply:
@@ -317,7 +301,6 @@ class MessageSending(MessageProcessBase):
                         self.message_segment,
                     ],
                 )
-        return self
 
     async def process(self) -> None:
         """处理消息内容，生成纯文本和详细文本"""
@@ -342,6 +325,7 @@ class MessageSending(MessageProcessBase):
             reply=thinking.reply,
             is_head=is_head,
             is_emoji=is_emoji,
+            sender_info=None,
         )
 
     def to_dict(self):
@@ -361,7 +345,7 @@ class MessageSet:
     def __init__(self, chat_stream: ChatStream, message_id: str):
         self.chat_stream = chat_stream
         self.message_id = message_id
-        self.messages: List[MessageSending] = []
+        self.messages: list[MessageSending] = []
         self.time = round(time.time(), 3)  # 保留3位小数
 
     def add_message(self, message: MessageSending) -> None:

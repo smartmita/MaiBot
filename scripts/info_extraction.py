@@ -76,7 +76,7 @@ def process_single_text(pg_hash, raw_data, llm_client_list):
         return doc_item, None
 
 
-def signal_handler(signum, frame):
+def signal_handler(_signum, _frame):
     """处理Ctrl+C信号"""
     logger.info("\n接收到中断信号，正在优雅地关闭程序...")
     shutdown_event.set()

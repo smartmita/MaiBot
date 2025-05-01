@@ -18,7 +18,7 @@ from src.heart_flow.sub_mind import SubMind
 # 定义常量 (从 interest.py 移动过来)
 MAX_INTEREST = 15.0
 
-logger = get_logger("subheartflow")
+logger = get_logger("sub_heartflow")
 
 PROBABILITY_INCREASE_RATE_PER_SECOND = 0.1
 PROBABILITY_DECREASE_RATE_PER_SECOND = 0.1
@@ -346,7 +346,7 @@ class SubHeartflow:
                 return True  # 已经在运行
 
         # 如果实例不存在，则创建并启动
-        logger.info(f"{log_prefix} 麦麦准备开始专注聊天 (创建新实例)...")
+        logger.info(f"{log_prefix} 麦麦准备开始专注聊天...")
         try:
             # 创建 HeartFChatting 实例，并传递 从构造函数传入的 回调函数
             self.heart_fc_instance = HeartFChatting(
@@ -359,7 +359,7 @@ class SubHeartflow:
             # 初始化并启动 HeartFChatting
             if await self.heart_fc_instance._initialize():
                 await self.heart_fc_instance.start()
-                logger.info(f"{log_prefix} 麦麦已成功进入专注聊天模式 (新实例已启动)。")
+                logger.debug(f"{log_prefix} 麦麦已成功进入专注聊天模式 (新实例已启动)。")
                 return True
             else:
                 logger.error(f"{log_prefix} HeartFChatting 初始化失败，无法进入专注模式。")
@@ -397,7 +397,7 @@ class SubHeartflow:
             # 移除限额检查逻辑
             logger.debug(f"{log_prefix} 准备进入或保持 专注聊天 状态")
             if await self._start_heart_fc_chat():
-                logger.info(f"{log_prefix} 成功进入或保持 HeartFChatting 状态。")
+                logger.debug(f"{log_prefix} 成功进入或保持 HeartFChatting 状态。")
                 state_changed = True
             else:
                 logger.error(f"{log_prefix} 启动 HeartFChatting 失败，无法进入 FOCUSED 状态。")
@@ -511,12 +511,12 @@ class SubHeartflow:
 
         # 取消可能存在的旧后台任务 (self.task)
         if self.task and not self.task.done():
-            logger.info(f"{self.log_prefix} 取消子心流主任务 (Shutdown)...")
+            logger.debug(f"{self.log_prefix} 取消子心流主任务 (Shutdown)...")
             self.task.cancel()
             try:
                 await asyncio.wait_for(self.task, timeout=1.0)  # 给点时间响应取消
             except asyncio.CancelledError:
-                logger.info(f"{self.log_prefix} 子心流主任务已取消 (Shutdown)。")
+                logger.debug(f"{self.log_prefix} 子心流主任务已取消 (Shutdown)。")
             except asyncio.TimeoutError:
                 logger.warning(f"{self.log_prefix} 等待子心流主任务取消超时 (Shutdown)。")
             except Exception as e:

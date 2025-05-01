@@ -10,6 +10,9 @@ logger = get_logger("mai_state")
 
 
 # -- 状态相关的可配置参数 (可以从 glocal_config 加载) --
+# The line `enable_unlimited_hfc_chat = False` is setting a configuration parameter that controls
+# whether a specific debugging feature is enabled or not. When `enable_unlimited_hfc_chat` is set to
+# `False`, it means that the debugging feature for unlimited focused chatting is disabled.
 # enable_unlimited_hfc_chat = True  # 调试用：无限专注聊天
 enable_unlimited_hfc_chat = True
 prevent_offline_state = True
@@ -59,6 +62,7 @@ class MaiState(enum.Enum):
             return MAX_NORMAL_CHAT_NUM_NORMAL
         elif self == MaiState.FOCUSED_CHAT:
             return MAX_NORMAL_CHAT_NUM_FOCUSED
+        return None
 
     def get_focused_chat_max_num(self):
         # 调试用
@@ -73,6 +77,7 @@ class MaiState(enum.Enum):
             return MAX_FOCUSED_CHAT_NUM_NORMAL
         elif self == MaiState.FOCUSED_CHAT:
             return MAX_FOCUSED_CHAT_NUM_FOCUSED
+        return None
 
 
 class MaiStateInfo:
@@ -132,7 +137,8 @@ class MaiStateManager:
     def __init__(self):
         pass
 
-    def check_and_decide_next_state(self, current_state_info: MaiStateInfo) -> Optional[MaiState]:
+    @staticmethod
+    def check_and_decide_next_state(current_state_info: MaiStateInfo) -> Optional[MaiState]:
         """
         根据当前状态和规则检查是否需要转换状态，并决定下一个状态。
 

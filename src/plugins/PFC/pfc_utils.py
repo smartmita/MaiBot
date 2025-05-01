@@ -18,6 +18,7 @@ def get_items_from_json(
 
     Args:
         content: 包含JSON的文本
+        private_name: 私聊名称
         *items: 要提取的字段名
         default_values: 字段的默认值，格式为 {字段名: 默认值}
         required_types: 字段的必需类型，格式为 {字段名: 类型}

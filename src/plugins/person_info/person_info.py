@@ -138,7 +138,6 @@ class PersonInfoManager:
     @staticmethod
     def _extract_json_from_text(text: str) -> dict:
         """从文本中提取JSON数据的高容错方法"""
-        parsed_json = None
         try:
             # 尝试直接解析
             parsed_json = json.loads(text)

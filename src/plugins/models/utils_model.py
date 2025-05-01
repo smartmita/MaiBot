@@ -65,6 +65,28 @@ error_code_mapping = {
 }
 
 
+async def _safely_record(request_content: Dict[str, Any], payload: Dict[str, Any]):
+    image_base64: str = request_content.get("image_base64")
+    image_format: str = request_content.get("image_format")
+    if (
+        image_base64
+        and payload
+        and isinstance(payload, dict)
+        and "messages" in payload
+        and len(payload["messages"]) > 0
+    ):
+        if isinstance(payload["messages"][0], dict) and "content" in payload["messages"][0]:
+            content = payload["messages"][0]["content"]
+            if isinstance(content, list) and len(content) > 1 and "image_url" in content[1]:
+                payload["messages"][0]["content"][1]["image_url"]["url"] = (
+                    f"data:image/{image_format.lower() if image_format else 'jpeg'};base64,"
+                    f"{image_base64[:10]}...{image_base64[-10:]}"
+                )
+            # if isinstance(content, str) and len(content) > 100:
+            #     payload["messages"][0]["content"] = content[:100]
+    return payload
+
+
 class LLMRequest:
     # 定义需要转换的模型列表，作为类变量避免重复
     MODELS_NEEDING_TRANSFORMATION = [
@@ -551,7 +573,7 @@ class LLMRequest:
                     f"模型 {self.model_name} HTTP响应错误达到最大重试次数: 状态码: {exception.status}, 错误: {exception.message}"
                 )
                 # 安全地检查和记录请求详情
-                handled_payload = await self._safely_record(request_content, payload)
+                handled_payload = await _safely_record(request_content, payload)
                 logger.critical(f"请求头: {await self._build_headers(no_key=True)} 请求体: {handled_payload}")
                 raise RuntimeError(
                     f"模型 {self.model_name} API请求失败: 状态码 {exception.status}, {exception.message}"
@@ -565,30 +587,9 @@ class LLMRequest:
             else:
                 logger.critical(f"模型 {self.model_name} 请求失败: {str(exception)}")
                 # 安全地检查和记录请求详情
-                handled_payload = await self._safely_record(request_content, payload)
+                handled_payload = await _safely_record(request_content, payload)
                 logger.critical(f"请求头: {await self._build_headers(no_key=True)} 请求体: {handled_payload}")
                 raise RuntimeError(f"模型 {self.model_name} API请求失败: {str(exception)}")
-
-    async def _safely_record(self, request_content: Dict[str, Any], payload: Dict[str, Any]):
-        image_base64: str = request_content.get("image_base64")
-        image_format: str = request_content.get("image_format")
-        if (
-            image_base64
-            and payload
-            and isinstance(payload, dict)
-            and "messages" in payload
-            and len(payload["messages"]) > 0
-        ):
-            if isinstance(payload["messages"][0], dict) and "content" in payload["messages"][0]:
-                content = payload["messages"][0]["content"]
-                if isinstance(content, list) and len(content) > 1 and "image_url" in content[1]:
-                    payload["messages"][0]["content"][1]["image_url"]["url"] = (
-                        f"data:image/{image_format.lower() if image_format else 'jpeg'};base64,"
-                        f"{image_base64[:10]}...{image_base64[-10:]}"
-                    )
-                # if isinstance(content, str) and len(content) > 100:
-                #     payload["messages"][0]["content"] = content[:100]
-        return payload
 
     async def _transform_parameters(self, params: dict) -> dict:
         """

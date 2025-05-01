@@ -1,7 +1,7 @@
 from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.common.logger import get_module_logger
 
-from typing import Dict, Any
+from typing import Any
 
 logger = get_module_logger("send_emoji_tool")
 
@@ -17,7 +17,7 @@ class SendEmojiTool(BaseTool):
         "required": ["text"],
     }
 
-    async def execute(self, function_args: Dict[str, Any], message_txt: str = "") -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any], message_txt: str = "") -> dict[str, Any]:
         text = function_args.get("text", message_txt)
         return {
             "name": "send_emoji",

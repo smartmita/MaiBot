@@ -33,6 +33,7 @@ class PFCManager:
 
         Args:
             stream_id: 聊天流ID
+            private_name: 私聊名称
 
         Returns:
             Optional[Conversation]: 对话实例，创建失败则返回None

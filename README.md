@@ -1,6 +1,6 @@
 # 麦麦！MaiCore-MaiMBot (编辑中)
 <br />
-<div align="center">
+<div style="text-align: center">
 
   ![Python Version](https://img.shields.io/badge/Python-3.10+-blue)
   ![License](https://img.shields.io/github/license/SengokuCola/MaiMBot?label=协议)
@@ -12,7 +12,7 @@
 
   </div>
 
-<p align="center">
+<p style="text-align: center">
   <a href="https://github.com/MaiM-with-u/MaiBot/">
     <img src="depends-data/maimai.png" alt="Logo" style="width: 200px">
   </a>
@@ -21,8 +21,8 @@
     画师：略nd
   </a>
 
-  <h3 align="center">MaiBot(麦麦)</h3>
-  <p align="center">
+  <h3 style="text-align: center">MaiBot(麦麦)</h3>
+  <p style="text-align: center">
     一款专注于<strong> 群组聊天 </strong>的赛博网友
     <br />
     <a href="https://docs.mai-mai.org"><strong>探索本项目的文档 »</strong></a>
@@ -50,7 +50,7 @@
 - 🧠 **持久记忆系统**：基于MongoDB的长期记忆存储
 - 🔄 **动态人格系统**：自适应的性格特征
 
-<div align="center">
+<div style="text-align: center">
 <a href="https://www.bilibili.com/video/BV1amAneGE3P" target="_blank">
     <img src="depends-data/video.png" style="max-width: 200px" alt="麦麦演示视频">
     <br>
@@ -97,9 +97,9 @@
 - [四群](https://qm.qq.com/q/wlH5eT8OmQ) 729957033【已满】
 
 
-<div align="left">
-<h2>📚 文档 </h2>
-</div>
+
+## 📚 文档
+
 
 ### (部分内容可能过时，请注意版本对应)
 

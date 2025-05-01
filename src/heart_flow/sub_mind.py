@@ -78,7 +78,7 @@ def calculate_replacement_probability(similarity: float) -> float:
         # p = 3.5 * s - 1.4
         probability = 3.5 * similarity - 1.4
         return max(0.0, probability)
-    elif 0.6 < similarity < 0.9:
+    else:  # 0.6 < similarity < 0.9
         # p = s + 0.1
         probability = similarity + 0.1
         return min(1.0, max(0.0, probability))
@@ -86,6 +86,7 @@ def calculate_replacement_probability(similarity: float) -> float:
 
 class SubMind:
     def __init__(self, subheartflow_id: str, chat_state: ChatStateInfo, observations: Observation):
+        self.last_active_time = None
         self.subheartflow_id = subheartflow_id
 
         self.llm_model = LLMRequest(
@@ -168,7 +169,7 @@ class SubMind:
 
         last_cycle = history_cycle[-1] if history_cycle else None
         # 上一次决策信息
-        if last_cycle != None:
+        if last_cycle is not None:
             last_action = last_cycle.action_type
             last_reasoning = last_cycle.reasoning
             is_replan = last_cycle.replanned

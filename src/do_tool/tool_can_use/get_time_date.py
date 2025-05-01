@@ -22,7 +22,6 @@ class GetCurrentDateTimeTool(BaseTool):
 
         Args:
             function_args: 工具参数（此工具不使用）
-            message_txt: 原始消息文本（此工具不使用）
 
         Returns:
             Dict: 工具执行结果

@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import List, Optional
 import strawberry
 
 # from packaging.version import Version, InvalidVersion
@@ -128,22 +128,22 @@ class BotConfig:
     enable_pfc_chatting: bool  # 是否启用PFC聊天
 
     # 模型配置
-    llm_reasoning: Dict[str, str]  # LLM推理
-    # llm_reasoning_minor: Dict[str, str]
-    llm_normal: Dict[str, str]  # LLM普通
-    llm_topic_judge: Dict[str, str]  # LLM话题判断
-    llm_summary: Dict[str, str]  # LLM话题总结
-    llm_emotion_judge: Dict[str, str]  # LLM情感判断
-    embedding: Dict[str, str]  # 嵌入
-    vlm: Dict[str, str]  # VLM
-    moderation: Dict[str, str]  # 审核
+    llm_reasoning: dict[str, str]  # LLM推理
+    # llm_reasoning_minor: dict[str, str]
+    llm_normal: dict[str, str]  # LLM普通
+    llm_topic_judge: dict[str, str]  # LLM话题判断
+    llm_summary: dict[str, str]  # LLM话题总结
+    llm_emotion_judge: dict[str, str]  # LLM情感判断
+    embedding: dict[str, str]  # 嵌入
+    vlm: dict[str, str]  # VLM
+    moderation: dict[str, str]  # 审核
 
     # 实验性
-    llm_observation: Dict[str, str]  # LLM观察
-    llm_sub_heartflow: Dict[str, str]  # LLM子心流
-    llm_heartflow: Dict[str, str]  # LLM心流
+    llm_observation: dict[str, str]  # LLM观察
+    llm_sub_heartflow: dict[str, str]  # LLM子心流
+    llm_heartflow: dict[str, str]  # LLM心流
 
-    api_urls: Dict[str, str]  # API URLs
+    api_urls: dict[str, str]  # API URLs
 
 
 @strawberry.type
