@@ -104,6 +104,7 @@ async def analyze_chat_for_nicknames(
         response_content = response_content.strip()
         # 使用正则表达式处理各种 Markdown 代码块情况
         import re
+
         markdown_code_regex = re.compile(r"^```(?:\w+)?\s*\n(.*?)\n\s*```$", re.DOTALL)
         match = markdown_code_regex.match(response_content)
         if match:
