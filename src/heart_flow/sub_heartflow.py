@@ -13,6 +13,7 @@ from src.plugins.heartFC_chat.normal_chat import NormalChat
 from src.heart_flow.mai_state_manager import MaiStateInfo
 from src.heart_flow.chat_state_info import ChatState, ChatStateInfo
 from src.heart_flow.sub_mind import SubMind
+from .utils_chat import get_chat_type_and_target_info
 
 
 # 定义常量 (从 interest.py 移动过来)
@@ -238,6 +239,11 @@ class SubHeartflow:
         self.chat_state_last_time: float = 0
         self.history_chat_state: List[Tuple[ChatState, float]] = []
 
+        # --- Initialize attributes ---
+        self.is_group_chat: bool = False
+        self.chat_target_info: Optional[dict] = None
+        # --- End Initialization ---
+
         # 兴趣检测器
         self.interest_chatting: InterestChatting = InterestChatting()
 
@@ -260,11 +266,24 @@ class SubHeartflow:
             subheartflow_id=self.subheartflow_id, chat_state=self.chat_state, observations=self.observations
         )
 
-        # 日志前缀
-        self.log_prefix = chat_manager.get_stream_name(self.subheartflow_id) or self.subheartflow_id
+        # 日志前缀 - Moved determination to initialize
+        self.log_prefix = str(subheartflow_id)  # Initial default prefix
 
     async def initialize(self):
-        """异步初始化方法，创建兴趣流"""
+        """异步初始化方法，创建兴趣流并确定聊天类型"""
+
+        # --- Use utility function to determine chat type and fetch info ---
+        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.chat_id)
+        # Update log prefix after getting info (potential stream name)
+        self.log_prefix = (
+            chat_manager.get_stream_name(self.subheartflow_id) or self.subheartflow_id
+        )  # Keep this line or adjust if utils provides name
+        logger.debug(
+            f"SubHeartflow {self.chat_id} initialized: is_group={self.is_group_chat}, target_info={self.chat_target_info}"
+        )
+        # --- End using utility function ---
+
+        # Initialize interest system (existing logic)
         await self.interest_chatting.initialize()
         logger.debug(f"{self.log_prefix} InterestChatting 实例已初始化。")
 
@@ -286,26 +305,33 @@ class SubHeartflow:
 
     async def _start_normal_chat(self) -> bool:
         """
-        启动 NormalChat 实例，
-        进入 CHAT 状态时使用
-
-        确保 HeartFChatting 已停止
+        启动 NormalChat 实例，并进行异步初始化。
+        进入 CHAT 状态时使用。
+        确保 HeartFChatting 已停止。
         """
         await self._stop_heart_fc_chat()  # 确保 专注聊天已停止
 
         log_prefix = self.log_prefix
         try:
-            # 获取聊天流并创建 NormalChat 实例
+            # 获取聊天流并创建 NormalChat 实例 (同步部分)
             chat_stream = chat_manager.get_stream(self.chat_id)
+            if not chat_stream:
+                logger.error(f"{log_prefix} 无法获取 chat_stream，无法启动 NormalChat。")
+                return False
+
             self.normal_chat_instance = NormalChat(chat_stream=chat_stream, interest_dict=self.get_interest_dict())
 
+            # 进行异步初始化
+            await self.normal_chat_instance.initialize()
+
+            # 启动聊天任务
             logger.info(f"{log_prefix} 开始普通聊天，随便水群...")
-            await self.normal_chat_instance.start_chat()  # <--- 修正：调用 start_chat
+            await self.normal_chat_instance.start_chat()  # start_chat now ensures init is called again if needed
             return True
         except Exception as e:
-            logger.error(f"{log_prefix} 启动 NormalChat 时出错: {e}")
+            logger.error(f"{log_prefix} 启动 NormalChat 或其初始化时出错: {e}")
             logger.error(traceback.format_exc())
-            self.normal_chat_instance = None  # 启动失败，清理实例
+            self.normal_chat_instance = None  # 启动/初始化失败，清理实例
             return False
 
     async def _stop_heart_fc_chat(self):

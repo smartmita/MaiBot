@@ -9,7 +9,7 @@ class CompareNumbersTool(BaseTool):
     """比较两个数大小的工具"""
 
     name = "compare_numbers"
-    description = "比较两个数的大小，返回较大的数"
+    description = "使用工具 比较两个数的大小，返回较大的数"
     parameters = {
         "type": "object",
         "properties": {
@@ -39,10 +39,10 @@ class CompareNumbersTool(BaseTool):
             else:
                 result = f"{num1} 等于 {num2}"
 
-            return {"name": self.name, "content": result}
+            return {"type": "comparison_result", "id": f"{num1}_vs_{num2}", "content": result}
         except Exception as e:
             logger.error(f"比较数字失败: {str(e)}")
-            return {"name": self.name, "content": f"比较数字失败: {str(e)}"}
+            return {"type": "info", "id": f"{num1}_vs_{num2}", "content": f"比较数字失败，炸了: {str(e)}"}
 
 
 # 注册工具

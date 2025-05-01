@@ -31,19 +31,21 @@ class Message(MessageBase):
     def __init__(
         self,
         message_id: str,
-        timestamp: float,
         chat_stream: ChatStream,
         user_info: UserInfo,
         message_segment: Optional[Seg] = None,
+        timestamp: Optional[float] = None,
         reply: Optional["MessageRecv"] = None,
         detailed_plain_text: str = "",
         processed_plain_text: str = "",
     ):
+        # 使用传入的时间戳或当前时间
+        current_timestamp = timestamp if timestamp is not None else round(time.time(), 3)
         # 构造基础消息信息
         message_info = BaseMessageInfo(
             platform=chat_stream.platform,
             message_id=message_id,
-            time=timestamp,
+            time=current_timestamp,
             group_info=chat_stream.group_info,
             user_info=user_info,
         )
@@ -164,11 +166,12 @@ class MessageProcessBase(Message):
         message_segment: Optional[Seg] = None,
         reply: Optional["MessageRecv"] = None,
         thinking_start_time: float = 0,
+        timestamp: Optional[float] = None,
     ):
-        # 调用父类初始化
+        # 调用父类初始化，传递时间戳
         super().__init__(
             message_id=message_id,
-            timestamp=round(time.time(), 3),  # 保留3位小数
+            timestamp=timestamp,
             chat_stream=chat_stream,
             user_info=bot_user_info,
             message_segment=message_segment,
@@ -238,8 +241,9 @@ class MessageThinking(MessageProcessBase):
         bot_user_info: UserInfo,
         reply: Optional["MessageRecv"] = None,
         thinking_start_time: float = 0,
+        timestamp: Optional[float] = None,
     ):
-        # 调用父类初始化
+        # 调用父类初始化，传递时间戳
         super().__init__(
             message_id=message_id,
             chat_stream=chat_stream,
@@ -247,6 +251,7 @@ class MessageThinking(MessageProcessBase):
             message_segment=None,  # 思考状态不需要消息段
             reply=reply,
             thinking_start_time=thinking_start_time,
+            timestamp=timestamp,
         )
 
         # 思考状态特有属性
@@ -289,7 +294,9 @@ class MessageSending(MessageProcessBase):
 
     def set_reply(self, reply: Optional["MessageRecv"] = None):
         """设置回复消息"""
-        if self.message_info.format_info is not None and "reply" in self.message_info.format_info.accept_format:
+        # print(f"set_reply: {reply}")
+        # if self.message_info.format_info is not None and "reply" in self.message_info.format_info.accept_format:
+        if True:
             if reply:
                 self.reply = reply
             if self.reply:

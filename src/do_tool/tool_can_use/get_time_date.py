@@ -2,6 +2,7 @@ from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.common.logger_manager import get_logger
 from typing import Dict, Any
 from datetime import datetime
+import time
 
 logger = get_logger("get_time_date")
 
@@ -32,6 +33,7 @@ class GetCurrentDateTimeTool(BaseTool):
         current_weekday = datetime.now().strftime("%A")
 
         return {
-            "name": "get_current_date_time",
+            "type": "time_info",
+            "id": f"time_info_{time.time()}",
             "content": f"当前时间: {current_time}, 日期: {current_date}, 年份: {current_year}, 星期: {current_weekday}",
         }

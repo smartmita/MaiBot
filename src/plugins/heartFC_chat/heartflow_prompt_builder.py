@@ -7,13 +7,15 @@ from src.plugins.utils.chat_message_builder import build_readable_messages, get_
 from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.chat.utils import get_embedding
 import time
-from typing import Union, Optional
+from typing import Union, Optional, Deque, Dict, Any
 from ...common.database import db
 from ..chat.utils import get_recent_group_speaker
 from ..moods.moods import MoodManager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
+import traceback
+from .heartFC_Cycleinfo import CycleInfo
 
 logger = get_logger("prompt")
 
@@ -49,7 +51,7 @@ def init_prompt():
 
     # Planner提示词 - 修改为要求 JSON 输出
     Prompt(
-        """你的名字是{bot_name},{prompt_personality}，你现在正在一个群聊中。需要基于以下信息决定如何参与对话：
+        """你的名字是{bot_name},{prompt_personality}，{chat_context_description}。需要基于以下信息决定如何参与对话：
 {structured_info_block}
 {chat_content_block}
 {current_mind_block}
@@ -59,27 +61,27 @@ def init_prompt():
 
 【回复原则】
 1. 不回复(no_reply)适用：
-- 话题无关/无聊/不感兴趣
-- 最后一条消息是你自己发的且无人回应你
-- 讨论你不懂的专业话题
-- 你发送了太多消息，且无人回复
+   - 话题无关/无聊/不感兴趣
+   - 最后一条消息是你自己发的且无人回应你
+   - 讨论你不懂的专业话题
+   - 你发送了太多消息，且无人回复
 
 2. 文字回复(text_reply)适用：
-- 有实质性内容需要表达
-- 有人提到你，但你还没有回应他
-- 可以追加emoji_query表达情绪(emoji_query填写表情包的适用场合，也就是当前场合)
-- 不要追加太多表情
+   - 有实质性内容需要表达
+   - 有人提到你，但你还没有回应他
+   - 可以追加emoji_query表达情绪(emoji_query填写表情包的适用场合，也就是当前场合)
+   - 不要追加太多表情
 
 3. 纯表情回复(emoji_reply)适用：
-- 适合用表情回应的场景
-- 需提供明确的emoji_query
+   - 适合用表情回应的场景
+   - 需提供明确的emoji_query
 
 4. 自我对话处理：
-- 如果是自己发的消息想继续，需自然衔接
-- 避免重复或评价自己的发言
-- 不要和自己聊天
+   - 如果是自己发的消息想继续，需自然衔接
+   - 避免重复或评价自己的发言
+   - 不要和自己聊天
 
-【决策任务】
+决策任务
 {action_options_text}
 
 你必须从上面列出的可用行动中选择一个，并说明原因。
@@ -90,23 +92,9 @@ JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
   "reasoning": "string", // 做出此决定的详细理由和思考过程，说明你如何应用了回复原则
   "emoji_query": "string" // 可选。如果行动是 'emoji_reply'，必须提供表情主题(填写表情包的适用场合)；如果行动是 'text_reply' 且你想附带表情，也在此提供表情主题，否则留空字符串 ""。遵循回复原则，不要滥用。
 }}
-
-例如:
-{{
-  "action": "text_reply",
-  "reasoning": "用户提到了我，且问题比较具体，适合用文本回复。考虑到内容，可以带上一个微笑表情。",
-  "emoji_query": "微笑"
-}}
-或
-{{
-  "action": "no_reply",
-  "reasoning": "我已经连续回复了两次，而且这个话题我不太感兴趣，根据回复原则，选择不回复，等待其他人发言。",
-  "emoji_query": ""
-}}
-
 请输出你的决策 JSON：
-""",  # 使用三引号避免内部引号问题
-        "planner_prompt",  # 保持名称不变，替换内容
+""",
+        "planner_prompt",
     )
 
     Prompt(
@@ -150,24 +138,67 @@ JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
     Prompt("你现在正在做的事情是：{schedule_info}", "schedule_prompt")
     Prompt("\n你有以下这些**知识**：\n{prompt_info}\n请你**记住上面的知识**，之后可能会用到。\n", "knowledge_prompt")
 
+    # --- Template for HeartFChatting (FOCUSED mode) ---
+    Prompt(
+        """
+{info_from_tools}
+你正在和 {sender_name} 私聊。
+聊天记录如下：
+{chat_talking_prompt}
+现在你想要回复。
 
-async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_stream, sender_name) -> tuple[str, str]:
+你需要扮演一位网名叫{bot_name}的人进行回复，这个人的特点是："{prompt_personality}"。
+你正在和 {sender_name} 私聊, 现在请你读读你们之前的聊天记录，然后给出日常且口语化的回复，平淡一些。
+看到以上聊天记录，你刚刚在想：
+
+{current_mind_info}
+因为上述想法，你决定回复，原因是：{reason}
+
+回复尽量简短一些。请注意把握聊天内容，{reply_style2}。{prompt_ger}
+{reply_style1}，说中文，不要刻意突出自身学科背景，注意只输出回复内容。
+{moderation_prompt}。注意：回复不要输出多余内容(包括前后缀，冒号和引号，括号，表情包，at或 @等 )。""",
+        "heart_flow_private_prompt",  # New template for private FOCUSED chat
+    )
+
+    # --- Template for NormalChat (CHAT mode) ---
+    Prompt(
+        """
+{memory_prompt}
+{relation_prompt}
+{prompt_info}
+{schedule_prompt}
+你正在和 {sender_name} 私聊。
+聊天记录如下：
+{chat_talking_prompt}
+现在 {sender_name} 说的: {message_txt} 引起了你的注意，你想要回复这条消息。
+
+你的网名叫{bot_name}，有人也叫你{bot_other_names}，{prompt_personality}。
+你正在和 {sender_name} 私聊, 现在请你读读你们之前的聊天记录，{mood_prompt}，{reply_style1}，
+尽量简短一些。{keywords_reaction_prompt}请注意把握聊天内容，{reply_style2}。{prompt_ger}
+请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令。
+请注意不要输出多余内容(包括前后缀，冒号和引号，括号等)，只输出回复内容。
+{moderation_prompt}
+不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容""",
+        "reasoning_prompt_private_main",  # New template for private CHAT chat
+    )
+
+
+async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_stream, sender_name) -> str:
     individuality = Individuality.get_instance()
     prompt_personality = individuality.get_prompt(x_person=0, level=2)
-    # 日程构建
-    # schedule_prompt = f'''你现在正在做的事情是：{bot_schedule.get_current_num_task(num = 1,time_info = False)}'''
 
-    if chat_stream.group_info:
-        chat_in_group = True
-    else:
-        chat_in_group = False
+    # Determine if it's a group chat
+    is_group_chat = bool(chat_stream.group_info)
+
+    # Use sender_name passed from caller for private chat, otherwise use a default for group
+    # Default sender_name for group chat isn't used in the group prompt template, but set for consistency
+    effective_sender_name = sender_name if not is_group_chat else "某人"
 
     message_list_before_now = get_raw_msg_before_timestamp_with_chat(
         chat_id=chat_stream.stream_id,
         timestamp=time.time(),
         limit=global_config.observation_context_size,
     )
-
     chat_talking_prompt = await build_readable_messages(
         message_list_before_now,
         replace_bot_name=True,
@@ -177,7 +208,6 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         truncate=True,
     )
 
-    # 中文高手(新加的好玩功能)
     prompt_ger = ""
     if random.random() < 0.04:
         prompt_ger += "你喜欢用倒装句"
@@ -185,20 +215,20 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         prompt_ger += "你喜欢用反问句"
 
     reply_styles1 = [
-        ("给出日常且口语化的回复，平淡一些", 0.4),  # 40%概率
-        ("给出非常简短的回复", 0.4),  # 40%概率
-        ("给出缺失主语的回复，简短", 0.15),  # 15%概率
-        ("给出带有语病的回复，朴实平淡", 0.05),  # 5%概率
+        ("给出日常且口语化的回复，平淡一些", 0.4),
+        ("给出非常简短的回复", 0.4),
+        ("给出缺失主语的回复，简短", 0.15),
+        ("给出带有语病的回复，朴实平淡", 0.05),
     ]
     reply_style1_chosen = random.choices(
         [style[0] for style in reply_styles1], weights=[style[1] for style in reply_styles1], k=1
     )[0]
 
     reply_styles2 = [
-        ("不要回复的太有条理，可以有个性", 0.6),  # 60%概率
-        ("不要回复的太有条理，可以复读", 0.15),  # 15%概率
-        ("回复的认真一些", 0.2),  # 20%概率
-        ("可以回复单个表情符号", 0.05),  # 5%概率
+        ("不要回复的太有条理，可以有个性", 0.6),
+        ("不要回复的太有条理，可以复读", 0.15),
+        ("回复的认真一些", 0.2),
+        ("可以回复单个表情符号", 0.05),
     ]
     reply_style2_chosen = random.choices(
         [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
@@ -211,31 +241,51 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     else:
         structured_info_prompt = ""
 
-    logger.debug("开始构建prompt")
+    logger.debug("开始构建 focus prompt")
 
-    prompt = await global_prompt_manager.format_prompt(
-        "heart_flow_prompt",
-        info_from_tools=structured_info_prompt,
-        chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
-        if chat_in_group
-        else await global_prompt_manager.get_prompt_async("chat_target_private1"),
-        chat_talking_prompt=chat_talking_prompt,
-        bot_name=global_config.BOT_NICKNAME,
-        prompt_personality=prompt_personality,
-        chat_target_2=await global_prompt_manager.get_prompt_async("chat_target_group2")
-        if chat_in_group
-        else await global_prompt_manager.get_prompt_async("chat_target_private2"),
-        current_mind_info=current_mind_info,
-        reply_style2=reply_style2_chosen,
-        reply_style1=reply_style1_chosen,
-        reason=reason,
-        prompt_ger=prompt_ger,
-        moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
-        sender_name=sender_name,
-    )
+    # --- Choose template based on chat type ---
+    if is_group_chat:
+        template_name = "heart_flow_prompt"
+        # Group specific formatting variables (already fetched or default)
+        chat_target_1 = await global_prompt_manager.get_prompt_async("chat_target_group1")
+        chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
-    logger.debug(f"focus_chat_prompt: \n{prompt}")
+        prompt = await global_prompt_manager.format_prompt(
+            template_name,
+            info_from_tools=structured_info_prompt,
+            chat_target=chat_target_1,  # Used in group template
+            chat_talking_prompt=chat_talking_prompt,
+            bot_name=global_config.BOT_NICKNAME,
+            prompt_personality=prompt_personality,
+            chat_target_2=chat_target_2,  # Used in group template
+            current_mind_info=current_mind_info,
+            reply_style2=reply_style2_chosen,
+            reply_style1=reply_style1_chosen,
+            reason=reason,
+            prompt_ger=prompt_ger,
+            moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+            # sender_name is not used in the group template
+        )
+    else:  # Private chat
+        template_name = "heart_flow_private_prompt"
+        prompt = await global_prompt_manager.format_prompt(
+            template_name,
+            info_from_tools=structured_info_prompt,
+            sender_name=effective_sender_name,  # Used in private template
+            chat_talking_prompt=chat_talking_prompt,
+            bot_name=global_config.BOT_NICKNAME,
+            prompt_personality=prompt_personality,
+            # chat_target and chat_target_2 are not used in private template
+            current_mind_info=current_mind_info,
+            reply_style2=reply_style2_chosen,
+            reply_style1=reply_style1_chosen,
+            reason=reason,
+            prompt_ger=prompt_ger,
+            moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+        )
+    # --- End choosing template ---
 
+    logger.debug(f"focus_chat_prompt (is_group={is_group_chat}): \n{prompt}")
     return prompt
 
 
@@ -247,13 +297,13 @@ class PromptBuilder:
     async def build_prompt(
         self,
         build_mode,
-        reason,
-        current_mind_info,
-        structured_info,
-        message_txt: str,
-        sender_name: str = "某人",
-        chat_stream=None,
-    ) -> Optional[tuple[str, str]]:
+        chat_stream,
+        reason=None,
+        current_mind_info=None,
+        structured_info=None,
+        message_txt=None,
+        sender_name="某人",
+    ) -> Optional[str]:
         if build_mode == "normal":
             return await self._build_prompt_normal(chat_stream, message_txt, sender_name)
 
@@ -267,54 +317,50 @@ class PromptBuilder:
             )
         return None
 
-    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> tuple[str, str]:
+    async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> str:
         individuality = Individuality.get_instance()
         prompt_personality = individuality.get_prompt(x_person=2, level=2)
+        is_group_chat = bool(chat_stream.group_info)
 
-        # 关系
-        who_chat_in_group = [
-            (chat_stream.user_info.platform, chat_stream.user_info.user_id, chat_stream.user_info.user_nickname)
-        ]
-        who_chat_in_group += get_recent_group_speaker(
-            chat_stream.stream_id,
-            (chat_stream.user_info.platform, chat_stream.user_info.user_id),
-            limit=global_config.observation_context_size,
-        )
+        who_chat_in_group = []
+        if is_group_chat:
+            who_chat_in_group = get_recent_group_speaker(
+                chat_stream.stream_id,
+                (chat_stream.user_info.platform, chat_stream.user_info.user_id) if chat_stream.user_info else None,
+                limit=global_config.observation_context_size,
+            )
+        elif chat_stream.user_info:
+            who_chat_in_group.append(
+                (chat_stream.user_info.platform, chat_stream.user_info.user_id, chat_stream.user_info.user_nickname)
+            )
 
         relation_prompt = ""
         for person in who_chat_in_group:
-            relation_prompt += await relationship_manager.build_relationship_info(person)
-            # print(f"relation_prompt: {relation_prompt}")
+            if len(person) >= 3 and person[0] and person[1]:
+                relation_prompt += await relationship_manager.build_relationship_info(person)
+            else:
+                logger.warning(f"Invalid person tuple encountered for relationship prompt: {person}")
 
-        # print(f"relat11111111ion_prompt: {relation_prompt}")
-
-        # 心情
         mood_manager = MoodManager.get_instance()
         mood_prompt = mood_manager.get_prompt()
-
-        # logger.info(f"心情prompt: {mood_prompt}")
-
         reply_styles1 = [
-            ("然后给出日常且口语化的回复，平淡一些", 0.4),  # 40%概率
-            ("给出非常简短的回复", 0.4),  # 40%概率
-            ("给出缺失主语的回复", 0.15),  # 15%概率
-            ("给出带有语病的回复", 0.05),  # 5%概率
+            ("然后给出日常且口语化的回复，平淡一些", 0.4),
+            ("给出非常简短的回复", 0.4),
+            ("给出缺失主语的回复", 0.15),
+            ("给出带有语病的回复", 0.05),
         ]
         reply_style1_chosen = random.choices(
             [style[0] for style in reply_styles1], weights=[style[1] for style in reply_styles1], k=1
         )[0]
-
         reply_styles2 = [
-            ("不要回复的太有条理，可以有个性", 0.6),  # 60%概率
-            ("不要回复的太有条理，可以复读", 0.15),  # 15%概率
-            ("回复的认真一些", 0.2),  # 20%概率
-            ("可以回复单个表情符号", 0.05),  # 5%概率
+            ("不要回复的太有条理，可以有个性", 0.6),
+            ("不要回复的太有条理，可以复读", 0.15),
+            ("回复的认真一些", 0.2),
+            ("可以回复单个表情符号", 0.05),
         ]
         reply_style2_chosen = random.choices(
             [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
         )[0]
-
-        # 调取记忆
         memory_prompt = ""
         related_memory = await HippocampusManager.get_instance().get_memory_from_text(
             text=message_txt, max_memory_num=2, max_memory_length=2, max_depth=3, fast_retrieval=False
@@ -323,23 +369,15 @@ class PromptBuilder:
         if related_memory:
             for memory in related_memory:
                 related_memory_info += memory[1]
-            # memory_prompt = f"你想起你之前见过的事情：{related_memory_info}。\n以上是你的回忆，不一定是目前聊天里的人说的，也不一定是现在发生的事情，请记住。\n"
             memory_prompt = await global_prompt_manager.format_prompt(
                 "memory_prompt", related_memory_info=related_memory_info
             )
-
-        # 获取聊天上下文
-        if chat_stream.group_info:
-            chat_in_group = True
-        else:
-            chat_in_group = False
 
         message_list_before_now = get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_stream.stream_id,
             timestamp=time.time(),
             limit=global_config.observation_context_size,
         )
-
         chat_talking_prompt = await build_readable_messages(
             message_list_before_now,
             replace_bot_name=True,
@@ -383,13 +421,10 @@ class PromptBuilder:
         start_time = time.time()
         prompt_info = await self.get_prompt_info(message_txt, threshold=0.38)
         if prompt_info:
-            # prompt_info = f"""\n你有以下这些**知识**：\n{prompt_info}\n请你**记住上面的知识**，之后可能会用到。\n"""
             prompt_info = await global_prompt_manager.format_prompt("knowledge_prompt", prompt_info=prompt_info)
 
         end_time = time.time()
         logger.debug(f"知识检索耗时: {(end_time - start_time):.3f}秒")
-
-        logger.debug("开始构建prompt")
 
         if global_config.ENABLE_SCHEDULE_GEN:
             schedule_prompt = await global_prompt_manager.format_prompt(
@@ -398,33 +433,60 @@ class PromptBuilder:
         else:
             schedule_prompt = ""
 
-        prompt = await global_prompt_manager.format_prompt(
-            "reasoning_prompt_main",
-            relation_prompt=relation_prompt,
-            sender_name=sender_name,
-            memory_prompt=memory_prompt,
-            prompt_info=prompt_info,
-            schedule_prompt=schedule_prompt,
-            chat_target=await global_prompt_manager.get_prompt_async("chat_target_group1")
-            if chat_in_group
-            else await global_prompt_manager.get_prompt_async("chat_target_private1"),
-            chat_target_2=await global_prompt_manager.get_prompt_async("chat_target_group2")
-            if chat_in_group
-            else await global_prompt_manager.get_prompt_async("chat_target_private2"),
-            chat_talking_prompt=chat_talking_prompt,
-            message_txt=message_txt,
-            bot_name=global_config.BOT_NICKNAME,
-            bot_other_names="/".join(
-                global_config.BOT_ALIAS_NAMES,
-            ),
-            prompt_personality=prompt_personality,
-            mood_prompt=mood_prompt,
-            reply_style1=reply_style1_chosen,
-            reply_style2=reply_style2_chosen,
-            keywords_reaction_prompt=keywords_reaction_prompt,
-            prompt_ger=prompt_ger,
-            moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
-        )
+        logger.debug("开始构建 normal prompt")
+
+        # --- Choose template and format based on chat type ---
+        if is_group_chat:
+            template_name = "reasoning_prompt_main"
+            effective_sender_name = sender_name
+            chat_target_1 = await global_prompt_manager.get_prompt_async("chat_target_group1")
+            chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
+
+            prompt = await global_prompt_manager.format_prompt(
+                template_name,
+                relation_prompt=relation_prompt,
+                sender_name=effective_sender_name,
+                memory_prompt=memory_prompt,
+                prompt_info=prompt_info,
+                schedule_prompt=schedule_prompt,
+                chat_target=chat_target_1,
+                chat_target_2=chat_target_2,
+                chat_talking_prompt=chat_talking_prompt,
+                message_txt=message_txt,
+                bot_name=global_config.BOT_NICKNAME,
+                bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
+                prompt_personality=prompt_personality,
+                mood_prompt=mood_prompt,
+                reply_style1=reply_style1_chosen,
+                reply_style2=reply_style2_chosen,
+                keywords_reaction_prompt=keywords_reaction_prompt,
+                prompt_ger=prompt_ger,
+                moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+            )
+        else:
+            template_name = "reasoning_prompt_private_main"
+            effective_sender_name = sender_name
+
+            prompt = await global_prompt_manager.format_prompt(
+                template_name,
+                relation_prompt=relation_prompt,
+                sender_name=effective_sender_name,
+                memory_prompt=memory_prompt,
+                prompt_info=prompt_info,
+                schedule_prompt=schedule_prompt,
+                chat_talking_prompt=chat_talking_prompt,
+                message_txt=message_txt,
+                bot_name=global_config.BOT_NICKNAME,
+                bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
+                prompt_personality=prompt_personality,
+                mood_prompt=mood_prompt,
+                reply_style1=reply_style1_chosen,
+                reply_style2=reply_style2_chosen,
+                keywords_reaction_prompt=keywords_reaction_prompt,
+                prompt_ger=prompt_ger,
+                moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
+            )
+        # --- End choosing template ---
 
         return prompt
 
@@ -683,6 +745,112 @@ class PromptBuilder:
         else:
             # 返回所有找到的内容，用换行分隔
             return "\n".join(str(result["content"]) for result in results)
+
+    async def build_planner_prompt(
+        self,
+        is_group_chat: bool,  # Now passed as argument
+        chat_target_info: Optional[dict],  # Now passed as argument
+        cycle_history: Deque["CycleInfo"],  # Now passed as argument (Type hint needs import or string)
+        observed_messages_str: str,
+        current_mind: Optional[str],
+        structured_info: Dict[str, Any],
+        current_available_actions: Dict[str, str],
+        # replan_prompt: str, # Replan logic still simplified
+    ) -> str:
+        """构建 Planner LLM 的提示词 (获取模板并填充数据)"""
+        try:
+            # --- Determine chat context ---
+            chat_context_description = "你现在正在一个群聊中"
+            chat_target_name = None  # Only relevant for private
+            if not is_group_chat and chat_target_info:
+                chat_target_name = (
+                    chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or "对方"
+                )
+                chat_context_description = f"你正在和 {chat_target_name} 私聊"
+            # --- End determining chat context ---
+
+            # ... (Copy logic from HeartFChatting._build_planner_prompt here) ...
+            # Structured info block
+            structured_info_block = ""
+            if structured_info:
+                structured_info_block = f"以下是一些额外的信息：\n{structured_info}\n"
+
+            # Chat content block
+            chat_content_block = ""
+            if observed_messages_str:
+                # Use triple quotes for multi-line string literal
+                chat_content_block = f"""观察到的最新聊天内容如下：
+---
+{observed_messages_str}
+---"""
+            else:
+                chat_content_block = "当前没有观察到新的聊天内容。\\n"
+
+            # Current mind block
+            current_mind_block = ""
+            if current_mind:
+                current_mind_block = f"你的内心想法：\n{current_mind}"
+            else:
+                current_mind_block = "你的内心想法：\n[没有特别的想法]"
+
+            # Cycle info block (using passed cycle_history)
+            cycle_info_block = ""
+            recent_active_cycles = []
+            for cycle in reversed(cycle_history):
+                if cycle.action_taken:
+                    recent_active_cycles.append(cycle)
+                    if len(recent_active_cycles) == 3:
+                        break
+            consecutive_text_replies = 0
+            responses_for_prompt = []
+            for cycle in recent_active_cycles:
+                if cycle.action_type == "text_reply":
+                    consecutive_text_replies += 1
+                    response_text = cycle.response_info.get("response_text", [])
+                    formatted_response = "[空回复]" if not response_text else " ".join(response_text)
+                    responses_for_prompt.append(formatted_response)
+                else:
+                    break
+            if consecutive_text_replies >= 3:
+                cycle_info_block = f'你已经连续回复了三条消息（最近: "{responses_for_prompt[0]}"，第二近: "{responses_for_prompt[1]}"，第三近: "{responses_for_prompt[2]}"）。你回复的有点多了，请注意'
+            elif consecutive_text_replies == 2:
+                cycle_info_block = f'你已经连续回复了两条消息（最近: "{responses_for_prompt[0]}"，第二近: "{responses_for_prompt[1]}"），请注意'
+            elif consecutive_text_replies == 1:
+                cycle_info_block = f'你刚刚已经回复一条消息（内容: "{responses_for_prompt[0]}"）'
+            if cycle_info_block:
+                cycle_info_block = f"\n【近期回复历史】\n{cycle_info_block}\n"
+            else:
+                cycle_info_block = "\n【近期回复历史】\n(最近没有连续文本回复)\n"
+
+            individuality = Individuality.get_instance()
+            prompt_personality = individuality.get_prompt(x_person=2, level=2)
+
+            action_options_text = "当前你可以选择的行动有：\n"
+            action_keys = list(current_available_actions.keys())
+            for name in action_keys:
+                desc = current_available_actions[name]
+                action_options_text += f"- '{name}': {desc}\n"
+            example_action_key = action_keys[0] if action_keys else "no_reply"
+
+            planner_prompt_template = await global_prompt_manager.get_prompt_async("planner_prompt")
+
+            prompt = planner_prompt_template.format(
+                bot_name=global_config.BOT_NICKNAME,
+                prompt_personality=prompt_personality,
+                chat_context_description=chat_context_description,
+                structured_info_block=structured_info_block,
+                chat_content_block=chat_content_block,
+                current_mind_block=current_mind_block,
+                cycle_info_block=cycle_info_block,
+                action_options_text=action_options_text,
+                example_action=example_action_key,
+            )
+            return prompt
+
+        except Exception as e:
+            logger.error(f"[PromptBuilder] 构建 Planner 提示词时出错: {e}")
+            logger.error(traceback.format_exc())
+            return "[构建 Planner Prompt 时出错]"
 
 
 init_prompt()
