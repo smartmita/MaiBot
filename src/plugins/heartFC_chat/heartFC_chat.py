@@ -737,7 +737,7 @@ class HeartFChatting:
             # 4. 获取当前上下文中涉及的用户 ID 及其已知名称
             user_ids_in_history = set()
             for msg in history_messages:
-                sender_id = msg.get('sender_id')
+                sender_id = msg["user_info"].get('user_id')
                 if sender_id:
                     user_ids_in_history.add(str(sender_id)) # 确保是字符串
 
@@ -747,13 +747,6 @@ class HeartFChatting:
                 try:
                     names_data = await relationship_manager.get_person_names_batch(platform, list(user_ids_in_history))
 
-                except AttributeError:
-                    logger.warning("relationship_manager does not have get_person_names_batch method. Falling back to single lookups.")
-                    names_data = {}
-                    for user_id in user_ids_in_history:
-                        name = await relationship_manager.get_person_name(platform, user_id)
-                        if name:
-                                names_data[user_id] = name
                 except Exception as e:
                     logger.error(f"Error getting person names: {e}", exc_info=True)
                     names_data = {} # 出错时置空

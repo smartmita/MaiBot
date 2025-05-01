@@ -1,32 +1,17 @@
 import json
 from typing import Dict, Any, Optional
+import asyncio # 可能需要用于锁
+
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 # 从全局配置导入
 from src.config.config import global_config
 
-
 logger = get_logger("nickname_mapper")
 
-llm_mapper: Optional[LLMRequest] = None
-if global_config.ENABLE_NICKNAME_MAPPING: # 使用全局开关
-    try:
-        # 从全局配置获取模型设置
-        model_config = global_config.llm_nickname_mapping
-        if not model_config or not model_config.get("name"):
-            logger.error("在全局配置中未找到有效的 'llm_nickname_mapping' 配置或缺少 'name' 字段。")
-        else:
-            llm_mapper = LLMRequest(  # <-- LLM 初始化
-            model=global_config.llm_nickname_mapping,
-            temperature=global_config.llm_nickname_mapping["temp"],
-            max_tokens=256,
-            request_type="nickname_mapping",
-            )
-            logger.info("绰号映射 LLM 初始化成功 (使用全局配置)。")
-
-    except Exception as e:
-        logger.error(f"使用全局配置初始化绰号映射 LLM 失败: {e}", exc_info=True)
-        llm_mapper = None
+if global_config.ENABLE_NICKNAME_MAPPING:
+    _llm_mapper_instance: Optional[LLMRequest] = None
+    _llm_mapper_init_lock = asyncio.Lock() # 使用异步锁，因为下面的函数是 async
 
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items()])
@@ -68,6 +53,39 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
 """
     return prompt
 
+async def _get_or_initialize_llm_mapper() -> Optional[LLMRequest]:
+    """获取或在需要时初始化绰号映射 LLM 的单例。"""
+    global _llm_mapper_instance
+    # 双重检查锁定模式（适用于 asyncio）
+    if _llm_mapper_instance is None:
+        async with _llm_mapper_init_lock:
+            # 再次检查，防止在等待锁时其他协程已完成初始化
+            if _llm_mapper_instance is None:
+                logger.info("首次调用，尝试初始化绰号映射 LLM...")
+                if not global_config.ENABLE_NICKNAME_MAPPING:
+                    logger.info("绰号映射功能已禁用，LLM 初始化跳过。")
+                    # 可以选择返回 None 或者设置一个特殊标记
+                    # 这里我们假设如果禁用，就不应该尝试使用，所以保持 None
+                    # _llm_mapper_instance = None # 已经是 None
+                else:
+                    try:
+                        model_config = global_config.llm_nickname_mapping
+                        if not model_config or not model_config.get("name"):
+                            logger.error("在全局配置中未找到有效的 'llm_nickname_mapping' 配置或缺少 'name' 字段。")
+                            # 初始化失败，保持 None
+                        else:
+                            _llm_mapper_instance = LLMRequest(
+                                model=global_config.llm_nickname_mapping,
+                                temperature=global_config.llm_nickname_mapping["temp"],
+                                max_tokens=256,
+                                request_type="nickname_mapping",
+                            )
+                            logger.info("绰号映射 LLM 初始化成功。")
+                    except Exception as e:
+                        logger.error(f"初始化绰号映射 LLM 失败: {e}", exc_info=True)
+                        # 初始化失败，保持 None
+                        _llm_mapper_instance = None # 确保显式设置为 None
+    return _llm_mapper_instance
 
 async def analyze_chat_for_nicknames(
     chat_history_str: str,
@@ -83,9 +101,7 @@ async def analyze_chat_for_nicknames(
         logger.debug("绰号映射功能已禁用。")
         return {"is_exist": False}
 
-    if llm_mapper is None:
-        logger.error("绰号映射 LLM 未初始化。无法执行分析。")
-        return {"is_exist": False}
+    llm_mapper = await _get_or_initialize_llm_mapper()
 
     prompt = _build_mapping_prompt(chat_history_str, bot_reply, user_name_map)
     logger.debug(f"构建的绰号映射 Prompt:\n{prompt}")
