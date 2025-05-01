@@ -121,48 +121,70 @@ class ObservationInfoHandler(NotificationHandler):
             logger.error(traceback.format_exc())  # 打印详细堆栈信息
 
 
-@dataclass
+# @dataclass <-- 这个，不需要了（递黄瓜）
 class ObservationInfo:
-    """决策信息类，用于收集和管理来自chat_observer的通知信息"""
+    """决策信息类，用于收集和管理来自chat_observer的通知信息 (手动实现 __init__)"""
 
-    # --- 修改：添加 private_name 字段 ---
-    private_name: str = field(init=True)  # 让 dataclass 的 __init__ 接收 private_name
+    # 类型提示保留，可用于文档和静态分析
+    private_name: str
+    chat_history: List[Dict[str, Any]]
+    chat_history_str: str
+    unprocessed_messages: List[Dict[str, Any]]
+    active_users: Set[str]
+    last_bot_speak_time: Optional[float]
+    last_user_speak_time: Optional[float]
+    last_message_time: Optional[float]
+    last_message_id: Optional[str]
+    last_message_content: str
+    last_message_sender: Optional[str]
+    bot_id: Optional[str]
+    chat_history_count: int
+    new_messages_count: int
+    cold_chat_start_time: Optional[float]
+    cold_chat_duration: float
+    is_typing: bool
+    is_cold_chat: bool
+    changed: bool
+    chat_observer: Optional[ChatObserver]
+    handler: Optional[ObservationInfoHandler]
 
-    # data_list
-    chat_history: List[Dict[str, Any]] = field(default_factory=list)  # 修改：明确类型为 Dict
-    chat_history_str: str = ""
-    unprocessed_messages: List[Dict[str, Any]] = field(default_factory=list)  # 修改：明确类型为 Dict
-    active_users: Set[str] = field(default_factory=set)
 
-    # data
-    last_bot_speak_time: Optional[float] = None
-    last_user_speak_time: Optional[float] = None
-    last_message_time: Optional[float] = None
-    # 添加 last_message_id
-    last_message_id: Optional[str] = None
-    last_message_content: str = ""
-    last_message_sender: Optional[str] = None
-    bot_id: Optional[str] = None
-    chat_history_count: int = 0
-    new_messages_count: int = 0
-    cold_chat_start_time: Optional[float] = None  # 用于计算冷场持续时间
-    cold_chat_duration: float = 0.0  # 缓存计算结果
+    def __init__(self, private_name: str):
+        """
+        手动初始化 ObservationInfo 的所有实例变量。
+        """
 
-    # state
-    is_typing: bool = False  # 可能表示对方正在输入
-    # has_unread_messages: bool = False # 这个状态可以通过 new_messages_count > 0 判断
-    is_cold_chat: bool = False
-    changed: bool = False  # 用于标记状态是否有变化，以便外部模块决定是否重新规划
+        # 接收的参数
+        self.private_name: str = private_name
 
-    # #spec (暂时注释掉，如果不需要)
-    # meta_plan_trigger: bool = False
+        # data_list
+        self.chat_history: List[Dict[str, Any]] = []
+        self.chat_history_str: str = ""
+        self.unprocessed_messages: List[Dict[str, Any]] = []
+        self.active_users: Set[str] = set()
 
-    # --- 修改：移除 __post_init__ 的参数 ---
+        # data
+        self.last_bot_speak_time: Optional[float] = None
+        self.last_user_speak_time: Optional[float] = None
+        self.last_message_time: Optional[float] = None
+        self.last_message_id: Optional[str] = None
+        self.last_message_content: str = ""
+        self.last_message_sender: Optional[str] = None
+        self.bot_id: Optional[str] = None
+        self.chat_history_count: int = 0
+        self.new_messages_count: int = 0
+        self.cold_chat_start_time: Optional[float] = None
+        self.cold_chat_duration: float = 0.0
 
-    def __post_init__(self):
-        """初始化后创建handler并进行必要的设置"""
-        self.chat_observer: Optional[ChatObserver] = None  # 添加类型提示
-        self.handler = ObservationInfoHandler(self, self.private_name)
+        # state
+        self.is_typing: bool = False
+        self.is_cold_chat: bool = False
+        self.changed: bool = False
+
+        # 关联对象
+        self.chat_observer: Optional[ChatObserver] = None
+
+        self.handler: ObservationInfoHandler = ObservationInfoHandler(self, self.private_name)
 
     def bind_to_chat_observer(self, chat_observer: ChatObserver):
         """绑定到指定的chat_observer
@@ -176,6 +198,11 @@ class ObservationInfo:
 
         self.chat_observer = chat_observer
         try:
+            if not self.handler: # 确保 handler 已经被创建
+                logger.error(f"[私聊][{self.private_name}] 尝试绑定时 handler 未初始化！")
+                self.chat_observer = None # 重置，防止后续错误
+                return
+
             # 注册关心的通知类型
             self.chat_observer.notification_manager.register_handler(
                 target="observation_info", notification_type=NotificationType.NEW_MESSAGE, handler=self.handler
@@ -194,7 +221,7 @@ class ObservationInfo:
 
     def unbind_from_chat_observer(self):
         """解除与chat_observer的绑定"""
-        if self.chat_observer and hasattr(self.chat_observer, "notification_manager"):  # 增加检查
+        if self.chat_observer and hasattr(self.chat_observer, "notification_manager") and self.handler: # 增加 handler 检查
             try:
                 self.chat_observer.notification_manager.unregister_handler(
                     target="observation_info", notification_type=NotificationType.NEW_MESSAGE, handler=self.handler
@@ -212,7 +239,7 @@ class ObservationInfo:
             finally:  # 确保 chat_observer 被重置
                 self.chat_observer = None
         else:
-            logger.warning(f"[私聊][{self.private_name}]尝试解绑时 ChatObserver 不存在或无效")
+            logger.warning(f"[私聊][{self.private_name}]尝试解绑时 ChatObserver 不存在、无效或 handler 未设置")
 
     # 修改：update_from_message 接收 UserInfo 对象
     async def update_from_message(self, message: Dict[str, Any], user_info: Optional[UserInfo]):
