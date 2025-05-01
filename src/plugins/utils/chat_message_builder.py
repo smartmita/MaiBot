@@ -30,7 +30,7 @@ def get_raw_msg_by_timestamp(
     filter_query = {"time": {"$gt": timestamp_start, "$lt": timestamp_end}}
     # 只有当 limit 为 0 时才应用外部 sort
     sort_order = [("time", 1)] if limit == 0 else None
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
 
 
 def get_raw_msg_by_timestamp_with_chat(
@@ -44,7 +44,7 @@ def get_raw_msg_by_timestamp_with_chat(
     # 只有当 limit 为 0 时才应用外部 sort
     sort_order = [("time", 1)] if limit == 0 else None
     # 直接将 limit_mode 传递给 find_messages
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
 
 
 def get_raw_msg_by_timestamp_with_chat_users(
@@ -66,7 +66,7 @@ def get_raw_msg_by_timestamp_with_chat_users(
     }
     # 只有当 limit 为 0 时才应用外部 sort
     sort_order = [("time", 1)] if limit == 0 else None
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
 
 
 def get_raw_msg_by_timestamp_with_users(
@@ -79,7 +79,7 @@ def get_raw_msg_by_timestamp_with_users(
     filter_query = {"time": {"$gt": timestamp_start, "$lt": timestamp_end}, "user_id": {"$in": person_ids}}
     # 只有当 limit 为 0 时才应用外部 sort
     sort_order = [("time", 1)] if limit == 0 else None
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit, limit_mode=limit_mode)
 
 
 def get_raw_msg_before_timestamp(timestamp: float, limit: int = 0) -> List[Dict[str, Any]]:
@@ -88,7 +88,7 @@ def get_raw_msg_before_timestamp(timestamp: float, limit: int = 0) -> List[Dict[
     """
     filter_query = {"time": {"$lt": timestamp}}
     sort_order = [("time", 1)]
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
 def get_raw_msg_before_timestamp_with_chat(chat_id: str, timestamp: float, limit: int = 0) -> List[Dict[str, Any]]:
@@ -97,7 +97,7 @@ def get_raw_msg_before_timestamp_with_chat(chat_id: str, timestamp: float, limit
     """
     filter_query = {"chat_id": chat_id, "time": {"$lt": timestamp}}
     sort_order = [("time", 1)]
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
 def get_raw_msg_before_timestamp_with_users(timestamp: float, person_ids: list, limit: int = 0) -> List[Dict[str, Any]]:
@@ -106,7 +106,7 @@ def get_raw_msg_before_timestamp_with_users(timestamp: float, person_ids: list, 
     """
     filter_query = {"time": {"$lt": timestamp}, "user_id": {"$in": person_ids}}
     sort_order = [("time", 1)]
-    return find_messages(filter=filter_query, sort=sort_order, limit=limit)
+    return find_messages(message_filter=filter_query, sort=sort_order, limit=limit)
 
 
 def num_new_messages_since(chat_id: str, timestamp_start: float = 0.0, timestamp_end: float = None) -> int:
