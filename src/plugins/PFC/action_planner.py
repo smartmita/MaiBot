@@ -4,6 +4,7 @@ from src.plugins.memory_system.Hippocampus import HippocampusManager
 from src.plugins.knowledge.knowledge_lib import qa_manager
 from src.common.database import db
 from src.plugins.chat.utils import get_embedding
+
 # import jieba # 如果需要旧版知识库的回退，可能需要
 # import re    # 如果需要旧版知识库的回退，可能需要
 from src.common.logger_manager import get_logger
@@ -124,7 +125,7 @@ class ActionPlanner:
         self.name = global_config.BOT_NICKNAME
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-    
+
     async def _get_memory_info(self, text: str) -> str:
         """根据文本自动检索相关记忆"""
         memory_prompt = ""
@@ -132,18 +133,20 @@ class ActionPlanner:
         try:
             related_memory = await HippocampusManager.get_instance().get_memory_from_text(
                 text=text,
-                max_memory_num=2, # 最多获取 2 条记忆
-                max_memory_length=2, # 每条记忆长度限制（这个参数含义可能需确认）
-                max_depth=3, # 搜索深度
-                fast_retrieval=False # 是否快速检索
+                max_memory_num=2,  # 最多获取 2 条记忆
+                max_memory_length=2,  # 每条记忆长度限制（这个参数含义可能需确认）
+                max_depth=3,  # 搜索深度
+                fast_retrieval=False,  # 是否快速检索
             )
             if related_memory:
                 for memory in related_memory:
                     # memory[0] 是记忆ID, memory[1] 是记忆内容
-                    related_memory_info += memory[1] + "\n" # 将记忆内容拼接起来
+                    related_memory_info += memory[1] + "\n"  # 将记忆内容拼接起来
                 if related_memory_info:
                     memory_prompt = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，供参考)\n"
-                    logger.debug(f"[私聊]决策层[{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}...")
+                    logger.debug(
+                        f"[私聊]决策层[{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}..."
+                    )
                 else:
                     logger.debug(f"[私聊]决策层[{self.private_name}]自动检索记忆返回为空。")
             else:
@@ -179,9 +182,11 @@ class ActionPlanner:
             return ""
 
         # 调用我们之前添加的 get_info_from_db 函数
-        results = get_info_from_db(embedding, limit=5, threshold=threshold, return_raw=True) # 最多查 5 条
+        results = get_info_from_db(embedding, limit=5, threshold=threshold, return_raw=True)  # 最多查 5 条
 
-        logger.info(f"[私聊][{self.private_name}]旧版知识库查询完成，耗时: {time.time() - start_time:.3f}秒，获取{len(results)}条结果")
+        logger.info(
+            f"[私聊][{self.private_name}]旧版知识库查询完成，耗时: {time.time() - start_time:.3f}秒，获取{len(results)}条结果"
+        )
 
         # 去重和格式化
         unique_contents = set()
@@ -231,7 +236,9 @@ class ActionPlanner:
             else:
                 logger.debug(f"[私聊][{self.private_name}]LPMM 知识库未返回有效知识，尝试旧版数据库检索。")
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]调用 LPMM 知识库 (qa_manager.get_knowledge) 时发生异常: {str(e)}，尝试旧版数据库检索。")
+            logger.error(
+                f"[私聊][{self.private_name}]调用 LPMM 知识库 (qa_manager.get_knowledge) 时发生异常: {str(e)}，尝试旧版数据库检索。"
+            )
 
         # 2. 如果 LPMM 失败或无结果，尝试旧版数据库
         try:
@@ -246,11 +253,15 @@ class ActionPlanner:
                 logger.debug(f"[私聊][{self.private_name}]旧版数据库也未检索到有效知识。")
 
         except Exception as e2:
-            logger.error(f"[私聊][{self.private_name}]调用旧版知识库检索 (_get_prompt_info_old) 时也发生异常: {str(e2)}")
+            logger.error(
+                f"[私聊][{self.private_name}]调用旧版知识库检索 (_get_prompt_info_old) 时也发生异常: {str(e2)}"
+            )
 
         # 如果两种方法都失败或无结果
-        logger.info(f"[私聊][{self.private_name}]自动知识检索总耗时: {time.time() - start_time:.3f}秒，未找到任何相关知识。")
-        return "" # 返回空字符串
+        logger.info(
+            f"[私聊][{self.private_name}]自动知识检索总耗时: {time.time() - start_time:.3f}秒，未找到任何相关知识。"
+        )
+        return ""  # 返回空字符串
 
     # 修改 plan 方法签名，增加 last_successful_reply_action 参数
     async def plan(
@@ -362,36 +373,36 @@ class ActionPlanner:
         # --- 知识信息字符串构建开始 ---
         # knowledge_info_str = "【已获取的相关知识和记忆】\n"
         # try:
-            # 检查 conversation_info 是否有 knowledge_list 并且不为空
-            # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
-                # 最多只显示最近的 5 条知识，防止 Prompt 过长
-                # recent_knowledge = conversation_info.knowledge_list[-5:]
-                # for i, knowledge_item in enumerate(recent_knowledge):
-                    # if isinstance(knowledge_item, dict):
-                        # query = knowledge_item.get("query", "未知查询")
-                        # knowledge = knowledge_item.get("knowledge", "无知识内容")
-                        # source = knowledge_item.get("source", "未知来源")
-                        # 只取知识内容的前 2000 个字，避免太长
-                        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
-                        # knowledge_info_str += (
-                            # f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
-                        # )
-                    # else:
-                        # 处理列表里不是字典的异常情况
-                        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+        # 检查 conversation_info 是否有 knowledge_list 并且不为空
+        # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+        # 最多只显示最近的 5 条知识，防止 Prompt 过长
+        # recent_knowledge = conversation_info.knowledge_list[-5:]
+        # for i, knowledge_item in enumerate(recent_knowledge):
+        # if isinstance(knowledge_item, dict):
+        # query = knowledge_item.get("query", "未知查询")
+        # knowledge = knowledge_item.get("knowledge", "无知识内容")
+        # source = knowledge_item.get("source", "未知来源")
+        # 只取知识内容的前 2000 个字，避免太长
+        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+        # knowledge_info_str += (
+        # f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
+        # )
+        # else:
+        # 处理列表里不是字典的异常情况
+        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
 
-                # if not recent_knowledge:  # 如果 knowledge_list 存在但为空
-                    # knowledge_info_str += "- 暂无相关知识和记忆。\n"
+        # if not recent_knowledge:  # 如果 knowledge_list 存在但为空
+        # knowledge_info_str += "- 暂无相关知识和记忆。\n"
 
-            # else:
-                # 如果 conversation_info 没有 knowledge_list 属性，或者列表为空
-                # knowledge_info_str += "- 暂无相关知识记忆。\n"
+        # else:
+        # 如果 conversation_info 没有 knowledge_list 属性，或者列表为空
+        # knowledge_info_str += "- 暂无相关知识记忆。\n"
         # except AttributeError:
-            # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
-            # knowledge_info_str += "- 获取知识列表时出错。\n"
+        # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+        # knowledge_info_str += "- 获取知识列表时出错。\n"
         # except Exception as e:
-            # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
-            # knowledge_info_str += "- 处理知识列表时出错。\n"
+        # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+        # knowledge_info_str += "- 处理知识列表时出错。\n"
         # --- 知识信息字符串构建结束 ---
 
         # 获取聊天历史记录 (chat_history_text)
@@ -503,16 +514,20 @@ class ActionPlanner:
 
                 retrieved_memory_str_planner = ""
         retrieved_knowledge_str_planner = ""
-        retrieval_context = chat_history_text # 使用聊天记录作为检索上下文
+        retrieval_context = chat_history_text  # 使用聊天记录作为检索上下文
         if retrieval_context and retrieval_context != "还没有聊天记录。" and retrieval_context != "[构建聊天记录出错]":
             try:
                 logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动检索记忆...")
                 retrieved_memory_str_planner = await self._get_memory_info(text=retrieval_context)
-                logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索记忆 {'完成' if retrieved_memory_str_planner else '无结果'}。")
+                logger.info(
+                    f"[私聊][{self.private_name}] (ActionPlanner) 自动检索记忆 {'完成' if retrieved_memory_str_planner else '无结果'}。"
+                )
 
                 logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动知识检索...")
                 retrieved_knowledge_str_planner = await self._get_prompt_info(message=retrieval_context)
-                logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。")
+                logger.info(
+                    f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。"
+                )
             except Exception as retrieval_err:
                 logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")
                 retrieved_memory_str_planner = "检索记忆时出错。\n"
@@ -541,7 +556,9 @@ class ActionPlanner:
             chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
             # knowledge_info_str=knowledge_info_str,
             retrieved_memory_str=retrieved_memory_str_planner if retrieved_memory_str_planner else "无相关记忆。",
-            retrieved_knowledge_str=retrieved_knowledge_str_planner if retrieved_knowledge_str_planner else "无相关知识。"
+            retrieved_knowledge_str=retrieved_knowledge_str_planner
+            if retrieved_knowledge_str_planner
+            else "无相关知识。",
         )
 
         logger.debug(f"[私聊][{self.private_name}]发送到LLM的最终提示词:\n------\n{prompt}\n------")
@@ -644,7 +661,8 @@ class ActionPlanner:
             # 外层异常处理保持不变
             logger.error(f"[私聊][{self.private_name}]规划行动时调用 LLM 或处理结果出错: {str(e)}")
             return "wait", f"行动规划处理中发生错误，暂时等待: {str(e)}"
-        
+
+
 def get_info_from_db(
     query_embedding: list, limit: int = 1, threshold: float = 0.5, return_raw: bool = False
 ) -> Union[str, list]:
@@ -696,7 +714,13 @@ def get_info_from_db(
             }
         },
         # 防止除以零错误，添加一个小的 epsilon
-        {"$addFields": {"similarity": {"$divide": ["$dotProduct", {"$max": [{"$multiply": ["$magnitude1", "$magnitude2"]}, 1e-9]}]}}},
+        {
+            "$addFields": {
+                "similarity": {
+                    "$divide": ["$dotProduct", {"$max": [{"$multiply": ["$magnitude1", "$magnitude2"]}, 1e-9]}]
+                }
+            }
+        },
         {
             "$match": {
                 "similarity": {"$gte": threshold}  # 只保留相似度大于等于阈值的结果
@@ -723,4 +747,3 @@ def get_info_from_db(
     else:
         # 返回所有找到的内容，用换行分隔
         return "\n".join(str(result["content"]) for result in results)
-

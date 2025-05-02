@@ -1,15 +1,19 @@
 # 用于访问记忆系统
 from src.plugins.memory_system.Hippocampus import HippocampusManager
+
 # 用于访问新的知识库 (LPMM)
 from src.plugins.knowledge.knowledge_lib import qa_manager
+
 # 用于访问数据库 (旧知识库需要)
 from src.common.database import db
+
 # 用于获取文本的嵌入向量 (旧知识库需要)
 from src.plugins.chat.utils import get_embedding
+
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
 # import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
 # import re    # 正则表达式库，通常 Python 自带
-from typing import Tuple, List, Dict, Any,Union
+from typing import Tuple, List, Dict, Any, Union
 from src.common.logger import get_module_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -116,6 +120,7 @@ class ReplyGenerator:
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
         self.reply_checker = ReplyChecker(stream_id, private_name)
+
     async def _get_memory_info(self, text: str) -> str:
         """根据文本自动检索相关记忆"""
         memory_prompt = ""
@@ -123,15 +128,15 @@ class ReplyGenerator:
         try:
             related_memory = await HippocampusManager.get_instance().get_memory_from_text(
                 text=text,
-                max_memory_num=2, # 最多获取 2 条记忆
-                max_memory_length=2, # 每条记忆长度限制（这个参数含义可能需确认）
-                max_depth=3, # 搜索深度
-                fast_retrieval=False # 是否快速检索
+                max_memory_num=2,  # 最多获取 2 条记忆
+                max_memory_length=2,  # 每条记忆长度限制（这个参数含义可能需确认）
+                max_depth=3,  # 搜索深度
+                fast_retrieval=False,  # 是否快速检索
             )
             if related_memory:
                 for memory in related_memory:
                     # memory[0] 是记忆ID, memory[1] 是记忆内容
-                    related_memory_info += memory[1] + "\n" # 将记忆内容拼接起来
+                    related_memory_info += memory[1] + "\n"  # 将记忆内容拼接起来
                 if related_memory_info:
                     memory_prompt = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，不一定是目前聊天里的人说的，回忆中别人说的事情也不一定是准确的，请记住)\n"
                     logger.debug(f"[私聊][{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}...")
@@ -170,9 +175,11 @@ class ReplyGenerator:
             return ""
 
         # 调用我们之前添加的 get_info_from_db 函数
-        results = get_info_from_db(embedding, limit=5, threshold=threshold, return_raw=True) # 最多查 5 条
+        results = get_info_from_db(embedding, limit=5, threshold=threshold, return_raw=True)  # 最多查 5 条
 
-        logger.info(f"[私聊][{self.private_name}]旧版知识库查询完成，耗时: {time.time() - start_time:.3f}秒，获取{len(results)}条结果")
+        logger.info(
+            f"[私聊][{self.private_name}]旧版知识库查询完成，耗时: {time.time() - start_time:.3f}秒，获取{len(results)}条结果"
+        )
 
         # 去重和格式化
         unique_contents = set()
@@ -222,7 +229,9 @@ class ReplyGenerator:
             else:
                 logger.debug(f"[私聊][{self.private_name}]LPMM 知识库未返回有效知识，尝试旧版数据库检索。")
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]调用 LPMM 知识库 (qa_manager.get_knowledge) 时发生异常: {str(e)}，尝试旧版数据库检索。")
+            logger.error(
+                f"[私聊][{self.private_name}]调用 LPMM 知识库 (qa_manager.get_knowledge) 时发生异常: {str(e)}，尝试旧版数据库检索。"
+            )
 
         # 2. 如果 LPMM 失败或无结果，尝试旧版数据库
         try:
@@ -237,11 +246,15 @@ class ReplyGenerator:
                 logger.debug(f"[私聊][{self.private_name}]旧版数据库也未检索到有效知识。")
 
         except Exception as e2:
-            logger.error(f"[私聊][{self.private_name}]调用旧版知识库检索 (_get_prompt_info_old) 时也发生异常: {str(e2)}")
+            logger.error(
+                f"[私聊][{self.private_name}]调用旧版知识库检索 (_get_prompt_info_old) 时也发生异常: {str(e2)}"
+            )
         # 如果两种方法都失败或无结果
-        logger.info(f"[私聊][{self.private_name}]自动知识检索总耗时: {time.time() - start_time:.3f}秒，未找到任何相关知识。")
-        return "" # 返回空字符串
-    
+        logger.info(
+            f"[私聊][{self.private_name}]自动知识检索总耗时: {time.time() - start_time:.3f}秒，未找到任何相关知识。"
+        )
+        return ""  # 返回空字符串
+
     # 修改 generate 方法签名，增加 action_type 参数
     async def generate(
         self, observation_info: ObservationInfo, conversation_info: ConversationInfo, action_type: str
@@ -284,34 +297,34 @@ class ReplyGenerator:
         # --- 新增：构建知识信息字符串 ---
         # knowledge_info_str = "【供参考的相关知识和记忆】\n"  # 稍微改下标题，表明是供参考
         # try:
-            # 检查 conversation_info 是否有 knowledge_list 并且不为空
-            # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
-                # 最多只显示最近的 5 条知识
-                # recent_knowledge = conversation_info.knowledge_list[-5:]
-                # for i, knowledge_item in enumerate(recent_knowledge):
-                    # if isinstance(knowledge_item, dict):
-                        # query = knowledge_item.get("query", "未知查询")
-                        # knowledge = knowledge_item.get("knowledge", "无知识内容")
-                        # source = knowledge_item.get("source", "未知来源")
-                        # 只取知识内容的前 2000 个字
-                        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
-                        # knowledge_info_str += (
-                            # f"{i + 1}. 关于 '{query}' (来源: {source}): {knowledge_snippet}\n"  # 格式微调，更简洁
-                        # )
-                    # else:
-                        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+        # 检查 conversation_info 是否有 knowledge_list 并且不为空
+        # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+        # 最多只显示最近的 5 条知识
+        # recent_knowledge = conversation_info.knowledge_list[-5:]
+        # for i, knowledge_item in enumerate(recent_knowledge):
+        # if isinstance(knowledge_item, dict):
+        # query = knowledge_item.get("query", "未知查询")
+        # knowledge = knowledge_item.get("knowledge", "无知识内容")
+        # source = knowledge_item.get("source", "未知来源")
+        # 只取知识内容的前 2000 个字
+        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+        # knowledge_info_str += (
+        # f"{i + 1}. 关于 '{query}' (来源: {source}): {knowledge_snippet}\n"  # 格式微调，更简洁
+        # )
+        # else:
+        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
 
-                # if not recent_knowledge:
-                    # knowledge_info_str += "- 暂无。\n"  # 更简洁的提示
+        # if not recent_knowledge:
+        # knowledge_info_str += "- 暂无。\n"  # 更简洁的提示
 
-            # else:
-                # knowledge_info_str += "- 暂无。\n"
+        # else:
+        # knowledge_info_str += "- 暂无。\n"
         # except AttributeError:
-            # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
-            # knowledge_info_str += "- 获取知识列表时出错。\n"
+        # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+        # knowledge_info_str += "- 获取知识列表时出错。\n"
         # except Exception as e:
-            # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
-            # knowledge_info_str += "- 处理知识列表时出错。\n"
+        # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+        # knowledge_info_str += "- 处理知识列表时出错。\n"
 
         # 获取聊天历史记录 (chat_history_text)
         chat_history_text = observation_info.chat_history_str
@@ -378,8 +391,10 @@ class ReplyGenerator:
             goals_str=goals_str,
             chat_history_text=chat_history_text,
             # knowledge_info_str=knowledge_info_str,
-            retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。", # 如果为空则提示无
-            retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。" # 如果为空则提示无
+            retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",  # 如果为空则提示无
+            retrieved_knowledge_str=retrieved_knowledge_str
+            if retrieved_knowledge_str
+            else "无相关知识。",  # 如果为空则提示无
         )
 
         # --- 调用 LLM 生成 ---
@@ -402,6 +417,7 @@ class ReplyGenerator:
         (此方法逻辑保持不变)
         """
         return await self.reply_checker.check(reply, goal, chat_history, chat_history_str, retry_count)
+
 
 def get_info_from_db(
     query_embedding: list, limit: int = 1, threshold: float = 0.5, return_raw: bool = False
@@ -454,7 +470,13 @@ def get_info_from_db(
             }
         },
         # 防止除以零错误，添加一个小的 epsilon
-        {"$addFields": {"similarity": {"$divide": ["$dotProduct", {"$max": [{"$multiply": ["$magnitude1", "$magnitude2"]}, 1e-9]}]}}},
+        {
+            "$addFields": {
+                "similarity": {
+                    "$divide": ["$dotProduct", {"$max": [{"$multiply": ["$magnitude1", "$magnitude2"]}, 1e-9]}]
+                }
+            }
+        },
         {
             "$match": {
                 "similarity": {"$gte": threshold}  # 只保留相似度大于等于阈值的结果
