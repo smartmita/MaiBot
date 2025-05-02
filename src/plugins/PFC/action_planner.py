@@ -360,38 +360,38 @@ class ActionPlanner:
             goals_str = "- 构建对话目标时出错。\n"
 
         # --- 知识信息字符串构建开始 ---
-        knowledge_info_str = "【已获取的相关知识和记忆】\n"
-        try:
+        # knowledge_info_str = "【已获取的相关知识和记忆】\n"
+        # try:
             # 检查 conversation_info 是否有 knowledge_list 并且不为空
-            if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+            # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
                 # 最多只显示最近的 5 条知识，防止 Prompt 过长
-                recent_knowledge = conversation_info.knowledge_list[-5:]
-                for i, knowledge_item in enumerate(recent_knowledge):
-                    if isinstance(knowledge_item, dict):
-                        query = knowledge_item.get("query", "未知查询")
-                        knowledge = knowledge_item.get("knowledge", "无知识内容")
-                        source = knowledge_item.get("source", "未知来源")
+                # recent_knowledge = conversation_info.knowledge_list[-5:]
+                # for i, knowledge_item in enumerate(recent_knowledge):
+                    # if isinstance(knowledge_item, dict):
+                        # query = knowledge_item.get("query", "未知查询")
+                        # knowledge = knowledge_item.get("knowledge", "无知识内容")
+                        # source = knowledge_item.get("source", "未知来源")
                         # 只取知识内容的前 2000 个字，避免太长
-                        knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
-                        knowledge_info_str += (
-                            f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
-                        )
-                    else:
+                        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+                        # knowledge_info_str += (
+                            # f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
+                        # )
+                    # else:
                         # 处理列表里不是字典的异常情况
-                        knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+                        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
 
-                if not recent_knowledge:  # 如果 knowledge_list 存在但为空
-                    knowledge_info_str += "- 暂无相关知识和记忆。\n"
+                # if not recent_knowledge:  # 如果 knowledge_list 存在但为空
+                    # knowledge_info_str += "- 暂无相关知识和记忆。\n"
 
-            else:
+            # else:
                 # 如果 conversation_info 没有 knowledge_list 属性，或者列表为空
-                knowledge_info_str += "- 暂无相关知识记忆。\n"
-        except AttributeError:
-            logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
-            knowledge_info_str += "- 获取知识列表时出错。\n"
-        except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
-            knowledge_info_str += "- 处理知识列表时出错。\n"
+                # knowledge_info_str += "- 暂无相关知识记忆。\n"
+        # except AttributeError:
+            # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+            # knowledge_info_str += "- 获取知识列表时出错。\n"
+        # except Exception as e:
+            # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+            # knowledge_info_str += "- 处理知识列表时出错。\n"
         # --- 知识信息字符串构建结束 ---
 
         # 获取聊天历史记录 (chat_history_text)
@@ -501,6 +501,27 @@ class ActionPlanner:
                         last_action_context += f"- 该行动当前状态: {status}\n"
                         # self.last_successful_action_type = None # 非完成状态，清除记录
 
+                retrieved_memory_str_planner = ""
+        retrieved_knowledge_str_planner = ""
+        retrieval_context = chat_history_text # 使用聊天记录作为检索上下文
+        if retrieval_context and retrieval_context != "还没有聊天记录。" and retrieval_context != "[构建聊天记录出错]":
+            try:
+                logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动检索记忆...")
+                retrieved_memory_str_planner = await self._get_memory_info(text=retrieval_context)
+                logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索记忆 {'完成' if retrieved_memory_str_planner else '无结果'}。")
+
+                logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动知识检索...")
+                retrieved_knowledge_str_planner = await self._get_prompt_info(message=retrieval_context)
+                logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。")
+            except Exception as retrieval_err:
+                 logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")
+                 retrieved_memory_str_planner = "检索记忆时出错。\n"
+                 retrieved_knowledge_str_planner = "检索知识时出错。\n"
+        else:
+             logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 无有效聊天记录，跳过自动检索。")
+             retrieved_memory_str_planner = "无聊天记录无法检索记忆。\n"
+             retrieved_knowledge_str_planner = "无聊天记录无法检索知识。\n"
+
         # --- 选择 Prompt ---
         if last_successful_reply_action in ["direct_reply", "send_new_message"]:
             prompt_template = PROMPT_FOLLOW_UP
@@ -518,7 +539,9 @@ class ActionPlanner:
             time_since_last_bot_message_info=time_since_last_bot_message_info,
             timeout_context=timeout_context,
             chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
-            knowledge_info_str=knowledge_info_str,
+            # knowledge_info_str=knowledge_info_str,
+            retrieved_memory_str=retrieved_memory_str_planner if retrieved_memory_str_planner else "无相关记忆。",
+            retrieved_knowledge_str=retrieved_knowledge_str_planner if retrieved_knowledge_str_planner else "无相关知识。"
         )
 
         logger.debug(f"[私聊][{self.private_name}]发送到LLM的最终提示词:\n------\n{prompt}\n------")

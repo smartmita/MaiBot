@@ -37,7 +37,7 @@ PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请
 最近的聊天记录：
 {chat_history_text}
 
-{related_memory_info}。
+{retrieved_memory_str}
 
 
 请根据上述信息，结合聊天记录，回复对方。该回复应该：
@@ -66,7 +66,7 @@ PROMPT_SEND_NEW_MESSAGE = """{persona_text}。现在你在参与一场QQ私聊�
 最近的聊天记录：
 {chat_history_text}
 
-{related_memory_info}
+{retrieved_memory_str}
 
 请根据上述信息，结合聊天记录，继续发一条新消息（例如对之前消息的补充，深入话题，或追问等等）。该消息应该： 
 1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
@@ -282,36 +282,36 @@ class ReplyGenerator:
             goals_str = "- 目前没有明确对话目标\n"  # 简化无目标情况
 
         # --- 新增：构建知识信息字符串 ---
-        knowledge_info_str = "【供参考的相关知识和记忆】\n"  # 稍微改下标题，表明是供参考
-        try:
+        # knowledge_info_str = "【供参考的相关知识和记忆】\n"  # 稍微改下标题，表明是供参考
+        # try:
             # 检查 conversation_info 是否有 knowledge_list 并且不为空
-            if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
+            # if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
                 # 最多只显示最近的 5 条知识
-                recent_knowledge = conversation_info.knowledge_list[-5:]
-                for i, knowledge_item in enumerate(recent_knowledge):
-                    if isinstance(knowledge_item, dict):
-                        query = knowledge_item.get("query", "未知查询")
-                        knowledge = knowledge_item.get("knowledge", "无知识内容")
-                        source = knowledge_item.get("source", "未知来源")
+                # recent_knowledge = conversation_info.knowledge_list[-5:]
+                # for i, knowledge_item in enumerate(recent_knowledge):
+                    # if isinstance(knowledge_item, dict):
+                        # query = knowledge_item.get("query", "未知查询")
+                        # knowledge = knowledge_item.get("knowledge", "无知识内容")
+                        # source = knowledge_item.get("source", "未知来源")
                         # 只取知识内容的前 2000 个字
-                        knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
-                        knowledge_info_str += (
-                            f"{i + 1}. 关于 '{query}' (来源: {source}): {knowledge_snippet}\n"  # 格式微调，更简洁
-                        )
-                    else:
-                        knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
+                        # knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
+                        # knowledge_info_str += (
+                            # f"{i + 1}. 关于 '{query}' (来源: {source}): {knowledge_snippet}\n"  # 格式微调，更简洁
+                        # )
+                    # else:
+                        # knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
 
-                if not recent_knowledge:
-                    knowledge_info_str += "- 暂无。\n"  # 更简洁的提示
+                # if not recent_knowledge:
+                    # knowledge_info_str += "- 暂无。\n"  # 更简洁的提示
 
-            else:
-                knowledge_info_str += "- 暂无。\n"
-        except AttributeError:
-            logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
-            knowledge_info_str += "- 获取知识列表时出错。\n"
-        except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
-            knowledge_info_str += "- 处理知识列表时出错。\n"
+            # else:
+                # knowledge_info_str += "- 暂无。\n"
+        # except AttributeError:
+            # logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
+            # knowledge_info_str += "- 获取知识列表时出错。\n"
+        # except Exception as e:
+            # logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
+            # knowledge_info_str += "- 处理知识列表时出错。\n"
 
         # 获取聊天历史记录 (chat_history_text)
         chat_history_text = observation_info.chat_history_str
@@ -377,7 +377,7 @@ class ReplyGenerator:
             persona_text=persona_text,
             goals_str=goals_str,
             chat_history_text=chat_history_text,
-            knowledge_info_str=knowledge_info_str,
+            # knowledge_info_str=knowledge_info_str,
             retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。", # 如果为空则提示无
             retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。" # 如果为空则提示无
         )
