@@ -188,7 +188,7 @@ class ActionPlanner:
         final_results_content = []
         for result in results:
             content = result.get("content", "").strip()
-            similarity = result.get("similarity", 0.0)
+            # similarity = result.get("similarity", 0.0)
             if content and content not in unique_contents:
                 unique_contents.add(content)
                 # 可以选择性地加入相似度信息，或者只加内容
@@ -213,8 +213,8 @@ class ActionPlanner:
         start_time = time.time()
         message = message.strip()
         if not message:
-             logger.debug(f"[私聊][{self.private_name}]自动知识检索：输入消息为空。")
-             return ""
+            logger.debug(f"[私聊][{self.private_name}]自动知识检索：输入消息为空。")
+            return ""
 
         logger.debug(f"[私聊][{self.private_name}]开始自动知识检索，消息: {message[:30]}...")
 
@@ -712,7 +712,7 @@ def get_info_from_db(
         # 注意：这里的 logger 需要能访问到，或者在这个函数里获取 logger 实例
         # logger.debug(f"旧知识库查询结果数量: {len(results)}") # 暂时注释掉，避免 logger 未定义
     except Exception as e:
-        # logger.error(f"执行旧知识库聚合查询时出错: {e}") # 暂时注释掉
+        logger.debug(f"执行旧知识库聚合查询时出错: {e}")
         results = []
 
     if not results:

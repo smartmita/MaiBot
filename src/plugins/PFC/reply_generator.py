@@ -179,7 +179,7 @@ class ReplyGenerator:
         final_results_content = []
         for result in results:
             content = result.get("content", "").strip()
-            similarity = result.get("similarity", 0.0)
+            # similarity = result.get("similarity", 0.0)
             if content and content not in unique_contents:
                 unique_contents.add(content)
                 # 可以选择性地加入相似度信息，或者只加内容
@@ -204,8 +204,8 @@ class ReplyGenerator:
         start_time = time.time()
         message = message.strip()
         if not message:
-             logger.debug(f"[私聊][{self.private_name}]自动知识检索：输入消息为空。")
-             return ""
+            logger.debug(f"[私聊][{self.private_name}]自动知识检索：输入消息为空。")
+            return ""
 
         logger.debug(f"[私聊][{self.private_name}]开始自动知识检索，消息: {message[:30]}...")
 
@@ -340,17 +340,17 @@ class ReplyGenerator:
                 logger.debug(f"[私聊][{self.private_name}]开始自动检索记忆...")
                 retrieved_memory_str = await self._get_memory_info(text=retrieval_context)
                 if retrieved_memory_str:
-                     logger.info(f"[私聊][{self.private_name}]自动检索到记忆片段。")
+                    logger.info(f"[私聊][{self.private_name}]自动检索到记忆片段。")
                 else:
-                     logger.info(f"[私聊][{self.private_name}]未自动检索到相关记忆。")
+                    logger.info(f"[私聊][{self.private_name}]未自动检索到相关记忆。")
 
                 # 提取知识
                 logger.debug(f"[私聊][{self.private_name}]开始自动检索知识...")
                 retrieved_knowledge_str = await self._get_prompt_info(message=retrieval_context)
                 if retrieved_knowledge_str:
-                     logger.info(f"[私聊][{self.private_name}]自动检索到相关知识。")
+                    logger.info(f"[私聊][{self.private_name}]自动检索到相关知识。")
                 else:
-                     logger.info(f"[私聊][{self.private_name}]未自动检索到相关知识。")
+                    logger.info(f"[私聊][{self.private_name}]未自动检索到相关知识。")
 
             except Exception as retrieval_err:
                 logger.error(f"[私聊][{self.private_name}]在自动检索记忆/知识时发生错误: {retrieval_err}")
@@ -470,7 +470,7 @@ def get_info_from_db(
         # 注意：这里的 logger 需要能访问到，或者在这个函数里获取 logger 实例
         # logger.debug(f"旧知识库查询结果数量: {len(results)}") # 暂时注释掉，避免 logger 未定义
     except Exception as e:
-        # logger.error(f"执行旧知识库聚合查询时出错: {e}") # 暂时注释掉
+        logger.debug(f"执行旧知识库聚合查询时出错: {e}")
         results = []
 
     if not results:
