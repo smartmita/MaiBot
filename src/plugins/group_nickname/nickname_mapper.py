@@ -1,3 +1,4 @@
+import re
 import json
 from typing import Dict, Any, Optional
 from src.common.logger_manager import get_logger
@@ -103,8 +104,6 @@ async def analyze_chat_for_nicknames(
         # 清理可能的 Markdown 代码块标记
         response_content = response_content.strip()
         # 使用正则表达式处理各种 Markdown 代码块情况
-        import re
-
         markdown_code_regex = re.compile(r"^```(?:\w+)?\s*\n(.*?)\n\s*```$", re.DOTALL)
         match = markdown_code_regex.match(response_content)
         if match:
