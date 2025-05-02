@@ -514,13 +514,13 @@ class ActionPlanner:
                 retrieved_knowledge_str_planner = await self._get_prompt_info(message=retrieval_context)
                 logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。")
             except Exception as retrieval_err:
-                 logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")
-                 retrieved_memory_str_planner = "检索记忆时出错。\n"
-                 retrieved_knowledge_str_planner = "检索知识时出错。\n"
+                logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")
+                retrieved_memory_str_planner = "检索记忆时出错。\n"
+                retrieved_knowledge_str_planner = "检索知识时出错。\n"
         else:
-             logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 无有效聊天记录，跳过自动检索。")
-             retrieved_memory_str_planner = "无聊天记录无法检索记忆。\n"
-             retrieved_knowledge_str_planner = "无聊天记录无法检索知识。\n"
+            logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 无有效聊天记录，跳过自动检索。")
+            retrieved_memory_str_planner = "无聊天记录无法检索记忆。\n"
+            retrieved_knowledge_str_planner = "无聊天记录无法检索知识。\n"
 
         # --- 选择 Prompt ---
         if last_successful_reply_action in ["direct_reply", "send_new_message"]:
