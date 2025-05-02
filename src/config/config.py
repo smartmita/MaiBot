@@ -413,12 +413,18 @@ class BotConfig:
         def group_nickname(parent: dict):
             if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
                 gn_config = parent.get("group_nickname", {})
-                config.ENABLE_NICKNAME_MAPPING = gn_config.get("enable_nickname_mapping", config.ENABLE_NICKNAME_MAPPING)
-                config.MAX_NICKNAMES_IN_PROMPT = gn_config.get("max_nicknames_in_prompt", config.MAX_NICKNAMES_IN_PROMPT)
+                config.ENABLE_NICKNAME_MAPPING = gn_config.get(
+                    "enable_nickname_mapping", config.ENABLE_NICKNAME_MAPPING
+                )
+                config.MAX_NICKNAMES_IN_PROMPT = gn_config.get(
+                    "max_nicknames_in_prompt", config.MAX_NICKNAMES_IN_PROMPT
+                )
                 config.NICKNAME_PROBABILITY_SMOOTHING = gn_config.get(
                     "nickname_probability_smoothing", config.NICKNAME_PROBABILITY_SMOOTHING
                 )
-                config.NICKNAME_QUEUE_MAX_SIZE = gn_config.get("nickname_queue_max_size", config.NICKNAME_QUEUE_MAX_SIZE)
+                config.NICKNAME_QUEUE_MAX_SIZE = gn_config.get(
+                    "nickname_queue_max_size", config.NICKNAME_QUEUE_MAX_SIZE
+                )
                 config.NICKNAME_PROCESS_SLEEP_INTERVAL = gn_config.get(
                     "nickname_process_sleep_interval", config.NICKNAME_PROCESS_SLEEP_INTERVAL
                 )
