@@ -113,7 +113,7 @@ def format_nickname_prompt_injection(selected_nicknames: List[Tuple[str, str, in
     # 构建每个用户的绰号字符串
     for user_name, nicknames in grouped_by_user.items():
         nicknames_str = "、".join(nicknames)  # 使用中文顿号连接
-        prompt_lines.append(f"- 你私下称呼ta为{user_name}，ta被有时被群友称为：{nicknames_str}")  # 格式化输出
+        prompt_lines.append(f"- {user_name}，ta被被群友称为：{nicknames_str}")  # 格式化输出
 
     # 如果只有标题行，返回空字符串，避免注入无意义的标题
     if len(prompt_lines) > 1:
