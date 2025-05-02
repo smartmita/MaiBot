@@ -7,7 +7,7 @@ import time
 import random
 from typing import List, Dict
 from ...common.database import db
-from maim_message import UserInfo, Seg
+from maim_message import UserInfo
 # import re
 # import traceback
 

@@ -48,11 +48,10 @@ def process_text_file(file_path):
 
 def main():
     # 新增用户确认提示
-    print("=== 重要操作确认，请认真阅读以下内容哦 ===")
-    print("如果你并非第一次导入知识")
-    print("请先删除data/import.json文件，备份data/openie.json文件")
-    print("在进行知识库导入之前")
-    print("请修改config/lpmm_config.toml中的配置项")
+    print("=== 数据预处理脚本 ===")
+    print(f"本脚本将处理 '{RAW_DATA_PATH}' 目录下的所有 .txt 文件。")
+    print(f"处理后的段落数据将合并，并以 MM-DD-HH-SS-imported-data.json 的格式保存在 '{IMPORTED_DATA_PATH}' 目录中。")
+    print("请确保原始数据已放置在正确的目录中。")
     confirm = input("确认继续执行？(y/n): ").strip().lower()
     if confirm != "y":
         logger.error("操作已取消")

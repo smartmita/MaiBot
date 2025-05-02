@@ -1,3 +1,6 @@
+[lpmm]
+version = "0.1.0"
+
 # LLM API 服务提供商，可配置多个
 [[llm_providers]]
 name = "localhost"
