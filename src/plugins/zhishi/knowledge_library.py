@@ -9,7 +9,7 @@ from rich.console import Console
 from rich.table import Table
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 # 添加项目根目录到 Python 路径
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))

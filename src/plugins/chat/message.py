@@ -11,7 +11,7 @@ from .utils_image import image_manager
 from maim_message import Seg, UserInfo, BaseMessageInfo, MessageBase
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 logger = get_logger("chat_message")
 

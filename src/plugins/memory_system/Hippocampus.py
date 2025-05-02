@@ -22,7 +22,7 @@ from ..chat.utils import translate_timestamp_to_human_readable
 from .memory_config import MemoryConfig
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 def calculate_information_content(text):

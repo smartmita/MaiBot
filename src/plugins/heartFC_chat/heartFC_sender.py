@@ -11,7 +11,7 @@ from src.common.logger_manager import get_logger
 from src.plugins.chat.utils import calculate_typing_time
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 logger = get_logger("sender")

@@ -10,7 +10,7 @@ from typing import Dict, Optional
 import asyncio
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 """
 基类方法概览：

@@ -16,7 +16,7 @@ from ...common.database import db
 from ...config.config import global_config
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 logger = get_module_logger("model_utils")
 

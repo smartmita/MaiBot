@@ -19,7 +19,7 @@ from .individuality.individuality import Individuality
 from .common.server import global_server
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 logger = get_logger("main")
 

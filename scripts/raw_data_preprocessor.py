@@ -2,18 +2,22 @@ import json
 import os
 from pathlib import Path
 import sys  # 新增系统模块导入
+import datetime  # 新增导入
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.common.logger import get_module_logger
 
 logger = get_module_logger("LPMM数据库-原始数据处理")
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+RAW_DATA_PATH = os.path.join(ROOT_PATH, "data/lpmm_raw_data")
+IMPORTED_DATA_PATH = os.path.join(ROOT_PATH, "data/imported_lpmm_data")
 
 # 添加项目根目录到 sys.path
 
 
 def check_and_create_dirs():
     """检查并创建必要的目录"""
-    required_dirs = ["data/lpmm_raw_data", "data/imported_lpmm_data"]
+    required_dirs = [RAW_DATA_PATH, IMPORTED_DATA_PATH]
 
     for dir_path in required_dirs:
         if not os.path.exists(dir_path):
@@ -44,7 +48,7 @@ def process_text_file(file_path):
 
 def main():
     # 新增用户确认提示
-    print("=== 重要操作确认 ===")
+    print("=== 重要操作确认，请认真阅读以下内容哦 ===")
     print("如果你并非第一次导入知识")
     print("请先删除data/import.json文件，备份data/openie.json文件")
     print("在进行知识库导入之前")
@@ -58,17 +62,17 @@ def main():
     # 检查并创建必要的目录
     check_and_create_dirs()
 
-    # 检查输出文件是否存在
-    if os.path.exists("data/import.json"):
-        logger.error("错误: data/import.json 已存在，请先处理或删除该文件")
-        sys.exit(1)
+    # # 检查输出文件是否存在
+    # if os.path.exists(RAW_DATA_PATH):
+    #     logger.error("错误: data/import.json 已存在，请先处理或删除该文件")
+    #     sys.exit(1)
 
-    if os.path.exists("data/openie.json"):
-        logger.error("错误: data/openie.json 已存在，请先处理或删除该文件")
-        sys.exit(1)
+    # if os.path.exists(RAW_DATA_PATH):
+    #     logger.error("错误: data/openie.json 已存在，请先处理或删除该文件")
+    #     sys.exit(1)
 
     # 获取所有原始文本文件
-    raw_files = list(Path("data/lpmm_raw_data").glob("*.txt"))
+    raw_files = list(Path(RAW_DATA_PATH).glob("*.txt"))
     if not raw_files:
         logger.warning("警告: data/lpmm_raw_data 中没有找到任何 .txt 文件")
         sys.exit(1)
@@ -80,8 +84,10 @@ def main():
         paragraphs = process_text_file(file)
         all_paragraphs.extend(paragraphs)
 
-    # 保存合并后的结果
-    output_path = "data/import.json"
+    # 保存合并后的结果到 IMPORTED_DATA_PATH，文件名格式为 MM-DD-HH-ss-imported-data.json
+    now = datetime.datetime.now()
+    filename = now.strftime("%m-%d-%H-%S-imported-data.json")
+    output_path = os.path.join(IMPORTED_DATA_PATH, filename)
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(all_paragraphs, f, ensure_ascii=False, indent=4)
 
@@ -89,4 +95,6 @@ def main():
 
 
 if __name__ == "__main__":
+    print(f"Raw Data Path: {RAW_DATA_PATH}")
+    print(f"Imported Data Path: {IMPORTED_DATA_PATH}")
     main()

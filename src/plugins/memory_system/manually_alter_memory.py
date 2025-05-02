@@ -11,7 +11,7 @@ from Hippocampus import Hippocampus  # 海马体和记忆图
 from dotenv import load_dotenv
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 """

@@ -16,7 +16,7 @@ from packaging.specifiers import SpecifierSet, InvalidSpecifier
 from src.common.logger_manager import get_logger
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 # 配置主程序日志格式

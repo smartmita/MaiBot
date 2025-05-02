@@ -4,7 +4,7 @@ from typing import Optional, Dict, Callable
 import asyncio
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 """
 # 更好的计时器

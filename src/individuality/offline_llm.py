@@ -8,7 +8,7 @@ import requests
 from src.common.logger import get_module_logger
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 logger = get_module_logger("offline_llm")
 

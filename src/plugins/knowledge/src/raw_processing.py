@@ -6,21 +6,25 @@ from .lpmmconfig import global_config
 from .utils.hash import get_sha256
 
 
-def load_raw_data() -> tuple[list[str], list[str]]:
+def load_raw_data(path: str = None) -> tuple[list[str], list[str]]:
     """加载原始数据文件
 
     读取原始数据文件，将原始数据加载到内存中
 
+    Args:
+        path: 可选，指定要读取的json文件绝对路径
+
     Returns:
-        - raw_data: 原始数据字典
-        - md5_set: 原始数据的SHA256集合
+        - raw_data: 原始数据列表
+        - sha256_list: 原始数据的SHA256集合
     """
-    # 读取import.json文件
-    if os.path.exists(global_config["persistence"]["raw_data_path"]) is True:
-        with open(global_config["persistence"]["raw_data_path"], "r", encoding="utf-8") as f:
+    # 读取指定路径或默认路径的json文件
+    json_path = path if path else global_config["persistence"]["raw_data_path"]
+    if os.path.exists(json_path):
+        with open(json_path, "r", encoding="utf-8") as f:
             import_json = json.loads(f.read())
     else:
-        raise Exception("原始数据文件读取失败")
+        raise Exception(f"原始数据文件读取失败: {json_path}")
     # import_json内容示例：
     # import_json = [
     #       "The capital of China is Beijing. The capital of France is Paris.",

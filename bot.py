@@ -20,7 +20,7 @@ from src.plugins.group_nickname.nickname_processor import (
 )
 import atexit
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 logger = get_logger("main")

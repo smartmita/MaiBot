@@ -32,7 +32,7 @@ from src.plugins.group_nickname.nickname_utils import trigger_nickname_analysis_
 from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 from src.plugins.group_nickname.nickname_utils import get_nickname_injection_for_prompt
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒

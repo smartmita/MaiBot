@@ -10,7 +10,7 @@ from .observation_info import ObservationInfo
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 if TYPE_CHECKING:
     pass

@@ -9,7 +9,7 @@ from .chat_states import NotificationManager, create_new_message_notification, c
 from .message_storage import MongoDBMessageStorage
 from rich.traceback import install
 
-install(show_locals=True, extra_lines=3)
+install(extra_lines=3)
 
 logger = get_module_logger("chat_observer")
 
