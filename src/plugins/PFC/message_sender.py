@@ -70,7 +70,7 @@ class DirectMessageSender:
             message_set = MessageSet(chat_stream, message_id)
             message_set.add_message(message)
             await message_manager.add_message(message_set)
-            await self.storage.store_message(message, chat_stream)
+            # await self.storage.store_message(message, chat_stream)
             logger.info(f"[私聊][{self.private_name}]PFC消息已发送: {content}")
 
         except Exception as e:

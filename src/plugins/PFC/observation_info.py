@@ -6,6 +6,7 @@ from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
 from src.plugins.utils.chat_message_builder import build_readable_messages
 import traceback  # 导入 traceback 用于调试
+from src.config.config import global_config
 
 logger = get_module_logger("observation_info")
 
@@ -252,6 +253,27 @@ class ObservationInfo:
         message_time = message.get("time")
         message_id = message.get("message_id")
         processed_text = message.get("processed_plain_text", "")
+        is_bot_message = False
+
+        # 确定发送者和是否为机器人
+        if user_info:
+            sender_id = str(user_info.user_id)
+            if sender_id == str(global_config.BOT_QQ):
+                is_bot_message = True
+                # 更新机器人最后发言时间
+                if message_time and message_time > (self.last_bot_speak_time or 0):
+                    self.last_bot_speak_time = message_time
+            else:
+                # 更新用户最后发言时间
+                if message_time and message_time > (self.last_user_speak_time or 0):
+                    self.last_user_speak_time = message_time
+                self.active_users.add(sender_id)
+            self.last_message_sender = sender_id
+        else:
+            logger.warning(
+                f"[私聊][{self.private_name}]处理消息更新时缺少有效的 UserInfo 对象, message_id: {message_id}"
+            )
+            self.last_message_sender = None
 
         # 只有在新消息到达时才更新 last_message 相关信息
         if message_time and message_time > (self.last_message_time or 0):
@@ -278,12 +300,17 @@ class ObservationInfo:
                 )
                 self.last_message_sender = None  # 发送者未知
 
-            # 将原始消息字典添加到未处理列表
-            self.unprocessed_messages.append(message)
-            self.new_messages_count = len(self.unprocessed_messages)  # 直接用列表长度
+            if not is_bot_message:
+                # 将原始消息字典添加到未处理列表
+                self.unprocessed_messages.append(message)
+                self.new_messages_count = len(self.unprocessed_messages)  # 直接用列表长度
+                logger.debug(f"[私聊][{self.private_name}] 用户新消息加入未处理列表. 当前未处理数: {self.new_messages_count}")
+                # logger.debug(f"[私聊][{self.private_name}]消息更新: last_time={self.last_message_time}, new_count={self.new_messages_count}")
+                self.update_changed()  # 标记状态已改变
+            else:
+                # 是机器人自己的消息，仅记录日志，不加入未处理列表
+                logger.debug(f"[私聊][{self.private_name}] 观察到机器人自身消息 (ID: {message_id})，仅更新时间戳，不处理。")
 
-            # logger.debug(f"[私聊][{self.private_name}]消息更新: last_time={self.last_message_time}, new_count={self.new_messages_count}")
-            self.update_changed()  # 标记状态已改变
         else:
             # 如果消息时间戳不是最新的，可能不需要处理，或者记录一个警告
             pass
