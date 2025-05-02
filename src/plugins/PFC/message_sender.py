@@ -6,7 +6,7 @@ from ..chat.message import Message
 from maim_message import UserInfo, Seg
 from src.plugins.chat.message import MessageSending, MessageSet
 from src.plugins.chat.message_sender import message_manager
-from ..storage.storage import MessageStorage
+# from ..storage.storage import MessageStorage
 from ...config.config import global_config
 
 
@@ -18,7 +18,7 @@ class DirectMessageSender:
 
     def __init__(self, private_name: str):
         self.private_name = private_name
-        self.storage = MessageStorage()
+        # self.storage = MessageStorage()
 
     async def send_message(
         self,
