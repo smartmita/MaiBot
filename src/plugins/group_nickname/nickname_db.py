@@ -5,11 +5,13 @@ from typing import Optional
 
 logger = get_logger("nickname_db")
 
+
 class NicknameDB:
     """
     处理与群组绰号相关的数据库操作 (MongoDB)。
     封装了对 'person_info' 集合的读写操作。
     """
+
     def __init__(self, person_info_collection: Optional[Collection]):
         """
         初始化 NicknameDB 处理器。
@@ -71,10 +73,10 @@ class NicknameDB:
             logger.error(
                 f"数据库操作失败 (DuplicateKeyError): person_id {person_id}. 错误: {dk_err}. 这不应该发生，请检查 person_id 生成逻辑和数据库状态。"
             )
-            raise # 将异常向上抛出
+            raise  # 将异常向上抛出
         except Exception as e:
             logger.exception(f"对 person_id {person_id} 执行 Upsert 时失败: {e}")
-            raise # 将异常向上抛出
+            raise  # 将异常向上抛出
 
     def update_group_nickname_count(self, person_id: str, group_id_str: str, nickname: str):
         """
@@ -105,20 +107,20 @@ class NicknameDB:
             )
             if result_inc.modified_count > 0:
                 # logger.debug(f"成功增加 person_id {person_id} 在群组 {group_id_str} 中绰号 '{nickname}' 的计数。")
-                return # 成功增加计数，操作完成
+                return  # 成功增加计数，操作完成
 
             # 3b. 如果上一步未修改 (绰号不存在于该群组)，尝试将新绰号添加到现有群组
             result_push_nick = self.person_info_collection.update_one(
                 {
                     "person_id": person_id,
-                    "group_nicknames.group_id": group_id_str, # 检查群组是否存在
+                    "group_nicknames.group_id": group_id_str,  # 检查群组是否存在
                 },
                 {"$push": {"group_nicknames.$[group].nicknames": {"name": nickname, "count": 1}}},
                 array_filters=[{"group.group_id": group_id_str}],
             )
             if result_push_nick.modified_count > 0:
                 logger.debug(f"成功为 person_id {person_id} 在现有群组 {group_id_str} 中添加新绰号 '{nickname}'。")
-                return # 成功添加绰号，操作完成
+                return  # 成功添加绰号，操作完成
 
             # 3c. 如果上一步也未修改 (群组条目本身不存在)，则添加新的群组条目和绰号
             # 确保 group_nicknames 数组存在 (作为保险措施)
@@ -130,7 +132,7 @@ class NicknameDB:
             result_push_group = self.person_info_collection.update_one(
                 {
                     "person_id": person_id,
-                    "group_nicknames.group_id": {"$ne": group_id_str}, # 确保该群组 ID 尚未存在
+                    "group_nicknames.group_id": {"$ne": group_id_str},  # 确保该群组 ID 尚未存在
                 },
                 {
                     "$push": {
@@ -144,7 +146,7 @@ class NicknameDB:
             if result_push_group.modified_count > 0:
                 logger.debug(f"为 person_id {person_id} 添加了新的群组 {group_id_str} 和绰号 '{nickname}'。")
             # else:
-                # logger.warning(f"尝试为 person_id {person_id} 添加新群组 {group_id_str} 失败，可能群组已存在但结构不符合预期。")
+            # logger.warning(f"尝试为 person_id {person_id} 添加新群组 {group_id_str} 失败，可能群组已存在但结构不符合预期。")
 
         except (OperationFailure, DuplicateKeyError) as db_err:
             logger.exception(
@@ -152,5 +154,7 @@ class NicknameDB:
             )
             # 根据需要决定是否向上抛出 raise db_err
         except Exception as e:
-            logger.exception(f"更新群组绰号计数时发生意外错误: person_id {person_id}, group {group_id_str}, nick {nickname}. Error: {e}")
+            logger.exception(
+                f"更新群组绰号计数时发生意外错误: person_id {person_id}, group {group_id_str}, nick {nickname}. Error: {e}"
+            )
             # 根据需要决定是否向上抛出 raise e

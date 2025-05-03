@@ -8,6 +8,7 @@ logger = get_logger("nickname_mapper")
 
 # LLMRequest 实例和 analyze_chat_for_nicknames 函数已被移除
 
+
 def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
     """
     构建用于 LLM 进行绰号映射分析的 Prompt。
@@ -23,7 +24,7 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
     # 将 user_name_map 格式化为列表字符串
     user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items() if uid and name])
     if not user_list_str:
-        user_list_str = "无" # 如果映射为空，明确告知
+        user_list_str = "无"  # 如果映射为空，明确告知
 
     # 核心 Prompt 内容
     prompt = f"""
@@ -72,5 +73,6 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
 """
     # logger.debug(f"构建的绰号映射 Prompt (部分):\n{prompt[:500]}...") # 可以在 NicknameManager 中记录
     return prompt
+
 
 # analyze_chat_for_nicknames 函数已被移除，其逻辑移至 NicknameManager._call_llm_for_analysis

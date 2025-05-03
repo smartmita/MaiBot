@@ -873,7 +873,9 @@ class HeartFChatting:
                 limit=global_config.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
-            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(self.chat_stream, message_list_before_now)
+            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                self.chat_stream, message_list_before_now
+            )
 
             # --- 构建提示词 (调用修改后的 PromptBuilder 方法) ---
             prompt = await prompt_builder.build_planner_prompt(
