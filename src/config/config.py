@@ -279,7 +279,7 @@ class BotConfig:
     MAX_NICKNAMES_IN_PROMPT: int = 10  # Prompt 中最多注入的绰号数量
     NICKNAME_PROBABILITY_SMOOTHING: int = 1  # 绰号加权随机选择的平滑因子
     NICKNAME_QUEUE_MAX_SIZE: int = 100  # 绰号处理队列最大容量
-    NICKNAME_PROCESS_SLEEP_INTERVAL: float = 5  # 绰号处理进程休眠间隔（秒）
+    NICKNAME_PROCESS_SLEEP_INTERVAL: float = 60  # 绰号处理进程休眠间隔（秒）
 
     # 模型配置
     llm_reasoning: dict[str, str] = field(default_factory=lambda: {})

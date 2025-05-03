@@ -28,9 +28,8 @@ from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.heart_flow.utils_chat import get_chat_type_and_target_info
 from rich.traceback import install
-from src.plugins.group_nickname.nickname_utils import trigger_nickname_analysis_if_needed
 from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
-from src.plugins.group_nickname.nickname_utils import get_nickname_injection_for_prompt
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 
 install(extra_lines=3)
 
@@ -605,7 +604,7 @@ class HeartFChatting:
                 )
 
             # 调用工具函数触发绰号分析
-            await trigger_nickname_analysis_if_needed(anchor_message, reply, self.chat_stream)
+            await nickname_manager.trigger_nickname_analysis(anchor_message, reply, self.chat_stream)
 
             return True, thinking_id
 
@@ -874,7 +873,7 @@ class HeartFChatting:
                 limit=global_config.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
-            nickname_injection_str = await get_nickname_injection_for_prompt(self.chat_stream, message_list_before_now)
+            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(self.chat_stream, message_list_before_now)
 
             # --- 构建提示词 (调用修改后的 PromptBuilder 方法) ---
             prompt = await prompt_builder.build_planner_prompt(
