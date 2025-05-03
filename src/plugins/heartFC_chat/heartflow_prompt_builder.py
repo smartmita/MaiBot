@@ -1,4 +1,6 @@
 import random
+import time
+from typing import Union, Optional, Deque, Dict, Any
 from ...config.config import global_config
 from src.common.logger_manager import get_logger
 from ...individuality.individuality import Individuality
@@ -6,14 +8,13 @@ from src.plugins.utils.prompt_builder import Prompt, global_prompt_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.chat.utils import get_embedding
-import time
-from typing import Union, Optional, Deque, Dict, Any
 from ...common.database import db
 from ..chat.utils import get_recent_group_speaker
 from ..moods.moods import MoodManager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 import traceback
 from .heartFC_Cycleinfo import CycleInfo
 
@@ -24,6 +25,7 @@ def init_prompt():
     Prompt(
         """
 {info_from_tools}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在你想要在群里发言或者回复。\n
@@ -53,6 +55,7 @@ def init_prompt():
     Prompt(
         """你的名字是{bot_name},{prompt_personality}，{chat_context_description}。需要基于以下信息决定如何参与对话：
 {structured_info_block}
+{nickname_info}
 {chat_content_block}
 {current_mind_block}
 {cycle_info_block}
@@ -118,6 +121,7 @@ JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
 {relation_prompt}
 {prompt_info}
 {schedule_prompt}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在"{sender_name}"说的:{message_txt}。引起了你的注意，你想要在群里发言或者回复这条消息。\n
@@ -250,9 +254,15 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         chat_target_1 = await global_prompt_manager.get_prompt_async("chat_target_group1")
         chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
+        # 调用新的工具函数获取绰号信息
+        nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+            chat_stream, message_list_before_now
+        )
+
         prompt = await global_prompt_manager.format_prompt(
             template_name,
             info_from_tools=structured_info_prompt,
+            nickname_info=nickname_injection_str,
             chat_target=chat_target_1,  # Used in group template
             chat_talking_prompt=chat_talking_prompt,
             bot_name=global_config.BOT_NICKNAME,
@@ -442,6 +452,11 @@ class PromptBuilder:
             chat_target_1 = await global_prompt_manager.get_prompt_async("chat_target_group1")
             chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
+            # 调用新的工具函数获取绰号信息
+            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                chat_stream, message_list_before_now
+            )
+
             prompt = await global_prompt_manager.format_prompt(
                 template_name,
                 relation_prompt=relation_prompt,
@@ -449,6 +464,7 @@ class PromptBuilder:
                 memory_prompt=memory_prompt,
                 prompt_info=prompt_info,
                 schedule_prompt=schedule_prompt,
+                nickname_info=nickname_injection_str,  # <--- 注入绰号信息
                 chat_target=chat_target_1,
                 chat_target_2=chat_target_2,
                 chat_talking_prompt=chat_talking_prompt,
@@ -486,7 +502,7 @@ class PromptBuilder:
                 prompt_ger=prompt_ger,
                 moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
             )
-        # --- End choosing template ---
+            # --- End choosing template ---
 
         return prompt
 
@@ -755,6 +771,7 @@ class PromptBuilder:
         current_mind: Optional[str],
         structured_info: Dict[str, Any],
         current_available_actions: Dict[str, str],
+        nickname_info: str,
         # replan_prompt: str, # Replan logic still simplified
     ) -> str:
         """构建 Planner LLM 的提示词 (获取模板并填充数据)"""
@@ -836,6 +853,7 @@ class PromptBuilder:
 
             prompt = planner_prompt_template.format(
                 bot_name=global_config.BOT_NICKNAME,
+                nickname_info=nickname_info,
                 prompt_personality=prompt_personality,
                 chat_context_description=chat_context_description,
                 structured_info_block=structured_info_block,

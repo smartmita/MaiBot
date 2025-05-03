@@ -1,20 +1,20 @@
 import asyncio
 import time
 import traceback
-import random  # <--- 添加导入
-import json  # <--- 确保导入 json
+import random
+import json
 from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
 from collections import deque
 from src.plugins.chat.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending
-from src.plugins.chat.message import Seg  # Local import needed after move
+from src.plugins.chat.message import Seg
 from src.plugins.chat.chat_stream import ChatStream
 from src.plugins.chat.message import UserInfo
 from src.plugins.chat.chat_stream import chat_manager
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.config.config import global_config
-from src.plugins.chat.utils_image import image_path_to_base64  # Local import needed after move
-from src.plugins.utils.timer_calculator import Timer  # <--- Import Timer
+from src.plugins.chat.utils_image import image_path_to_base64
+from src.plugins.utils.timer_calculator import Timer
 from src.plugins.emoji_system.emoji_manager import emoji_manager
 from src.heart_flow.sub_mind import SubMind
 from src.heart_flow.observation import Observation
@@ -28,6 +28,8 @@ from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
 from src.heart_flow.utils_chat import get_chat_type_and_target_info
 from rich.traceback import install
+from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 
 install(extra_lines=3)
 
@@ -528,11 +530,17 @@ class HeartFChatting:
 
         try:
             if action == "text_reply":
-                return await handler(reasoning, emoji_query, cycle_timers)
+                # 调用文本回复处理，它会返回 (bool, thinking_id)
+                success, thinking_id = await handler(reasoning, emoji_query, cycle_timers)
+                return success, thinking_id  # 直接返回结果
             elif action == "emoji_reply":
-                return await handler(reasoning, emoji_query), ""
+                # 调用表情回复处理，它只返回 bool
+                success = await handler(reasoning, emoji_query)
+                return success, ""  # thinking_id 为空字符串
             else:  # no_reply
-                return await handler(reasoning, planner_start_db_time, cycle_timers), ""
+                # 调用不回复处理，它只返回 bool
+                success = await handler(reasoning, planner_start_db_time, cycle_timers)
+                return success, ""  # thinking_id 为空字符串
         except HeartFCError as e:
             logger.error(f"{self.log_prefix} 处理{action}时出错: {e}")
             # 出错时也重置计数器
@@ -549,6 +557,7 @@ class HeartFChatting:
         2. 创建思考消息
         3. 生成回复
         4. 发送消息
+        5. [新增] 触发绰号分析
 
         参数:
             reasoning: 回复原因
@@ -572,6 +581,7 @@ class HeartFChatting:
         if not thinking_id:
             raise PlannerError("无法创建思考消息")
 
+        reply = None  # 初始化 reply
         try:
             # 生成回复
             with Timer("生成回复", cycle_timers):
@@ -585,7 +595,6 @@ class HeartFChatting:
                 raise ReplierError("回复生成失败")
 
             # 发送消息
-
             with Timer("发送消息", cycle_timers):
                 await self._sender(
                     thinking_id=thinking_id,
@@ -593,6 +602,9 @@ class HeartFChatting:
                     response_set=reply,
                     send_emoji=emoji_query,
                 )
+
+            # 调用工具函数触发绰号分析
+            await nickname_manager.trigger_nickname_analysis(anchor_message, reply, self.chat_stream)
 
             return True, thinking_id
 
@@ -854,6 +866,17 @@ class HeartFChatting:
                     f"{self.log_prefix}[Planner] 临时移除的动作: {actions_to_remove_temporarily}, 当前可用: {list(current_available_actions.keys())}"
                 )
 
+            # 需要获取用于上下文的历史消息
+            message_list_before_now = get_raw_msg_before_timestamp_with_chat(
+                chat_id=self.stream_id,
+                timestamp=time.time(),  # 使用当前时间作为参考点
+                limit=global_config.observation_context_size,  # 使用与 prompt 构建一致的 limit
+            )
+            # 调用工具函数获取格式化后的绰号字符串
+            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                self.chat_stream, message_list_before_now
+            )
+
             # --- 构建提示词 (调用修改后的 PromptBuilder 方法) ---
             prompt = await prompt_builder.build_planner_prompt(
                 is_group_chat=self.is_group_chat,  # <-- Pass HFC state
@@ -863,6 +886,7 @@ class HeartFChatting:
                 current_mind=current_mind,  # <-- Pass argument
                 structured_info=self.sub_mind.structured_info_str,  # <-- Pass SubMind info
                 current_available_actions=current_available_actions,  # <-- Pass determined actions
+                nickname_info=nickname_injection_str,
             )
 
             # --- 调用 LLM (普通文本生成) ---
