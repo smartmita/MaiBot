@@ -153,6 +153,7 @@ class BotConfig:
             "用一句话或几句话描述人格的一些侧面",
         ]
     )
+    personality_detail_level: int = 0 # 人设消息注入 prompt 详细等级 (0: 采用默认配置, 1: 核心/随机细节, 2: 核心+随机侧面/全部细节, 3: 全部)
     # identity
     identity_detail: List[str] = field(
         default_factory=lambda: [
@@ -178,6 +179,7 @@ class BotConfig:
 
     base_normal_chat_num: int = 3  # 最多允许多少个群进行普通聊天
     base_focused_chat_num: int = 2  # 最多允许多少个群进行专注聊天
+    allow_remove_duplicates: bool = True # 是否开启心流去重（如果发现心流截断问题严重可尝试关闭）
 
     observation_context_size: int = 12  # 心流观察到的最长上下文大小，超过这个值的上下文会被压缩
 
@@ -296,7 +298,9 @@ class BotConfig:
     llm_heartflow: Dict[str, str] = field(default_factory=lambda: {})
     llm_tool_use: Dict[str, str] = field(default_factory=lambda: {})
     llm_plan: Dict[str, str] = field(default_factory=lambda: {})
-    llm_nickname_mapping: Dict[str, Any] = field(default_factory=dict)
+    llm_nickname_mapping: Dict[str, str] = field(default_factory=lambda: {})
+    llm_scheduler_all: Dict[str, str] = field(default_factory=lambda: {})
+    llm_scheduler_doing: Dict[str, str] = field(default_factory=lambda: {})
 
     api_urls: Dict[str, str] = field(default_factory=lambda: {})
 
@@ -365,9 +369,10 @@ class BotConfig:
 
         def personality(parent: dict):
             personality_config = parent["personality"]
-            if config.INNER_VERSION in SpecifierSet(">=1.2.4"):
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
                 config.personality_core = personality_config.get("personality_core", config.personality_core)
                 config.personality_sides = personality_config.get("personality_sides", config.personality_sides)
+                config.personality_detail_level = personality_config.get("personality_detail_level", config.personality_sides)
 
         def identity(parent: dict):
             identity_config = parent["identity"]
@@ -411,7 +416,7 @@ class BotConfig:
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
         def group_nickname(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.1"):
                 gn_config = parent.get("group_nickname", {})
                 config.ENABLE_NICKNAME_MAPPING = gn_config.get(
                     "enable_nickname_mapping", config.ENABLE_NICKNAME_MAPPING
@@ -515,6 +520,8 @@ class BotConfig:
                 "llm_PFC_chat",
                 "llm_PFC_reply_checker",
                 "llm_nickname_mapping",
+                "llm_scheduler_all",
+                "llm_scheduler_doing",
             ]
 
             for item in config_list:
@@ -720,7 +727,7 @@ class BotConfig:
             "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
-            "group_nickname": {"func": group_nickname, "support": ">=0.6.3", "necessary": False},
+            "group_nickname": {"func": group_nickname, "support": ">=1.6.1.1", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象

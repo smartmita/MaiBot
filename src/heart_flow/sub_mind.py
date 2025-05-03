@@ -415,77 +415,78 @@ class SubMind:
             logger.warning(f"{self.log_prefix} LLM返回空结果，思考失败。")
 
         # ---------- 6. 应用概率性去重和修饰 ----------
-        new_content = content  # 保存 LLM 直接输出的结果
-        try:
-            similarity = calculate_similarity(previous_mind, new_content)
-            replacement_prob = calculate_replacement_probability(similarity)
-            logger.debug(f"{self.log_prefix} 新旧想法相似度: {similarity:.2f}, 替换概率: {replacement_prob:.2f}")
+        if global_config.allow_remove_duplicates:
+            new_content = content  # 保存 LLM 直接输出的结果
+            try:
+                similarity = calculate_similarity(previous_mind, new_content)
+                replacement_prob = calculate_replacement_probability(similarity)
+                logger.debug(f"{self.log_prefix} 新旧想法相似度: {similarity:.2f}, 替换概率: {replacement_prob:.2f}")
 
-            # 定义词语列表 (移到判断之前)
-            yu_qi_ci_liebiao = ["嗯", "哦", "啊", "唉", "哈", "唔"]
-            zhuan_zhe_liebiao = ["但是", "不过", "然而", "可是", "只是"]
-            cheng_jie_liebiao = ["然后", "接着", "此外", "而且", "另外"]
-            zhuan_jie_ci_liebiao = zhuan_zhe_liebiao + cheng_jie_liebiao
+                # 定义词语列表 (移到判断之前)
+                yu_qi_ci_liebiao = ["嗯", "哦", "啊", "唉", "哈", "唔"]
+                zhuan_zhe_liebiao = ["但是", "不过", "然而", "可是", "只是"]
+                cheng_jie_liebiao = ["然后", "接着", "此外", "而且", "另外"]
+                zhuan_jie_ci_liebiao = zhuan_zhe_liebiao + cheng_jie_liebiao
 
-            if random.random() < replacement_prob:
-                # 相似度非常高时，尝试去重或特殊处理
-                if similarity == 1.0:
-                    logger.debug(f"{self.log_prefix} 想法完全重复 (相似度 1.0)，执行特殊处理...")
-                    # 随机截取大约一半内容
-                    if len(new_content) > 1:  # 避免内容过短无法截取
-                        split_point = max(
-                            1, len(new_content) // 2 + random.randint(-len(new_content) // 4, len(new_content) // 4)
-                        )
-                        truncated_content = new_content[:split_point]
-                    else:
-                        truncated_content = new_content  # 如果只有一个字符或者为空，就不截取了
-
-                    # 添加语气词和转折/承接词
-                    yu_qi_ci = random.choice(yu_qi_ci_liebiao)
-                    zhuan_jie_ci = random.choice(zhuan_jie_ci_liebiao)
-                    content = f"{yu_qi_ci}{zhuan_jie_ci}，{truncated_content}"
-                    logger.debug(f"{self.log_prefix} 想法重复，特殊处理后: {content}")
-
-                else:
-                    # 相似度较高但非100%，执行标准去重逻辑
-                    logger.debug(f"{self.log_prefix} 执行概率性去重 (概率: {replacement_prob:.2f})...")
-                    matcher = difflib.SequenceMatcher(None, previous_mind, new_content)
-                    deduplicated_parts = []
-                    last_match_end_in_b = 0
-                    for _i, j, n in matcher.get_matching_blocks():
-                        if last_match_end_in_b < j:
-                            deduplicated_parts.append(new_content[last_match_end_in_b:j])
-                        last_match_end_in_b = j + n
-
-                    deduplicated_content = "".join(deduplicated_parts).strip()
-
-                    if deduplicated_content:
-                        # 根据概率决定是否添加词语
-                        prefix_str = ""
-                        if random.random() < 0.3:  # 30% 概率添加语气词
-                            prefix_str += random.choice(yu_qi_ci_liebiao)
-                        if random.random() < 0.7:  # 70% 概率添加转折/承接词
-                            prefix_str += random.choice(zhuan_jie_ci_liebiao)
-
-                        # 组合最终结果
-                        if prefix_str:
-                            content = f"{prefix_str}，{deduplicated_content}"  # 更新 content
-                            logger.debug(f"{self.log_prefix} 去重并添加引导词后: {content}")
+                if random.random() < replacement_prob:
+                    # 相似度非常高时，尝试去重或特殊处理
+                    if similarity == 1.0:
+                        logger.debug(f"{self.log_prefix} 想法完全重复 (相似度 1.0)，执行特殊处理...")
+                        # 随机截取大约一半内容
+                        if len(new_content) > 1:  # 避免内容过短无法截取
+                            split_point = max(
+                                1, len(new_content) // 2 + random.randint(-len(new_content) // 4, len(new_content) // 4)
+                            )
+                            truncated_content = new_content[:split_point]
                         else:
-                            content = deduplicated_content  # 更新 content
-                            logger.debug(f"{self.log_prefix} 去重后 (未添加引导词): {content}")
-                    else:
-                        logger.warning(f"{self.log_prefix} 去重后内容为空，保留原始LLM输出: {new_content}")
-                        content = new_content  # 保留原始 content
-            else:
-                logger.debug(f"{self.log_prefix} 未执行概率性去重 (概率: {replacement_prob:.2f})")
-                # content 保持 new_content 不变
+                            truncated_content = new_content  # 如果只有一个字符或者为空，就不截取了
 
-        except Exception as e:
-            logger.error(f"{self.log_prefix} 应用概率性去重或特殊处理时出错: {e}")
-            logger.error(traceback.format_exc())
-            # 出错时保留原始 content
-            content = new_content
+                        # 添加语气词和转折/承接词
+                        yu_qi_ci = random.choice(yu_qi_ci_liebiao)
+                        zhuan_jie_ci = random.choice(zhuan_jie_ci_liebiao)
+                        content = f"{yu_qi_ci}{zhuan_jie_ci}，{truncated_content}"
+                        logger.debug(f"{self.log_prefix} 想法重复，特殊处理后: {content}")
+
+                    else:
+                        # 相似度较高但非100%，执行标准去重逻辑
+                        logger.debug(f"{self.log_prefix} 执行概率性去重 (概率: {replacement_prob:.2f})...")
+                        matcher = difflib.SequenceMatcher(None, previous_mind, new_content)
+                        deduplicated_parts = []
+                        last_match_end_in_b = 0
+                        for _i, j, n in matcher.get_matching_blocks():
+                            if last_match_end_in_b < j:
+                                deduplicated_parts.append(new_content[last_match_end_in_b:j])
+                            last_match_end_in_b = j + n
+
+                        deduplicated_content = "".join(deduplicated_parts).strip()
+
+                        if deduplicated_content:
+                            # 根据概率决定是否添加词语
+                            prefix_str = ""
+                            if random.random() < 0.3:  # 30% 概率添加语气词
+                                prefix_str += random.choice(yu_qi_ci_liebiao)
+                            if random.random() < 0.7:  # 70% 概率添加转折/承接词
+                                prefix_str += random.choice(zhuan_jie_ci_liebiao)
+
+                            # 组合最终结果
+                            if prefix_str:
+                                content = f"{prefix_str}，{deduplicated_content}"  # 更新 content
+                                logger.debug(f"{self.log_prefix} 去重并添加引导词后: {content}")
+                            else:
+                                content = deduplicated_content  # 更新 content
+                                logger.debug(f"{self.log_prefix} 去重后 (未添加引导词): {content}")
+                        else:
+                            logger.warning(f"{self.log_prefix} 去重后内容为空，保留原始LLM输出: {new_content}")
+                            content = new_content  # 保留原始 content
+                else:
+                    logger.debug(f"{self.log_prefix} 未执行概率性去重 (概率: {replacement_prob:.2f})")
+                    # content 保持 new_content 不变
+
+            except Exception as e:
+                logger.error(f"{self.log_prefix} 应用概率性去重或特殊处理时出错: {e}")
+                logger.error(traceback.format_exc())
+                # 出错时保留原始 content
+                content = new_content
 
         # ---------- 7. 更新思考状态并返回结果 ----------
         logger.info(f"{self.log_prefix} 最终心流思考结果: {content}")
