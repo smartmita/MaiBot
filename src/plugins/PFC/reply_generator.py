@@ -249,21 +249,23 @@ class ReplyGenerator:
         # --- 修改：构建上次回复失败原因和内容提示 ---
         last_rejection_info_str = ""
         # 检查 conversation_info 是否有上次拒绝的原因和内容，并且它们都不是 None
-        last_reason = getattr(conversation_info, 'last_reply_rejection_reason', None)
-        last_content = getattr(conversation_info, 'last_rejected_reply_content', None)
+        last_reason = getattr(conversation_info, "last_reply_rejection_reason", None)
+        last_content = getattr(conversation_info, "last_rejected_reply_content", None)
 
         if last_reason and last_content:
             last_rejection_info_str = (
                 f"\n------\n"
                 f"【重要提示：你上一次尝试回复时失败了，以下是详细信息】\n"
-                f"上次试图发送的消息内容： “{last_content}”\n" # <-- 显示上次内容
+                f"上次试图发送的消息内容： “{last_content}”\n"  # <-- 显示上次内容
                 f"失败原因： “{last_reason}”\n"
                 f"请根据【消息内容】和【失败原因】调整你的新回复，避免重复之前的错误。\n"
                 f"------\n"
             )
-            logger.info(f"[私聊][{self.private_name}]检测到上次回复失败信息，将加入 Prompt:\n"
-                        f"  内容: {last_content}\n"
-                        f"  原因: {last_reason}")
+            logger.info(
+                f"[私聊][{self.private_name}]检测到上次回复失败信息，将加入 Prompt:\n"
+                f"  内容: {last_content}\n"
+                f"  原因: {last_reason}"
+            )
 
         # --- 选择 Prompt ---
         if action_type == "send_new_message":
@@ -277,22 +279,24 @@ class ReplyGenerator:
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_DIRECT_REPLY (首次/非连续回复生成)")
 
         # --- 格式化最终的 Prompt ---
-        try: # <--- 增加 try-except 块处理可能的 format 错误
+        try:  # <--- 增加 try-except 块处理可能的 format 错误
             prompt = prompt_template.format(
                 persona_text=persona_text,
                 goals_str=goals_str,
                 chat_history_text=chat_history_text,
                 retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                 retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                last_rejection_info=last_rejection_info_str # <--- 新增传递上次拒绝原因
+                last_rejection_info=last_rejection_info_str,  # <--- 新增传递上次拒绝原因
             )
         except KeyError as e:
-             logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。")
-             # 返回错误信息或默认回复
-             return "抱歉，准备回复时出了点问题，请检查一下我的代码..."
+            logger.error(
+                f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
+            )
+            # 返回错误信息或默认回复
+            return "抱歉，准备回复时出了点问题，请检查一下我的代码..."
         except Exception as fmt_err:
-             logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时发生未知错误: {fmt_err}")
-             return "抱歉，准备回复时出了点内部错误，请检查一下我的代码..."
+            logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时发生未知错误: {fmt_err}")
+            return "抱歉，准备回复时出了点内部错误，请检查一下我的代码..."
 
         # --- 调用 LLM 生成 ---
         logger.debug(f"[私聊][{self.private_name}]发送到LLM的生成提示词:\n------\n{prompt}\n------")
