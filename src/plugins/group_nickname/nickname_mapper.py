@@ -109,7 +109,7 @@ async def analyze_chat_for_nicknames(
             response_content = match.group(1).strip()
 
         # 解析 JSON
-        result = json.loads(response_content) # 可能抛出 json.JSONDecodeError
+        result = json.loads(response_content)  # 可能抛出 json.JSONDecodeError
 
         # 检查 result 是否为字典
         if not isinstance(result, dict):
@@ -117,11 +117,11 @@ async def analyze_chat_for_nicknames(
             return {"is_exist": False}
 
         # 使用 get 获取 is_exist，避免 KeyError
-        is_exist = result.get("is_exist") # 如果 result 不是字典，下面 get 会在 except AttributeError 中捕获
+        is_exist = result.get("is_exist")  # 如果 result 不是字典，下面 get 会在 except AttributeError 中捕获
 
         if is_exist is True:
             original_data = result.get("data")
-            if isinstance(original_data, dict) and original_data: # 确保 data 是非空字典
+            if isinstance(original_data, dict) and original_data:  # 确保 data 是非空字典
                 logger.info(f"LLM 找到的原始绰号映射: {original_data}")
 
                 # --- 开始过滤 ---
@@ -158,8 +158,10 @@ async def analyze_chat_for_nicknames(
                 if "data" not in result:
                     logger.warning("LLM 响应格式错误: is_exist 为 True 但 'data' 键缺失。")
                 elif not isinstance(original_data, dict):
-                    logger.warning(f"LLM 响应格式错误: is_exist 为 True 但 'data' 不是字典。 原始 data: {original_data}")
-                else: # data 为空字典
+                    logger.warning(
+                        f"LLM 响应格式错误: is_exist 为 True 但 'data' 不是字典。 原始 data: {original_data}"
+                    )
+                else:  # data 为空字典
                     logger.debug("LLM 指示 is_exist=True 但 data 为空字典。视为 False 处理。")
                 return {"is_exist": False}
 
@@ -167,22 +169,17 @@ async def analyze_chat_for_nicknames(
             logger.info("LLM 未找到可靠的绰号映射。")
             return {"is_exist": False}
 
-        elif is_exist is None: # 处理 is_exist 键存在但值为 null/None 的情况
+        elif is_exist is None:  # 处理 is_exist 键存在但值为 null/None 的情况
             logger.warning("LLM 响应格式错误: 'is_exist' 键的值为 None。")
             return {"is_exist": False}
 
-        else: # 处理 is_exist 存在但值不是 True/False/None 的情况
+        else:  # 处理 is_exist 存在但值不是 True/False/None 的情况
             logger.warning(f"LLM 响应格式错误: 'is_exist' 的值 '{is_exist}' 不是预期的布尔值或 None。")
             return {"is_exist": False}
-
 
     except json.JSONDecodeError as json_err:
         logger.error(f"解析 LLM 响应 JSON 失败: {json_err}\n原始响应: {response_content}")
         return {"is_exist": False}
-    # except AttributeError as attr_err:
-    #     # 这个理论上不应该发生，因为在调用 get 前检查了 result 是否是 dict
-    #     logger.error(f"处理 LLM 响应时发生属性错误 (可能尝试在非字典对象上使用 .get): {attr_err}\n原始响应: {response_content}")
-    #     return {"is_exist": False}
     except Exception as e:
         # 捕获其他所有未预料到的异常
         logger.error(f"绰号映射 LLM 调用或处理过程中发生未预料的错误: {e}", exc_info=True)
