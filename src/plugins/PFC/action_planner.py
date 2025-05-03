@@ -1,9 +1,11 @@
 import time
 from typing import Tuple, Optional
 from src.plugins.memory_system.Hippocampus import HippocampusManager
+
 # --- NEW IMPORT ---
 # 从 heartflow 导入知识检索和数据库查询函数/实例
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
+
 # --- END NEW IMPORT ---
 # import jieba # 如果需要旧版知识库的回退，可能需要
 # import re    # 如果需要旧版知识库的回退，可能需要
@@ -268,7 +270,6 @@ class ActionPlanner:
             logger.error(f"[私聊][{self.private_name}]构建对话目标字符串时出错: {e}")
             goals_str = "- 构建对话目标时出错。\n"
 
-
         # 获取聊天历史记录 (chat_history_text)
         try:
             if hasattr(observation_info, "chat_history") and observation_info.chat_history:
@@ -392,9 +393,13 @@ class ActionPlanner:
                 # 调用导入的 prompt_builder.get_prompt_info
                 logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动检索知识 (使用导入函数)...")
                 # 使用导入的 prompt_builder 实例及其方法
-                retrieved_knowledge_str_planner = await prompt_builder.get_prompt_info(message=retrieval_context, threshold=0.38)
+                retrieved_knowledge_str_planner = await prompt_builder.get_prompt_info(
+                    message=retrieval_context, threshold=0.38
+                )
                 # --- END MODIFIED KNOWLEDGE RETRIEVAL ---
-                logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。")
+                logger.info(
+                    f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。"
+                )
 
             except Exception as retrieval_err:
                 logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")

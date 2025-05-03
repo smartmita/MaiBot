@@ -4,6 +4,7 @@ from src.plugins.memory_system.Hippocampus import HippocampusManager
 # --- NEW IMPORT ---
 # 从 heartflow 导入知识检索和数据库查询函数/实例
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
+
 # --- END NEW IMPORT ---
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
 # import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
@@ -187,7 +188,6 @@ class ReplyGenerator:
         else:
             goals_str = "- 目前没有明确对话目标\n"  # 简化无目标情况
 
-
         # 获取聊天历史记录 (chat_history_text)
         chat_history_text = observation_info.chat_history_str
         if observation_info.new_messages_count > 0 and observation_info.unprocessed_messages:
@@ -223,7 +223,9 @@ class ReplyGenerator:
                 # 提取知识 (调用导入的 prompt_builder.get_prompt_info)
                 logger.debug(f"[私聊][{self.private_name}]开始自动检索知识 (使用导入函数)...")
                 # 使用导入的 prompt_builder 实例及其方法
-                retrieved_knowledge_str = await prompt_builder.get_prompt_info(message=retrieval_context, threshold=0.38)
+                retrieved_knowledge_str = await prompt_builder.get_prompt_info(
+                    message=retrieval_context, threshold=0.38
+                )
                 # --- END MODIFIED KNOWLEDGE RETRIEVAL ---
 
                 if retrieved_knowledge_str:
@@ -257,8 +259,10 @@ class ReplyGenerator:
             goals_str=goals_str,
             chat_history_text=chat_history_text,
             # knowledge_info_str=knowledge_info_str, # 移除了这个旧的知识展示方式
-            retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。", # 如果为空则提示无
-            retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。" # 如果为空则提示无
+            retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",  # 如果为空则提示无
+            retrieved_knowledge_str=retrieved_knowledge_str
+            if retrieved_knowledge_str
+            else "无相关知识。",  # 如果为空则提示无
         )
 
         # --- 调用 LLM 生成 ---
