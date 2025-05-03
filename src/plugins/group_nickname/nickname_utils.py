@@ -1,5 +1,5 @@
 import random
-from typing import List, Dict, Tuple, Optional
+from typing import List, Dict, Tuple
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 
