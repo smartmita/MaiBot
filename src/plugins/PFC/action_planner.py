@@ -1,9 +1,6 @@
 import time
-from typing import Tuple, Optional, Union  # 增加了 Optional
+from typing import Tuple, Optional
 from src.plugins.memory_system.Hippocampus import HippocampusManager
-from src.plugins.knowledge.knowledge_lib import qa_manager
-from src.common.database import db
-from src.plugins.chat.utils import get_embedding
 # --- NEW IMPORT ---
 # 从 heartflow 导入知识检索和数据库查询函数/实例
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder

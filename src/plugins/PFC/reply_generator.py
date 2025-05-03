@@ -1,14 +1,6 @@
 # 用于访问记忆系统
 from src.plugins.memory_system.Hippocampus import HippocampusManager
 
-# 用于访问新的知识库 (LPMM)
-from src.plugins.knowledge.knowledge_lib import qa_manager
-
-# 用于访问数据库 (旧知识库需要)
-from src.common.database import db
-
-# 用于获取文本的嵌入向量 (旧知识库需要)
-from src.plugins.chat.utils import get_embedding
 # --- NEW IMPORT ---
 # 从 heartflow 导入知识检索和数据库查询函数/实例
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
@@ -16,7 +8,7 @@ from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
 # import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
 # import re    # 正则表达式库，通常 Python 自带
-from typing import Tuple, List, Dict, Any, Union
+from typing import Tuple, List, Dict, Any
 from src.common.logger import get_module_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -26,7 +18,6 @@ from src.individuality.individuality import Individuality
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from src.plugins.utils.chat_message_builder import build_readable_messages
-import time
 
 logger = get_module_logger("reply_generator")
 
