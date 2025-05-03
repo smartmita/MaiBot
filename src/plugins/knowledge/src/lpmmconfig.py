@@ -1,7 +1,8 @@
 import os
 import toml
 import sys
-import argparse
+
+# import argparse
 from .global_logger import logger
 
 PG_NAMESPACE = "paragraph"
@@ -37,7 +38,8 @@ def _load_config(config, config_file_path):
     # Check if all top-level keys from default config exist in the file config
     for key in config.keys():
         if key not in file_config:
-            print(f"警告: 配置文件 '{config_file_path}' 缺少必需的顶级键: '{key}'。请检查配置文件。")
+            logger.critical(f"警告: 配置文件 '{config_file_path}' 缺少必需的顶级键: '{key}'。请检查配置文件。")
+            logger.critical("请通过template/lpmm_config_template.toml文件进行更新")
             sys.exit(1)
 
     if "llm_providers" in file_config:
@@ -68,16 +70,11 @@ def _load_config(config, config_file_path):
     logger.info(f"从文件中读取配置: {config_file_path}")
 
 
-parser = argparse.ArgumentParser(description="Configurations for the pipeline")
-parser.add_argument(
-    "--config_path",
-    type=str,
-    default="lpmm_config.toml",
-    help="Path to the configuration file",
-)
-
 global_config = dict(
     {
+        "lpmm": {
+            "version": "0.1.0",
+        },
         "llm_providers": {
             "localhost": {
                 "base_url": "https://api.siliconflow.cn/v1",
@@ -136,8 +133,8 @@ global_config = dict(
 )
 
 # _load_config(global_config, parser.parse_args().config_path)
-file_path = os.path.abspath(__file__)
-dir_path = os.path.dirname(file_path)
-root_path = os.path.join(dir_path, os.pardir, os.pardir, os.pardir, os.pardir)
-config_path = os.path.join(root_path, "config", "lpmm_config.toml")
+# file_path = os.path.abspath(__file__)
+# dir_path = os.path.dirname(file_path)
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+config_path = os.path.join(ROOT_PATH, "config", "lpmm_config.toml")
 _load_config(global_config, config_path)

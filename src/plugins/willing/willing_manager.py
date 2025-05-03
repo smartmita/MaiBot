@@ -8,6 +8,9 @@ from abc import ABC, abstractmethod
 import importlib
 from typing import Dict, Optional
 import asyncio
+from rich.traceback import install
+
+install(extra_lines=3)
 
 """
 基类方法概览：

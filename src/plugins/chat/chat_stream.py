@@ -9,6 +9,9 @@ from ...common.database import db
 from maim_message import GroupInfo, UserInfo
 
 from src.common.logger_manager import get_logger
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 logger = get_logger("chat_stream")

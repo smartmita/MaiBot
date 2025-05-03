@@ -5,7 +5,16 @@ from typing import Dict, List, Tuple
 
 import numpy as np
 import pandas as pd
-import tqdm
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    TaskProgressColumn,
+    MofNCompleteColumn,
+    SpinnerColumn,
+    TextColumn,
+)
 from quick_algo import di_graph, pagerank
 
 
@@ -132,41 +141,56 @@ class KGManager:
         ent_hash_list = list(ent_hash_list)
 
         synonym_hash_set = set()
-
         synonym_result = dict()
 
-        # 对每个实体节点，查找其相似的实体节点，建立扩展连接
-        for ent_hash in tqdm.tqdm(ent_hash_list):
-            if ent_hash in synonym_hash_set:
-                # 避免同一批次内重复添加
-                continue
-            ent = embedding_manager.entities_embedding_store.store.get(ent_hash)
-            assert isinstance(ent, EmbeddingStoreItem)
-            if ent is None:
-                continue
-            # 查询相似实体
-            similar_ents = embedding_manager.entities_embedding_store.search_top_k(
-                ent.embedding, global_config["rag"]["params"]["synonym_search_top_k"]
-            )
-            res_ent = []  # Debug
-            for res_ent_hash, similarity in similar_ents:
-                if res_ent_hash == ent_hash:
-                    # 避免自连接
+        # rich 进度条
+        total = len(ent_hash_list)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            MofNCompleteColumn(),
+            "•",
+            TimeElapsedColumn(),
+            "<",
+            TimeRemainingColumn(),
+            transient=False,
+        ) as progress:
+            task = progress.add_task("同义词连接", total=total)
+            for ent_hash in ent_hash_list:
+                if ent_hash in synonym_hash_set:
+                    progress.update(task, advance=1)
                     continue
-                if similarity < global_config["rag"]["params"]["synonym_threshold"]:
-                    # 相似度阈值
+                ent = embedding_manager.entities_embedding_store.store.get(ent_hash)
+                assert isinstance(ent, EmbeddingStoreItem)
+                if ent is None:
+                    progress.update(task, advance=1)
                     continue
-                node_to_node[(res_ent_hash, ent_hash)] = similarity
-                node_to_node[(ent_hash, res_ent_hash)] = similarity
-                synonym_hash_set.add(res_ent_hash)
-                new_edge_cnt += 1
-                res_ent.append(
-                    (
-                        embedding_manager.entities_embedding_store.store[res_ent_hash].str,
-                        similarity,
-                    )
-                )  # Debug
-                synonym_result[ent.str] = res_ent
+                # 查询相似实体
+                similar_ents = embedding_manager.entities_embedding_store.search_top_k(
+                    ent.embedding, global_config["rag"]["params"]["synonym_search_top_k"]
+                )
+                res_ent = []  # Debug
+                for res_ent_hash, similarity in similar_ents:
+                    if res_ent_hash == ent_hash:
+                        # 避免自连接
+                        continue
+                    if similarity < global_config["rag"]["params"]["synonym_threshold"]:
+                        # 相似度阈值
+                        continue
+                    node_to_node[(res_ent_hash, ent_hash)] = similarity
+                    node_to_node[(ent_hash, res_ent_hash)] = similarity
+                    synonym_hash_set.add(res_ent_hash)
+                    new_edge_cnt += 1
+                    res_ent.append(
+                        (
+                            embedding_manager.entities_embedding_store.store[res_ent_hash].str,
+                            similarity,
+                        )
+                    )  # Debug
+                    synonym_result[ent.str] = res_ent
+                progress.update(task, advance=1)
 
         for k, v in synonym_result.items():
             print(f'"{k}"的相似实体为：{v}')

@@ -178,8 +178,11 @@ class NormalChat:
         """更新关系情绪"""
         ori_response = ",".join(response_set)
         stance, emotion = await self.gpt._get_emotion_tags(ori_response, message.processed_plain_text)
+        user_info = message.message_info.user_info
+        platform = user_info.platform
         await relationship_manager.calculate_update_relationship_value(
-            chat_stream=self.chat_stream,
+            user_info,
+            platform,
             label=emotion,
             stance=stance,  # 使用 self.chat_stream
         )

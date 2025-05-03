@@ -3,7 +3,11 @@ import re
 from contextlib import asynccontextmanager
 import asyncio
 from src.common.logger import get_module_logger
+
 # import traceback
+from rich.traceback import install
+
+install(extra_lines=3)
 
 logger = get_module_logger("prompt_build")
 

@@ -13,6 +13,9 @@ from src.common.logger_manager import get_logger
 # from src.common.logger import LogConfig, CONFIRM_STYLE_CONFIG
 from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 logger = get_logger("main")

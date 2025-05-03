@@ -12,6 +12,21 @@ from .llm_client import LLMClient
 from .lpmmconfig import ENT_NAMESPACE, PG_NAMESPACE, REL_NAMESPACE, global_config
 from .utils.hash import get_sha256
 from .global_logger import logger
+from rich.traceback import install
+from rich.progress import (
+    Progress,
+    BarColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
+    TaskProgressColumn,
+    MofNCompleteColumn,
+    SpinnerColumn,
+    TextColumn,
+)
+
+install(extra_lines=3)
+
+TOTAL_EMBEDDING_TIMES = 3  # 统计嵌入次数
 
 
 @dataclass
@@ -49,20 +64,35 @@ class EmbeddingStore:
     def _get_embedding(self, s: str) -> List[float]:
         return self.llm_client.send_embedding_request(global_config["embedding"]["model"], s)
 
-    def batch_insert_strs(self, strs: List[str]) -> None:
+    def batch_insert_strs(self, strs: List[str], times: int) -> None:
         """向库中存入字符串"""
-        # 逐项处理
-        for s in tqdm.tqdm(strs, desc="存入嵌入库", unit="items"):
-            # 计算hash去重
-            item_hash = self.namespace + "-" + get_sha256(s)
-            if item_hash in self.store:
-                continue
+        total = len(strs)
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            MofNCompleteColumn(),
+            "•",
+            TimeElapsedColumn(),
+            "<",
+            TimeRemainingColumn(),
+            transient=False,
+        ) as progress:
+            task = progress.add_task(f"存入嵌入库：({times}/{TOTAL_EMBEDDING_TIMES})", total=total)
+            for s in strs:
+                # 计算hash去重
+                item_hash = self.namespace + "-" + get_sha256(s)
+                if item_hash in self.store:
+                    progress.update(task, advance=1)
+                    continue
 
-            # 获取embedding
-            embedding = self._get_embedding(s)
+                # 获取embedding
+                embedding = self._get_embedding(s)
 
-            # 存入
-            self.store[item_hash] = EmbeddingStoreItem(item_hash, embedding, s)
+                # 存入
+                self.store[item_hash] = EmbeddingStoreItem(item_hash, embedding, s)
+                progress.update(task, advance=1)
 
     def save_to_file(self) -> None:
         """保存到文件"""
@@ -188,7 +218,7 @@ class EmbeddingManager:
 
     def _store_pg_into_embedding(self, raw_paragraphs: Dict[str, str]):
         """将段落编码存入Embedding库"""
-        self.paragraphs_embedding_store.batch_insert_strs(list(raw_paragraphs.values()))
+        self.paragraphs_embedding_store.batch_insert_strs(list(raw_paragraphs.values()), times=1)
 
     def _store_ent_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
         """将实体编码存入Embedding库"""
@@ -197,7 +227,7 @@ class EmbeddingManager:
             for triple in triple_list:
                 entities.add(triple[0])
                 entities.add(triple[2])
-        self.entities_embedding_store.batch_insert_strs(list(entities))
+        self.entities_embedding_store.batch_insert_strs(list(entities), times=2)
 
     def _store_rel_into_embedding(self, triple_list_data: Dict[str, List[List[str]]]):
         """将关系编码存入Embedding库"""
@@ -205,7 +235,7 @@ class EmbeddingManager:
         for triples in triple_list_data.values():
             graph_triples.extend([tuple(t) for t in triples])
         graph_triples = list(set(graph_triples))
-        self.relation_embedding_store.batch_insert_strs([str(triple) for triple in graph_triples])
+        self.relation_embedding_store.batch_insert_strs([str(triple) for triple in graph_triples], times=3)
 
     def load_from_file(self):
         """从文件加载"""

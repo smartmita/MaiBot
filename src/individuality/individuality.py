@@ -2,6 +2,9 @@ from typing import Optional
 from .personality import Personality
 from .identity import Identity
 import random
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 class Individuality:

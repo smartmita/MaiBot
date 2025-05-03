@@ -7,6 +7,9 @@ from maim_message import UserInfo, Seg
 from src.plugins.chat.message import MessageSending, MessageSet
 from src.plugins.chat.message_sender import message_manager
 from ...config.config import global_config
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 logger = get_module_logger("message_sender")

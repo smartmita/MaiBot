@@ -23,6 +23,9 @@ from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
 
 import traceback
+from rich.traceback import install
+
+install(extra_lines=3)
 
 logger = get_logger("pfc")
 

@@ -20,6 +20,9 @@ from ..utils.chat_message_builder import (
 )  # 导入 build_readable_messages
 from ..chat.utils import translate_timestamp_to_human_readable
 from .memory_config import MemoryConfig
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 def calculate_information_content(text):

@@ -9,6 +9,9 @@ from Hippocampus import Hippocampus  # 海马体和记忆图
 
 
 from dotenv import load_dotenv
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 """

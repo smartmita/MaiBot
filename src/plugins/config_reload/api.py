@@ -1,4 +1,7 @@
 from fastapi import APIRouter, HTTPException
+from rich.traceback import install
+
+install(extra_lines=3)
 
 # 创建APIRouter而不是FastAPI实例
 router = APIRouter()

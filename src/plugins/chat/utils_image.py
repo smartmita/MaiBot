@@ -13,6 +13,9 @@ from ...config.config import global_config
 from ..models.utils_model import LLMRequest
 
 from src.common.logger_manager import get_logger
+from rich.traceback import install
+
+install(extra_lines=3)
 
 logger = get_logger("chat_image")
 
