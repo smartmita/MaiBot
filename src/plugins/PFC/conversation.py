@@ -337,6 +337,14 @@ class Conversation:
                     logger.info(
                         f"[私聊][{self.private_name}]第 {reply_attempt_count} 次追问检查结果: 合适={is_suitable}, 原因='{check_reason}', 需重新规划={need_replan}"
                     )
+                    if not is_suitable or need_replan:
+                        conversation_info.last_reply_rejection_reason = check_reason
+                        conversation_info.last_rejected_reply_content = self.generated_reply
+                    else:
+                         # 如果检查通过，清空上次的拒绝原因
+                        conversation_info.last_reply_rejection_reason = None
+                        conversation_info.last_rejected_reply_content = None
+
                     if is_suitable:
                         final_reply_to_send = self.generated_reply
                         break
@@ -350,7 +358,10 @@ class Conversation:
                         f"[私聊][{self.private_name}]第 {reply_attempt_count} 次调用 ReplyChecker (追问) 时出错: {check_err}"
                     )
                     check_reason = f"第 {reply_attempt_count} 次检查过程出错: {check_err}"
+                    conversation_info.last_reply_rejection_reason = f"检查过程出错: {check_err}" # 出错也记录原因
+                    conversation_info.last_rejected_reply_content = self.generated_reply
                     break
+
 
             # 循环结束，处理最终结果
             if is_suitable:
@@ -366,7 +377,9 @@ class Conversation:
                 self.generated_reply = final_reply_to_send
                 # --- 在这里调用 _send_reply ---
                 await self._send_reply()  # <--- 调用恢复后的函数
-
+                # --- 新增：回复成功，清除拒绝原因 ---
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None
                 # 更新状态: 标记上次成功是 send_new_message
                 self.conversation_info.last_successful_reply_action = "send_new_message"
                 action_successful = True  # 标记动作成功
@@ -470,7 +483,9 @@ class Conversation:
                 self.generated_reply = final_reply_to_send
                 # --- 在这里调用 _send_reply ---
                 await self._send_reply()  # <--- 调用恢复后的函数
-
+                # --- 新增：回复成功，清除拒绝原因 ---
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None # <-- 新增清空内容
                 # 更新状态: 标记上次成功是 direct_reply
                 self.conversation_info.last_successful_reply_action = "direct_reply"
                 action_successful = True  # 标记动作成功
@@ -649,6 +664,9 @@ class Conversation:
             # 重置状态: 对于非回复类动作的成功，清除上次回复状态
             if action not in ["direct_reply", "send_new_message"]:
                 self.conversation_info.last_successful_reply_action = None
+                # --- 新增：非回复动作成功，也清除拒绝原因 ---
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None # <-- 新增清空内容
                 logger.debug(f"[私聊][{self.private_name}]动作 {action} 成功完成，重置 last_successful_reply_action")
         # 如果动作是 recall 状态，在各自的处理逻辑中已经更新了 done_action
 
