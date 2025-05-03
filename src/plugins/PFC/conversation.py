@@ -508,31 +508,31 @@ class Conversation:
                 }
                 conversation_info.done_action.append(wait_action_record)
 
-        elif action == "fetch_knowledge":
-            self.state = ConversationState.FETCHING
-            knowledge_query = reason
-            try:
-                # 检查 knowledge_fetcher 是否存在
-                if not hasattr(self, "knowledge_fetcher"):
-                    logger.error(f"[私聊][{self.private_name}]KnowledgeFetcher 未初始化，无法获取知识。")
-                    raise AttributeError("KnowledgeFetcher not initialized")
+        # elif action == "fetch_knowledge":
+        # self.state = ConversationState.FETCHING
+        # knowledge_query = reason
+        # try:
+        # 检查 knowledge_fetcher 是否存在
+        # if not hasattr(self, "knowledge_fetcher"):
+        # logger.error(f"[私聊][{self.private_name}]KnowledgeFetcher 未初始化，无法获取知识。")
+        # raise AttributeError("KnowledgeFetcher not initialized")
 
-                knowledge, source = await self.knowledge_fetcher.fetch(knowledge_query, observation_info.chat_history)
-                logger.info(f"[私聊][{self.private_name}]获取到知识: {knowledge[:100]}..., 来源: {source}")
-                if knowledge:
-                    # 确保 knowledge_list 存在
-                    if not hasattr(conversation_info, "knowledge_list"):
-                        conversation_info.knowledge_list = []
-                    conversation_info.knowledge_list.append(
-                        {"query": knowledge_query, "knowledge": knowledge, "source": source}
-                    )
-                action_successful = True
-            except Exception as fetch_err:
-                logger.error(f"[私聊][{self.private_name}]获取知识时出错: {str(fetch_err)}")
-                conversation_info.done_action[action_index].update(
-                    {"status": "recall", "final_reason": f"获取知识失败: {str(fetch_err)}"}
-                )
-                self.conversation_info.last_successful_reply_action = None  # 重置状态
+        # knowledge, source = await self.knowledge_fetcher.fetch(knowledge_query, observation_info.chat_history)
+        # logger.info(f"[私聊][{self.private_name}]获取到知识: {knowledge[:100]}..., 来源: {source}")
+        # if knowledge:
+        # 确保 knowledge_list 存在
+        # if not hasattr(conversation_info, "knowledge_list"):
+        # conversation_info.knowledge_list = []
+        # conversation_info.knowledge_list.append(
+        # {"query": knowledge_query, "knowledge": knowledge, "source": source}
+        # )
+        # action_successful = True
+        # except Exception as fetch_err:
+        # logger.error(f"[私聊][{self.private_name}]获取知识时出错: {str(fetch_err)}")
+        # conversation_info.done_action[action_index].update(
+        # {"status": "recall", "final_reason": f"获取知识失败: {str(fetch_err)}"}
+        # )
+        # self.conversation_info.last_successful_reply_action = None  # 重置状态
 
         elif action == "rethink_goal":
             self.state = ConversationState.RETHINKING
