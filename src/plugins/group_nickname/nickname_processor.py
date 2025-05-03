@@ -9,6 +9,7 @@ from src.common.logger_manager import get_logger
 from src.common.database import db  # 使用全局 db
 from .nickname_mapper import analyze_chat_for_nicknames
 from src.config.config import global_config
+from ..person_info.person_info import person_info_manager
 
 logger = get_logger("nickname_processor")
 
@@ -145,12 +146,6 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
         group_id (str): 群组 ID。
         nickname_map (Dict[str, str]): 用户 ID (字符串) 到绰号的映射。
     """
-    try:
-        from ..person_info.person_info import person_info_manager
-    except ImportError:
-        logger.error("无法导入 person_info_manager，无法生成 person_id！")
-        return
-
     person_info_collection = db.person_info
     if not nickname_map:
         logger.debug("提供的用于更新的绰号映射为空。")
@@ -164,11 +159,15 @@ async def update_nickname_counts(platform: str, group_id: str, nickname_map: Dic
             logger.warning(f"跳过无效条目: user_id='{user_id_str}', nickname='{nickname}'")
             continue
         group_id_str = str(group_id)
-        try:
-            user_id_int = int(user_id_str)
-        except ValueError:
-            logger.warning(f"无效的用户ID格式: '{user_id_str}'，跳过。")
+
+        # 使用 isdigit() 检查 user_id_str 是否为纯数字字符串
+        if not user_id_str.isdigit():
+            # isdigit() 会对空字符串返回 False，并且不识别负号、小数点等
+            logger.warning(f"无效的用户ID格式 (非纯数字): '{user_id_str}'，跳过。")
             continue
+
+        user_id_int = int(user_id_str)
+
         # --- 结束验证 ---
 
         try:

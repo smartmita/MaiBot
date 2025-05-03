@@ -179,10 +179,10 @@ async def analyze_chat_for_nicknames(
     except json.JSONDecodeError as json_err:
         logger.error(f"解析 LLM 响应 JSON 失败: {json_err}\n原始响应: {response_content}")
         return {"is_exist": False}
-    except AttributeError as attr_err:
-        # 这个理论上不应该发生，因为在调用 get 前检查了 result 是否是 dict
-        logger.error(f"处理 LLM 响应时发生属性错误 (可能尝试在非字典对象上使用 .get): {attr_err}\n原始响应: {response_content}")
-        return {"is_exist": False}
+    # except AttributeError as attr_err:
+    #     # 这个理论上不应该发生，因为在调用 get 前检查了 result 是否是 dict
+    #     logger.error(f"处理 LLM 响应时发生属性错误 (可能尝试在非字典对象上使用 .get): {attr_err}\n原始响应: {response_content}")
+    #     return {"is_exist": False}
     except Exception as e:
         # 捕获其他所有未预料到的异常
         logger.error(f"绰号映射 LLM 调用或处理过程中发生未预料的错误: {e}", exc_info=True)
