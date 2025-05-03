@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.2"
+version = "1.6.1.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -42,6 +42,7 @@ personality_sides = [
     "用一句话或几句话描述人格的一些细节",
     "用一句话或几句话描述人格的一些细节",
 ]# 条数任意，不能为0, 该选项还在调试中，可能未完全生效
+personality_detail_level = 0 # 人设消息注入 prompt 详细等级 (0: 采用默认配置, 1: 核心/随机细节, 2: 核心+随机侧面/全部细节, 3: 全部)
 
 [identity] #アイデンティティがない 生まれないらららら
 # 兴趣爱好 未完善，有些条目未使用
@@ -71,6 +72,7 @@ allow_focus_mode = true # 是否允许专注聊天状态
 # 启用后麦麦会自主选择进入heart_flowC模式(持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
 base_normal_chat_num = 3 # 最多允许多少个群进行普通聊天
 base_focused_chat_num = 2 # 最多允许多少个群进行专注聊天
+allow_remove_duplicates = true # 是否开启心流去重（如果发现心流截断问题严重可尝试关闭）
 
 observation_context_size = 15 # 观察到的最长上下文大小,建议15，太短太长都会导致脑袋尖尖
 message_buffer = true # 启用消息缓冲器？启用此项以解决消息的拆分问题，但会使麦麦的回复延迟
@@ -300,6 +302,22 @@ pri_out = 8
 
 #绰号映射生成模型
 [model.llm_nickname_mapping]
+name = "deepseek-ai/DeepSeek-V3"
+provider = "SILICONFLOW"
+temp = 0.3
+pri_in = 2
+pri_out = 8
+
+#日程模型
+[model.llm_scheduler_all]
+name = "deepseek-ai/DeepSeek-V3"
+provider = "SILICONFLOW"
+temp = 0.3
+pri_in = 2
+pri_out = 8
+
+#在干嘛模型
+[model.llm_scheduler_doing]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
