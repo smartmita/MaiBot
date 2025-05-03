@@ -397,8 +397,8 @@ class SubHeartflowManager:
 
             mai_state_description = f"你当前状态: {current_mai_state.value}。"
             individuality = Individuality.get_instance()
-            personality_prompt = individuality.get_prompt(x_person=2, level=2)
-            prompt_personality = f"你正在扮演名为{individuality.name}的人类，{personality_prompt}"
+            personality_prompt = individuality.get_prompt(x_person=2, level=3)
+            prompt_personality = f"你是{individuality.name}，{personality_prompt}"
 
             # --- 修改：在 prompt 中加入当前聊天计数和群名信息 (条件显示) ---
             chat_status_lines = []
