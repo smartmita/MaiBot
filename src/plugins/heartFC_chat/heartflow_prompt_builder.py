@@ -25,6 +25,7 @@ def init_prompt():
     Prompt(
         """
 {info_from_tools}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在你想要回复或参与讨论。\n
