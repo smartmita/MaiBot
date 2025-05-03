@@ -205,7 +205,7 @@ class PersonInfoManager:
         existing_names = ""
         while current_try < max_retries:
             individuality = Individuality.get_instance()
-            prompt_personality = individuality.get_prompt(x_person=2, level=1)
+            prompt_personality = individuality.get_prompt(x_person=2, level=3)
             bot_name = individuality.personality.bot_nickname
 
             qv_name_prompt = f"你是{bot_name}，{prompt_personality}"
