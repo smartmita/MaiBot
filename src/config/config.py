@@ -372,9 +372,10 @@ class BotConfig:
 
         def personality(parent: dict):
             personality_config = parent["personality"]
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.2.4"):
                 config.personality_core = personality_config.get("personality_core", config.personality_core)
                 config.personality_sides = personality_config.get("personality_sides", config.personality_sides)
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
                 config.personality_detail_level = personality_config.get("personality_detail_level", config.personality_sides)
 
         def identity(parent: dict):
@@ -461,6 +462,8 @@ class BotConfig:
             config.ban_words = chat_config.get("ban_words", config.ban_words)
             for r in chat_config.get("ban_msgs_regex", config.ban_msgs_regex):
                 config.ban_msgs_regex.add(re.compile(r))
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
+                config.allow_remove_duplicates = chat_config.get("allow_remove_duplicates", config.allow_remove_duplicates)
 
         def normal_chat(parent: dict):
             normal_chat_config = parent["normal_chat"]
