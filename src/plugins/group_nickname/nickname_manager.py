@@ -143,7 +143,7 @@ class NicknameManager:
             self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
             self._stop_event = threading.Event()  # stop_event 仍然使用 threading.Event，因为它是由另一个线程设置的
             self._nickname_thread: Optional[threading.Thread] = None
-            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 0.5)  # 超时时间
+            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 60)  # 超时时间
 
             self._initialized = True
             logger.info("NicknameManager 初始化完成。")
@@ -153,6 +153,10 @@ class NicknameManager:
         if not self.is_enabled:
             logger.info("绰号处理功能已禁用，处理器未启动。")
             return
+        if global_config.max_nicknames_in_prompt == 0:  # 考虑有神秘的用户输入为0的可能性
+            logger.error("[错误] 绰号注入数量不合适，绰号处理功能已禁用！")
+            return
+
         if self._nickname_thread is None or not self._nickname_thread.is_alive():
             logger.info("正在启动绰号处理器线程...")
             self._stop_event.clear()
@@ -205,7 +209,7 @@ class NicknameManager:
         log_prefix = f"[{current_chat_stream.stream_id}]"
         try:
             # 1. 获取历史记录
-            history_limit = getattr(self.config, "NICKNAME_ANALYSIS_HISTORY_LIMIT", global_config.nickname_observation_context_size)
+            history_limit = getattr(self.config, "nickname_analysis_history_limit", 30)
             history_messages = get_raw_msg_before_timestamp_with_chat(
                 chat_id=current_chat_stream.stream_id,
                 timestamp=time.time(),

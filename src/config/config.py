@@ -284,7 +284,7 @@ class BotConfig:
     nickname_probability_smoothing: int = 1  # 绰号加权随机选择的平滑因子
     nickname_queue_max_size: int = 100  # 绰号处理队列最大容量
     nickname_process_sleep_interval: float = 60  # 绰号处理进程休眠间隔（秒）
-    nickname_observation_context_size: int = 30 # 绰号处理选中上下文长度
+    nickname_analysis_history_limit: int = 30  # 绰号处理可见最大上下文
 
     # 模型配置
     llm_reasoning: dict[str, str] = field(default_factory=lambda: {})
@@ -420,7 +420,7 @@ class BotConfig:
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
         def group_nickname(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.1"):
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.4"):
                 group_nickname_config = parent.get("group_nickname", {})
                 config.enable_nickname_mapping = group_nickname_config.get(
                     "enable_nickname_mapping", config.enable_nickname_mapping
@@ -437,10 +437,9 @@ class BotConfig:
                 config.nickname_process_sleep_interval = group_nickname_config.get(
                     "nickname_process_sleep_interval", config.nickname_process_sleep_interval
                 )
-                if config.INNER_VERSION in SpecifierSet(">=1.6.1.3"):
-                    config.nickname_observation_context_size = group_nickname_config.get(
-                        "nickname_observation_context_size", config.nickname_observation_context_size
-                    )
+                config.nickname_analysis_history_limit = group_nickname_config.get(
+                    "nickname_analysis_history_limit", config.nickname_analysis_history_limit
+                )
 
         def bot(parent: dict):
             # 机器人基础配置

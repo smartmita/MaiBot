@@ -131,7 +131,7 @@ max_nicknames_in_prompt = 10  # Prompt 中最多注入的绰号数量（防止to
 nickname_probability_smoothing = 1  # 绰号加权随机选择的平滑因子
 nickname_queue_max_size = 100  # 绰号处理队列最大容量
 nickname_process_sleep_interval = 60  # 绰号处理进程休眠间隔（秒）
-nickname_observation_context_size = 30 # 绰号处理选中上下文长度
+nickname_analysis_history_limit = 30  # 绰号处理可见最大上下文
 
 [memory]
 build_memory_interval = 2000 # 记忆构建间隔 单位秒   间隔越低，麦麦学习越多，但是冗余信息也会增多
