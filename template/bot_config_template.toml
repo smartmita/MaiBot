@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.1.4"
+version = "1.6.1.5"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -200,6 +200,7 @@ enable = true
 enable_friend_chat = false # 是否启用好友聊天
 talk_allowed_private = [] # 可以回复消息的QQ号
 pfc_chatting = false # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+api_polling_max_retries = 3
 
 #下面的模型若使用硅基流动则不需要更改，使用ds官方则改成.env自定义的宏，使用自定义模型则选择定位相似的模型自己填写
 #推理模型

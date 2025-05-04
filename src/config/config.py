@@ -277,6 +277,7 @@ class BotConfig:
     # enable_think_flow: bool = False  # 是否启用思考流程
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
+    api_polling_max_retries: int = 3  # 神秘小功能
 
     # Group Nickname
     enable_nickname_mapping: bool = False  # 绰号映射功能总开关
@@ -706,6 +707,8 @@ class BotConfig:
             config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
             if config.INNER_VERSION in SpecifierSet(">=1.1.0"):
                 config.enable_pfc_chatting = experimental_config.get("pfc_chatting", config.enable_pfc_chatting)
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.5"):
+                config.api_polling_max_retries = experimental_config.get("api_polling_max_retries", config.api_polling_max_retries)
 
         # 版本表达式：>=1.0.0,<2.0.0
         # 允许字段：func: method, support: str, notice: str, necessary: bool

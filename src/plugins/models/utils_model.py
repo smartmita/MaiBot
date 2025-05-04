@@ -344,9 +344,8 @@ class LLMRequest:
         **kwargs: Any
     ) -> Dict[str, Any]:
         """配置请求参数，合并实例参数和调用时参数"""
-        # (代码不变)
         default_retry = {
-            "max_retries": 3,
+            "max_retries": global_config.api_polling_max_retries,
             "base_wait": 10,
             "retry_codes": [429, 413, 500, 503],
             "abort_codes": [400, 401, 402, 403],
@@ -372,7 +371,7 @@ class LLMRequest:
 
 
         if not self.is_gemini and stream_mode:
-             payload["stream"] = merged_params.get("stream", stream_mode)
+            payload["stream"] = merged_params.get("stream", stream_mode)
 
 
         return {
@@ -399,7 +398,6 @@ class LLMRequest:
         **kwargs: Any
     ):
         """统一请求执行入口, 支持列表 key 切换、代理和单次调用参数覆盖"""
-        # (代码不变)
         final_request_type = request_type or kwargs.get('request_type') or self.request_type
         api_kwargs = {k: v for k, v in kwargs.items() if k != 'request_type'}
 
@@ -418,9 +416,9 @@ class LLMRequest:
             current_proxy_url = self.proxy_url
             logger.debug(f"模型 {self.model_name}: 将通过代理 {current_proxy_url} 发送请求。")
         elif self.proxy_url:
-             logger.debug(f"模型 {self.model_name}: 配置了代理，但此模型不在 PROXY_MODELS 列表中，将不使用代理。")
+            logger.debug(f"模型 {self.model_name}: 配置了代理，但此模型不在 PROXY_MODELS 列表中，将不使用代理。")
         else:
-             logger.debug(f"模型 {self.model_name}: 未配置或不为此模型使用代理。")
+            logger.debug(f"模型 {self.model_name}: 未配置或不为此模型使用代理。")
 
         current_key = None
         keys_failed_429 = set()
@@ -461,7 +459,7 @@ class LLMRequest:
                     logger.critical(final_error_msg)
                     raise PermissionDeniedException(final_error_msg)
                 else:
-                     raise RuntimeError(f"模型 {self.model_name}: 无法选择 API key (第 {attempt + 1} 次尝试)")
+                    raise RuntimeError(f"模型 {self.model_name}: 无法选择 API key (第 {attempt + 1} 次尝试)")
 
             logger.debug(f"模型 {self.model_name}: 尝试使用 Key: ...{current_key[-4:]} (总第 {attempt + 1} 次尝试)")
 
@@ -527,11 +525,11 @@ class LLMRequest:
                         if response.status in policy["abort_codes"] or (response.status in policy["retry_codes"] and attempt >= policy["max_retries"] - 1):
                             if attempt >= policy["max_retries"] - 1 and response.status in policy["retry_codes"]:
                                 logger.error(f"模型 {self.model_name}: 达到最大重试次数，最后一次尝试仍为可重试错误 {response.status}。")
-                            await self._handle_error_response(response, attempt, policy, current_key)
-                            await response.read()
-                            final_error_msg = f"请求中止或达到最大重试次数，最终状态码: {response.status}"
-                            logger.error(final_error_msg)
-                            raise RequestAbortException(final_error_msg, response)
+                            # await self._handle_error_response(response, attempt, policy, current_key)
+                            # await response.read()
+                            # final_error_msg = f"请求中止或达到最大重试次数，最终状态码: {response.status}"
+                            # logger.error(final_error_msg)
+                            # raise RequestAbortException(final_error_msg, response)
 
                         response.raise_for_status()
                         result = {}
@@ -547,18 +545,15 @@ class LLMRequest:
                         )
 
             except _SwitchKeyException:
-                # (代码不变)
                 last_exception = _SwitchKeyException()
                 logger.debug("捕获到 _SwitchKeyException，立即进行下一次尝试。")
                 continue
             except PermissionDeniedException as e:
-                # (代码不变)
                 logger.error(f"模型 {self.model_name}: 因权限拒绝 (403) 中止请求: {e}")
                 if is_key_list and not available_keys_pool and e.key_identifier:
                     logger.critical(f"  中止原因是 Key ...{e.key_identifier[-4:]} 触发 403 后已无其他 Key 可用。")
                 raise e
             except aiohttp.ClientProxyConnectionError as e:
-                # (代码不变)
                 logger.error(f"代理连接错误: {e} (代理地址: {current_proxy_url})")
                 last_exception = e
                 if attempt >= policy["max_retries"] - 1:
@@ -568,7 +563,6 @@ class LLMRequest:
                 await asyncio.sleep(wait_time)
                 continue
             except aiohttp.ClientConnectorError as e:
-                 # (代码不变)
                 logger.error(f"网络连接错误: {e} (URL: {api_url}, 代理: {current_proxy_url})")
                 last_exception = e
                 if attempt >= policy["max_retries"] - 1:
@@ -619,7 +613,6 @@ class LLMRequest:
                         raise rt_error
 
         # --- 循环结束 ---
-        # (代码不变)
         logger.error(f"模型 {self.model_name}: 所有重试尝试 ({policy['max_retries']} 次) 均失败。")
         if last_exception:
             if isinstance(last_exception, PermissionDeniedException):
@@ -1112,7 +1105,7 @@ class LLMRequest:
         # (代码不变)
         if no_key:
             if self.is_gemini:
-                 return {"x-goog-api-key": "**********", "Content-Type": "application/json"}
+                return {"x-goog-api-key": "**********", "Content-Type": "application/json"}
             else:
                  return {"Authorization": "Bearer **********", "Content-Type": "application/json"}
         else:
@@ -1128,7 +1121,6 @@ class LLMRequest:
 
     async def generate_response(self, prompt: str, user_id: str = "system", **kwargs) -> Tuple:
         """根据输入的提示生成模型的异步响应，支持覆盖参数"""
-        # (代码不变)
         endpoint = ":generateContent" if self.is_gemini else "/chat/completions"
         response = await self._execute_request(
             endpoint=endpoint,
@@ -1146,7 +1138,6 @@ class LLMRequest:
 
     async def generate_response_for_image(self, prompt: str, image_base64: str, image_format: str, user_id: str = "system", **kwargs) -> Tuple:
         """根据输入的提示和图片生成模型的异步响应，支持覆盖参数"""
-        # (代码不变)
         endpoint = ":generateContent" if self.is_gemini else "/chat/completions"
         response = await self._execute_request(
             endpoint=endpoint,
@@ -1159,13 +1150,13 @@ class LLMRequest:
         )
         # _default_response_handler 现在总是返回至少2个值
         if len(response) == 3:
-             return response # content, reasoning, tool_calls (tool_calls 可能为 None)
+            return response # content, reasoning, tool_calls (tool_calls 可能为 None)
         elif len(response) == 2:
-             content, reasoning = response
-             return content, reasoning # 对于 vision 请求，通常没有 tool_calls
+            content, reasoning = response
+            return content, reasoning # 对于 vision 请求，通常没有 tool_calls
         else:
-             logger.error(f"来自 _default_response_handler 的意外响应格式: {response}")
-             return "处理响应出错", ""
+            logger.error(f"来自 _default_response_handler 的意外响应格式: {response}")
+            return "处理响应出错", ""
 
 
     async def generate_response_async(self, prompt: str, user_id: str = "system", request_type: str = "chat", **kwargs) -> Union[str, Tuple]:
