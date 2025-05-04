@@ -1,6 +1,7 @@
 import time
 from typing import Tuple, Optional
 from .pfc_utils import retrieve_contextual_info
+
 # import jieba # 如果需要旧版知识库的回退，可能需要
 # import re    # 如果需要旧版知识库的回退，可能需要
 from src.common.logger_manager import get_logger
@@ -336,10 +337,13 @@ class ActionPlanner:
                         last_action_context += f"- 该行动当前状态: {status}\n"
                         # self.last_successful_action_type = None # 非完成状态，清除记录
 
-        retrieved_memory_str_planner, retrieved_knowledge_str_planner = await retrieve_contextual_info(chat_history_text, self.private_name)
+        retrieved_memory_str_planner, retrieved_knowledge_str_planner = await retrieve_contextual_info(
+            chat_history_text, self.private_name
+        )
         # Optional: 可以加一行日志确认结果，方便调试
-        logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str_planner else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str_planner and '无相关知识' not in retrieved_knowledge_str_planner else '无'}")
-        
+        logger.info(
+            f"[私聊][{self.private_name}] (ActionPlanner) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str_planner else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str_planner and '无相关知识' not in retrieved_knowledge_str_planner else '无'}"
+        )
 
         # --- 选择 Prompt ---
         if last_successful_reply_action in ["direct_reply", "send_new_message"]:

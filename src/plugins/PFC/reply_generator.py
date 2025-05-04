@@ -1,8 +1,10 @@
 from .pfc_utils import retrieve_contextual_info
+
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
 # import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
 # import re    # 正则表达式库，通常 Python 自带
 from typing import Tuple, List, Dict, Any
+
 # from src.common.logger import get_module_logger
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
@@ -114,7 +116,6 @@ class ReplyGenerator:
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
         self.reply_checker = ReplyChecker(stream_id, private_name)
 
-    
     # 修改 generate 方法签名，增加 action_type 参数
     async def generate(
         self, observation_info: ObservationInfo, conversation_info: ConversationInfo, action_type: str
@@ -171,11 +172,15 @@ class ReplyGenerator:
 
         # 构建 Persona 文本 (persona_text)
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
-        retrieval_context = chat_history_text # 使用前面构建好的 chat_history_text
+        retrieval_context = chat_history_text  # 使用前面构建好的 chat_history_text
         # 调用共享函数进行检索
-        retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(retrieval_context, self.private_name)
-        logger.info(f"[私聊][{self.private_name}] (ReplyGenerator) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str else '无'}")
-        
+        retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
+            retrieval_context, self.private_name
+        )
+        logger.info(
+            f"[私聊][{self.private_name}] (ReplyGenerator) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str else '无'}"
+        )
+
         # --- 修改：构建上次回复失败原因和内容提示 ---
         last_rejection_info_str = ""
         # 检查 conversation_info 是否有上次拒绝的原因和内容，并且它们都不是 None
