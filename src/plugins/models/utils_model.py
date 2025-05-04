@@ -480,7 +480,8 @@ class LLMRequest:
                     async with session.post(api_url, **post_kwargs) as response:
                         if response.status == 429 and is_key_list:
                             logger.warning(f"模型 {self.model_name}: Key ...{current_key[-4:]} 遇到 429 错误。")
-                            logger.debug(f"模型 {self.model_name}: Key ...{current_key[-4:]} response:\n{response}")
+                            response_text = await response.text()
+                            logger.debug(f"模型 {self.model_name}: Key ...{current_key[-4:]} response:\n{json.dumps(json.loads(response_text), indent=2, ensure_ascii=False)}")
                             if current_key not in keys_failed_429:
                                 keys_failed_429.add(current_key)
                                 logger.info(f"  (因 429 已失败 {len(keys_failed_429)}/{key_switch_limit_429} 个不同 Key)")
