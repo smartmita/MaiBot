@@ -423,8 +423,8 @@ class LLMRequest:
         current_key = None
         keys_failed_429 = set()
         keys_abandoned_runtime = set()
-        key_switch_limit_429 = 3
-        key_switch_limit_403 = 3
+        key_switch_limit_429 = global_config.api_polling_max_retries
+        key_switch_limit_403 = global_config.api_polling_max_retries
 
         available_keys_pool = []
         is_key_list = isinstance(self._api_key_config, list)
@@ -478,9 +478,9 @@ class LLMRequest:
                         post_kwargs["proxy"] = current_proxy_url
 
                     async with session.post(api_url, **post_kwargs) as response:
-
                         if response.status == 429 and is_key_list:
                             logger.warning(f"模型 {self.model_name}: Key ...{current_key[-4:]} 遇到 429 错误。")
+                            logger.debug(f"模型 {self.model_name}: Key ...{current_key[-4:]} response:\n{response}")
                             if current_key not in keys_failed_429:
                                 keys_failed_429.add(current_key)
                                 logger.info(f"  (因 429 已失败 {len(keys_failed_429)}/{key_switch_limit_429} 个不同 Key)")
@@ -781,7 +781,6 @@ class LLMRequest:
         self, exception, retry_count: int, request_content: Dict[str, Any], merged_params: Dict[str, Any] = None
     ) -> Union[Tuple[Dict[str, Any], int], Tuple[None, int]]:
         """处理非 HTTP 错误，支持使用合并后的参数重建 payload"""
-        # (代码不变)
         policy = request_content["policy"]
         payload = request_content["payload"]
         wait_time = policy["base_wait"] * (2**retry_count)
