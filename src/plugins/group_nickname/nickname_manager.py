@@ -205,7 +205,7 @@ class NicknameManager:
         log_prefix = f"[{current_chat_stream.stream_id}]"
         try:
             # 1. 获取历史记录
-            history_limit = getattr(self.config, "NICKNAME_ANALYSIS_HISTORY_LIMIT", 30)
+            history_limit = getattr(self.config, "NICKNAME_ANALYSIS_HISTORY_LIMIT", global_config.nickname_observation_context_size)
             history_messages = get_raw_msg_before_timestamp_with_chat(
                 chat_id=current_chat_stream.stream_id,
                 timestamp=time.time(),

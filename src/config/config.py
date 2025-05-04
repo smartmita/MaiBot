@@ -244,6 +244,8 @@ class BotConfig:
         default_factory=lambda: ["表情包", "图片", "回复", "聊天记录"]
     )  # 添加新的配置项默认值
 
+    long_message_auto_truncate: bool = True # HFC 模式过长消息自动截断，防止他人 prompt 恶意注入，减少token消耗，但可能损失图片/长文信息，按需选择状态（默认开启）
+
     # mood
     mood_update_interval: float = 1.0  # 情绪更新间隔 单位秒
     mood_decay_rate: float = 0.95  # 情绪衰减率
@@ -277,11 +279,12 @@ class BotConfig:
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
 
     # Group Nickname
-    ENABLE_NICKNAME_MAPPING: bool = False  # 绰号映射功能总开关
-    MAX_NICKNAMES_IN_PROMPT: int = 10  # Prompt 中最多注入的绰号数量
-    NICKNAME_PROBABILITY_SMOOTHING: int = 1  # 绰号加权随机选择的平滑因子
-    NICKNAME_QUEUE_MAX_SIZE: int = 100  # 绰号处理队列最大容量
-    NICKNAME_PROCESS_SLEEP_INTERVAL: float = 60  # 绰号处理进程休眠间隔（秒）
+    enable_nickname_mapping: bool = False  # 绰号映射功能总开关
+    max_nicknames_in_prompt: int = 10  # Prompt 中最多注入的绰号数量
+    nickname_probability_smoothing: int = 1  # 绰号加权随机选择的平滑因子
+    nickname_queue_max_size: int = 100  # 绰号处理队列最大容量
+    nickname_process_sleep_interval: float = 60  # 绰号处理进程休眠间隔（秒）
+    nickname_observation_context_size: int = 30 # 绰号处理选中上下文长度
 
     # 模型配置
     llm_reasoning: dict[str, str] = field(default_factory=lambda: {})
@@ -417,22 +420,26 @@ class BotConfig:
 
         def group_nickname(parent: dict):
             if config.INNER_VERSION in SpecifierSet(">=1.6.1.1"):
-                gn_config = parent.get("group_nickname", {})
-                config.ENABLE_NICKNAME_MAPPING = gn_config.get(
-                    "enable_nickname_mapping", config.ENABLE_NICKNAME_MAPPING
+                group_nickname_config = parent.get("group_nickname", {})
+                config.enable_nickname_mapping = group_nickname_config.get(
+                    "enable_nickname_mapping", config.enable_nickname_mapping
                 )
-                config.MAX_NICKNAMES_IN_PROMPT = gn_config.get(
-                    "max_nicknames_in_prompt", config.MAX_NICKNAMES_IN_PROMPT
+                config.max_nicknames_in_prompt = group_nickname_config.get(
+                    "max_nicknames_in_prompt", config.max_nicknames_in_prompt
                 )
-                config.NICKNAME_PROBABILITY_SMOOTHING = gn_config.get(
-                    "nickname_probability_smoothing", config.NICKNAME_PROBABILITY_SMOOTHING
+                config.nickname_probability_smoothing = group_nickname_config.get(
+                    "nickname_probability_smoothing", config.nickname_probability_smoothing
                 )
-                config.NICKNAME_QUEUE_MAX_SIZE = gn_config.get(
-                    "nickname_queue_max_size", config.NICKNAME_QUEUE_MAX_SIZE
+                config.nickname_queue_max_size = group_nickname_config.get(
+                    "nickname_queue_max_size", config.nickname_queue_max_size
                 )
-                config.NICKNAME_PROCESS_SLEEP_INTERVAL = gn_config.get(
-                    "nickname_process_sleep_interval", config.NICKNAME_PROCESS_SLEEP_INTERVAL
+                config.nickname_process_sleep_interval = group_nickname_config.get(
+                    "nickname_process_sleep_interval", config.nickname_process_sleep_interval
                 )
+                if config.INNER_VERSION in SpecifierSet(">=1.6.1.3"):
+                    config.nickname_observation_context_size = group_nickname_config.get(
+                        "nickname_observation_context_size", config.nickname_observation_context_size
+                    )
 
         def bot(parent: dict):
             # 机器人基础配置
@@ -619,6 +626,10 @@ class BotConfig:
                 )
                 config.consolidate_memory_percentage = memory_config.get(
                     "consolidate_memory_percentage", config.consolidate_memory_percentage
+                )
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.3"):
+                config.long_message_auto_truncate = memory_config.get(
+                    "long_message_auto_truncate", config.long_message_auto_truncate
                 )
 
         def remote(parent: dict):
