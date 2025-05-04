@@ -103,7 +103,7 @@ class NicknameManager:
 
             logger.info("正在初始化 NicknameManager 组件...")
             self.config = global_config
-            self.is_enabled = self.config.ENABLE_NICKNAME_MAPPING
+            self.is_enabled = self.config.enable_nickname_mapping
 
             # 数据库处理器
             person_info_collection = getattr(db, "person_info", None)
@@ -138,12 +138,12 @@ class NicknameManager:
                     self.is_enabled = False
 
             # 队列和线程
-            self.queue_max_size = getattr(self.config, "NICKNAME_QUEUE_MAX_SIZE", 100)
+            self.queue_max_size = getattr(self.config, "nickname_queue_max_size", 100)
             # 使用 asyncio.Queue
             self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
             self._stop_event = threading.Event()  # stop_event 仍然使用 threading.Event，因为它是由另一个线程设置的
             self._nickname_thread: Optional[threading.Thread] = None
-            self.sleep_interval = getattr(self.config, "NICKNAME_PROCESS_SLEEP_INTERVAL", 0.5)  # 超时时间
+            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 0.5)  # 超时时间
 
             self._initialized = True
             logger.info("NicknameManager 初始化完成。")
