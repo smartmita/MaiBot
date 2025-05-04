@@ -1,16 +1,10 @@
-# 用于访问记忆系统
-from src.plugins.memory_system.Hippocampus import HippocampusManager
-
-# --- NEW IMPORT ---
-# 从 heartflow 导入知识检索和数据库查询函数/实例
-from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
-
-# --- END NEW IMPORT ---
+from .pfc_utils import retrieve_contextual_info
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
 # import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
 # import re    # 正则表达式库，通常 Python 自带
 from typing import Tuple, List, Dict, Any
-from src.common.logger import get_module_logger
+# from src.common.logger import get_module_logger
+from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
 from .chat_observer import ChatObserver
@@ -20,7 +14,7 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from src.plugins.utils.chat_message_builder import build_readable_messages
 
-logger = get_module_logger("reply_generator")
+logger = get_logger("reply_generator")
 
 # --- 定义 Prompt 模板 ---
 
@@ -120,39 +114,7 @@ class ReplyGenerator:
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
         self.reply_checker = ReplyChecker(stream_id, private_name)
 
-    # _get_memory_info 保持不变，因为它不是与 heartflow 重复的部分
-    async def _get_memory_info(self, text: str) -> str:
-        """根据文本自动检索相关记忆"""
-        memory_prompt = ""
-        related_memory_info = ""
-        try:
-            related_memory = await HippocampusManager.get_instance().get_memory_from_text(
-                text=text,
-                max_memory_num=2,  # 最多获取 2 条记忆
-                max_memory_length=2,  # 每条记忆长度限制（这个参数含义可能需确认）
-                max_depth=3,  # 搜索深度
-                fast_retrieval=False,  # 是否快速检索
-            )
-            if related_memory:
-                for memory in related_memory:
-                    # memory[0] 是记忆ID, memory[1] 是记忆内容
-                    related_memory_info += memory[1] + "\n"  # 将记忆内容拼接起来
-                if related_memory_info:
-                    memory_prompt = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，不一定是目前聊天里的人说的，回忆中别人说的事情也不一定是准确的，请记住)\n"
-                    logger.debug(f"[私聊][{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}...")
-                else:
-                    logger.debug(f"[私聊][{self.private_name}]自动检索记忆返回为空。")
-            else:
-                logger.debug(f"[私聊][{self.private_name}]未自动检索到相关记忆。")
-        except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]自动检索记忆时出错: {e}")
-            # memory_prompt = "检索记忆时出错。\n" # 可以选择是否提示错误
-        return memory_prompt
-
-    # --- REMOVED _get_prompt_info_old ---
-
-    # --- REMOVED _get_prompt_info ---
-
+    
     # 修改 generate 方法签名，增加 action_type 参数
     async def generate(
         self, observation_info: ObservationInfo, conversation_info: ConversationInfo, action_type: str
@@ -209,43 +171,11 @@ class ReplyGenerator:
 
         # 构建 Persona 文本 (persona_text)
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
-        retrieved_memory_str = ""
-        retrieved_knowledge_str = ""
-        # 使用 chat_history_text 作为检索的上下文，因为它包含了最近的对话和新消息
-        retrieval_context = chat_history_text
-        if retrieval_context and retrieval_context != "还没有聊天记录。" and retrieval_context != "[构建聊天记录出错]":
-            try:
-                # 提取记忆 (调用本地的 _get_memory_info)
-                logger.debug(f"[私聊][{self.private_name}]开始自动检索记忆...")
-                retrieved_memory_str = await self._get_memory_info(text=retrieval_context)
-                if retrieved_memory_str:
-                    logger.info(f"[私聊][{self.private_name}]自动检索到记忆片段。")
-                else:
-                    logger.info(f"[私聊][{self.private_name}]未自动检索到相关记忆。")
-
-                # --- MODIFIED KNOWLEDGE RETRIEVAL ---
-                # 提取知识 (调用导入的 prompt_builder.get_prompt_info)
-                logger.debug(f"[私聊][{self.private_name}]开始自动检索知识 (使用导入函数)...")
-                # 使用导入的 prompt_builder 实例及其方法
-                retrieved_knowledge_str = await prompt_builder.get_prompt_info(
-                    message=retrieval_context, threshold=0.38
-                )
-                # --- END MODIFIED KNOWLEDGE RETRIEVAL ---
-
-                if retrieved_knowledge_str:
-                    logger.info(f"[私聊][{self.private_name}]自动检索到相关知识。")
-                else:
-                    logger.info(f"[私聊][{self.private_name}]未自动检索到相关知识。")
-
-            except Exception as retrieval_err:
-                logger.error(f"[私聊][{self.private_name}]在自动检索记忆/知识时发生错误: {retrieval_err}")
-                retrieved_memory_str = "检索记忆时出错。\n"
-                retrieved_knowledge_str = "检索知识时出错。\n"
-        else:
-            logger.debug(f"[私聊][{self.private_name}]聊天记录为空或无效，跳过自动记忆/知识检索。")
-            retrieved_memory_str = "无聊天记录，无法自动检索记忆。\n"
-            retrieved_knowledge_str = "无聊天记录，无法自动检索知识。\n"
-
+        retrieval_context = chat_history_text # 使用前面构建好的 chat_history_text
+        # 调用共享函数进行检索
+        retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(retrieval_context, self.private_name)
+        logger.info(f"[私聊][{self.private_name}] (ReplyGenerator) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str else '无'}")
+        
         # --- 修改：构建上次回复失败原因和内容提示 ---
         last_rejection_info_str = ""
         # 检查 conversation_info 是否有上次拒绝的原因和内容，并且它们都不是 None

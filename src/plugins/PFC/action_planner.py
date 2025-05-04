@@ -1,12 +1,6 @@
 import time
 from typing import Tuple, Optional
-from src.plugins.memory_system.Hippocampus import HippocampusManager
-
-# --- NEW IMPORT ---
-# 从 heartflow 导入知识检索和数据库查询函数/实例
-from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
-
-# --- END NEW IMPORT ---
+from .pfc_utils import retrieve_contextual_info
 # import jieba # 如果需要旧版知识库的回退，可能需要
 # import re    # 如果需要旧版知识库的回退，可能需要
 from src.common.logger_manager import get_logger
@@ -127,41 +121,6 @@ class ActionPlanner:
         self.name = global_config.BOT_NICKNAME
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-
-    # _get_memory_info 保持不变
-    async def _get_memory_info(self, text: str) -> str:
-        """根据文本自动检索相关记忆"""
-        memory_prompt = ""
-        related_memory_info = ""
-        try:
-            related_memory = await HippocampusManager.get_instance().get_memory_from_text(
-                text=text,
-                max_memory_num=2,  # 最多获取 2 条记忆
-                max_memory_length=2,  # 每条记忆长度限制（这个参数含义可能需确认）
-                max_depth=3,  # 搜索深度
-                fast_retrieval=False,  # 是否快速检索
-            )
-            if related_memory:
-                for memory in related_memory:
-                    # memory[0] 是记忆ID, memory[1] 是记忆内容
-                    related_memory_info += memory[1] + "\n"  # 将记忆内容拼接起来
-                if related_memory_info:
-                    memory_prompt = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，供参考)\n"
-                    logger.debug(
-                        f"[私聊]决策层[{self.private_name}]自动检索到记忆: {related_memory_info.strip()[:100]}..."
-                    )
-                else:
-                    logger.debug(f"[私聊]决策层[{self.private_name}]自动检索记忆返回为空。")
-            else:
-                logger.debug(f"[私聊]决策层[{self.private_name}]未自动检索到相关记忆。")
-        except Exception as e:
-            logger.error(f"[私聊]决策层[{self.private_name}]自动检索记忆时出错: {e}")
-            # memory_prompt = "检索记忆时出错。\n" # 可以选择是否提示错误
-        return memory_prompt
-
-    # --- REMOVED _get_prompt_info_old ---
-
-    # --- REMOVED _get_prompt_info ---
 
     # 修改 plan 方法签名，增加 last_successful_reply_action 参数
     async def plan(
@@ -377,38 +336,10 @@ class ActionPlanner:
                         last_action_context += f"- 该行动当前状态: {status}\n"
                         # self.last_successful_action_type = None # 非完成状态，清除记录
 
-        retrieved_memory_str_planner = ""
-        retrieved_knowledge_str_planner = ""
-        retrieval_context = chat_history_text  # 使用聊天记录作为检索上下文
-        if retrieval_context and retrieval_context != "还没有聊天记录。" and retrieval_context != "[构建聊天记录出错]":
-            try:
-                # 调用本地的 _get_memory_info
-                logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动检索记忆...")
-                retrieved_memory_str_planner = await self._get_memory_info(text=retrieval_context)
-                logger.info(
-                    f"[私聊][{self.private_name}] (ActionPlanner) 自动检索记忆 {'完成' if retrieved_memory_str_planner else '无结果'}。"
-                )
-
-                # --- MODIFIED KNOWLEDGE RETRIEVAL ---
-                # 调用导入的 prompt_builder.get_prompt_info
-                logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 开始自动检索知识 (使用导入函数)...")
-                # 使用导入的 prompt_builder 实例及其方法
-                retrieved_knowledge_str_planner = await prompt_builder.get_prompt_info(
-                    message=retrieval_context, threshold=0.38
-                )
-                # --- END MODIFIED KNOWLEDGE RETRIEVAL ---
-                logger.info(
-                    f"[私聊][{self.private_name}] (ActionPlanner) 自动检索知识 {'完成' if retrieved_knowledge_str_planner else '无结果'}。"
-                )
-
-            except Exception as retrieval_err:
-                logger.error(f"[私聊][{self.private_name}] (ActionPlanner) 自动检索时出错: {retrieval_err}")
-                retrieved_memory_str_planner = "检索记忆时出错。\n"
-                retrieved_knowledge_str_planner = "检索知识时出错。\n"
-        else:
-            logger.debug(f"[私聊][{self.private_name}] (ActionPlanner) 无有效聊天记录，跳过自动检索。")
-            retrieved_memory_str_planner = "无聊天记录无法检索记忆。\n"
-            retrieved_knowledge_str_planner = "无聊天记录无法检索知识。\n"
+        retrieved_memory_str_planner, retrieved_knowledge_str_planner = await retrieve_contextual_info(chat_history_text, self.private_name)
+        # Optional: 可以加一行日志确认结果，方便调试
+        logger.info(f"[私聊][{self.private_name}] (ActionPlanner) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str_planner else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str_planner and '无相关知识' not in retrieved_knowledge_str_planner else '无'}")
+        
 
         # --- 选择 Prompt ---
         if last_successful_reply_action in ["direct_reply", "send_new_message"]:
