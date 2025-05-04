@@ -153,7 +153,7 @@ class NicknameManager:
         if not self.is_enabled:
             logger.info("绰号处理功能已禁用，处理器未启动。")
             return
-        if global_config.max_nicknames_in_prompt == 0: # 考虑有神秘的用户输入为0的可能性 
+        if global_config.max_nicknames_in_prompt == 0:  # 考虑有神秘的用户输入为0的可能性
             logger.error("[错误] 绰号注入数量不合适，绰号处理功能已禁用！")
             return
 
