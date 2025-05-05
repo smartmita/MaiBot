@@ -7,6 +7,9 @@ from maim_message import UserInfo
 from ...config.config import global_config
 from .chat_states import NotificationManager, create_new_message_notification, create_cold_chat_notification
 from .message_storage import MongoDBMessageStorage
+from rich.traceback import install
+
+install(extra_lines=3)
 
 logger = get_module_logger("chat_observer")
 
@@ -23,6 +26,7 @@ class ChatObserver:
 
         Args:
             stream_id: 聊天流ID
+            private_name: 私聊名称
 
         Returns:
             ChatObserver: 观察器实例
@@ -37,6 +41,9 @@ class ChatObserver:
         Args:
             stream_id: 聊天流ID
         """
+        self.last_check_time = None
+        self.last_bot_speak_time = None
+        self.last_user_speak_time = None
         if stream_id in self._instances:
             raise RuntimeError(f"ChatObserver for {stream_id} already exists. Use get_instance() instead.")
 
@@ -118,11 +125,11 @@ class ChatObserver:
         self.last_cold_chat_check = current_time
 
         # 判断是否冷场
-        is_cold = False
-        if self.last_message_time is None:
-            is_cold = True
-        else:
-            is_cold = (current_time - self.last_message_time) > self.cold_chat_threshold
+        is_cold = (
+            True
+            if self.last_message_time is None
+            else (current_time - self.last_message_time) > self.cold_chat_threshold
+        )
 
         # 如果冷场状态发生变化，发送通知
         if is_cold != self.is_cold_chat_state:

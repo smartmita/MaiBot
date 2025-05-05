@@ -1,7 +1,8 @@
+# -*- coding: utf-8 -*-
+# File: observation_info.py
 from typing import List, Optional, Dict, Any, Set
 from maim_message import UserInfo
 import time
-from dataclasses import dataclass, field
 from src.common.logger import get_module_logger
 from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
@@ -96,8 +97,11 @@ class ObservationInfoHandler(NotificationHandler):
                 self.observation_info.unprocessed_messages = [
                     msg for msg in self.observation_info.unprocessed_messages if msg.get("message_id") != message_id
                 ]
-                if len(self.observation_info.unprocessed_messages) < original_count:
-                    logger.info(f"[私聊][{self.private_name}]移除了未处理的消息 (ID: {message_id})")
+                # --- [修改点 11] 更新 new_messages_count ---
+                self.observation_info.new_messages_count = len(self.observation_info.unprocessed_messages)
+                if self.observation_info.new_messages_count < original_count:
+                    logger.info(f"[私聊][{self.private_name}]移除了未处理的消息 (ID: {message_id}), 当前未处理数: {self.observation_info.new_messages_count}")
+
 
             elif notification_type == NotificationType.USER_JOINED:
                 # 处理用户加入通知 (如果适用私聊场景)
@@ -121,79 +125,107 @@ class ObservationInfoHandler(NotificationHandler):
             logger.error(traceback.format_exc())  # 打印详细堆栈信息
 
 
-@dataclass
+# @dataclass <-- 这个，不需要了（递黄瓜）
 class ObservationInfo:
-    """决策信息类，用于收集和管理来自chat_observer的通知信息"""
+    """决策信息类，用于收集和管理来自chat_observer的通知信息 (手动实现 __init__)"""
 
-    # --- 修改：添加 private_name 字段 ---
-    private_name: str = field(init=True)  # 让 dataclass 的 __init__ 接收 private_name
+    # 类型提示保留，可用于文档和静态分析
+    private_name: str
+    chat_history: List[Dict[str, Any]]
+    chat_history_str: str
+    unprocessed_messages: List[Dict[str, Any]]
+    active_users: Set[str]
+    last_bot_speak_time: Optional[float]
+    last_user_speak_time: Optional[float]
+    last_message_time: Optional[float]
+    last_message_id: Optional[str]
+    last_message_content: str
+    last_message_sender: Optional[str]
+    bot_id: Optional[str]
+    chat_history_count: int
+    new_messages_count: int
+    cold_chat_start_time: Optional[float]
+    cold_chat_duration: float
+    is_typing: bool
+    is_cold_chat: bool
+    changed: bool
+    chat_observer: Optional[ChatObserver]
+    handler: Optional[ObservationInfoHandler]
 
-    # data_list
-    chat_history: List[Dict[str, Any]] = field(default_factory=list)  # 修改：明确类型为 Dict
-    chat_history_str: str = ""
-    unprocessed_messages: List[Dict[str, Any]] = field(default_factory=list)  # 修改：明确类型为 Dict
-    active_users: Set[str] = field(default_factory=set)
+    def __init__(self, private_name: str):
+        """
+        手动初始化 ObservationInfo 的所有实例变量。
+        """
 
-    # data
-    last_bot_speak_time: Optional[float] = None
-    last_user_speak_time: Optional[float] = None
-    last_message_time: Optional[float] = None
-    # 添加 last_message_id
-    last_message_id: Optional[str] = None
-    last_message_content: str = ""
-    last_message_sender: Optional[str] = None
-    bot_id: Optional[str] = None
-    chat_history_count: int = 0
-    new_messages_count: int = 0
-    cold_chat_start_time: Optional[float] = None  # 用于计算冷场持续时间
-    cold_chat_duration: float = 0.0  # 缓存计算结果
+        # 接收的参数
+        self.private_name: str = private_name
 
-    # state
-    is_typing: bool = False  # 可能表示对方正在输入
-    # has_unread_messages: bool = False # 这个状态可以通过 new_messages_count > 0 判断
-    is_cold_chat: bool = False
-    changed: bool = False  # 用于标记状态是否有变化，以便外部模块决定是否重新规划
+        # data_list
+        self.chat_history: List[Dict[str, Any]] = []
+        self.chat_history_str: str = ""
+        self.unprocessed_messages: List[Dict[str, Any]] = []
+        self.active_users: Set[str] = set()
 
-    # #spec (暂时注释掉，如果不需要)
-    # meta_plan_trigger: bool = False
+        # data
+        self.last_bot_speak_time: Optional[float] = None
+        self.last_user_speak_time: Optional[float] = None
+        self.last_message_time: Optional[float] = None
+        self.last_message_id: Optional[str] = None
+        self.last_message_content: str = ""
+        self.last_message_sender: Optional[str] = None
+        self.bot_id: Optional[str] = None # 需要在某个地方设置 bot_id，例如从 global_config 获取
+        self.chat_history_count: int = 0
+        self.new_messages_count: int = 0
+        self.cold_chat_start_time: Optional[float] = None
+        self.cold_chat_duration: float = 0.0
 
-    # --- 修改：移除 __post_init__ 的参数 ---
-    def __post_init__(self):
-        """初始化后创建handler并进行必要的设置"""
-        self.chat_observer: Optional[ChatObserver] = None  # 添加类型提示
-        self.handler = ObservationInfoHandler(self, self.private_name)
+        # state
+        self.is_typing: bool = False
+        self.is_cold_chat: bool = False
+        self.changed: bool = False
+
+        # 关联对象
+        self.chat_observer: Optional[ChatObserver] = None
+
+        self.handler: ObservationInfoHandler = ObservationInfoHandler(self, self.private_name)
+
+        # --- 初始化 bot_id ---
+        from ...config.config import global_config # 移动到 __init__ 内部以避免循环导入问题
+        self.bot_id = str(global_config.BOT_QQ) if global_config.BOT_QQ else None
 
     def bind_to_chat_observer(self, chat_observer: ChatObserver):
-        """绑定到指定的chat_observer
-
-        Args:
-            chat_observer: 要绑定的 ChatObserver 实例
-        """
+        """绑定到指定的chat_observer (保持不变)"""
         if self.chat_observer:
             logger.warning(f"[私聊][{self.private_name}]尝试重复绑定 ChatObserver")
             return
 
         self.chat_observer = chat_observer
         try:
-            # 注册关心的通知类型
+            if not self.handler:
+                logger.error(f"[私聊][{self.private_name}] 尝试绑定时 handler 未初始化！")
+                self.chat_observer = None
+                return
+
             self.chat_observer.notification_manager.register_handler(
                 target="observation_info", notification_type=NotificationType.NEW_MESSAGE, handler=self.handler
             )
             self.chat_observer.notification_manager.register_handler(
                 target="observation_info", notification_type=NotificationType.COLD_CHAT, handler=self.handler
             )
-            # 可以根据需要注册更多通知类型
-            # self.chat_observer.notification_manager.register_handler(
-            #     target="observation_info", notification_type=NotificationType.MESSAGE_DELETED, handler=self.handler
-            # )
+            # --- [修改点 12] 注册 MESSAGE_DELETED ---
+            self.chat_observer.notification_manager.register_handler(
+                 target="observation_info", notification_type=NotificationType.MESSAGE_DELETED, handler=self.handler
+             )
             logger.info(f"[私聊][{self.private_name}]成功绑定到 ChatObserver")
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]绑定到 ChatObserver 时出错: {e}")
-            self.chat_observer = None  # 绑定失败，重置
+            self.chat_observer = None
 
     def unbind_from_chat_observer(self):
-        """解除与chat_observer的绑定"""
-        if self.chat_observer and hasattr(self.chat_observer, "notification_manager"):  # 增加检查
+        """解除与chat_observer的绑定 (保持不变)"""
+        if (
+            self.chat_observer and hasattr(self.chat_observer, "notification_manager") and self.handler
+        ):
             try:
                 self.chat_observer.notification_manager.unregister_handler(
                     target="observation_info", notification_type=NotificationType.NEW_MESSAGE, handler=self.handler
@@ -201,161 +233,152 @@ class ObservationInfo:
                 self.chat_observer.notification_manager.unregister_handler(
                     target="observation_info", notification_type=NotificationType.COLD_CHAT, handler=self.handler
                 )
-                # 如果注册了其他类型，也要在这里注销
-                # self.chat_observer.notification_manager.unregister_handler(
-                #     target="observation_info", notification_type=NotificationType.MESSAGE_DELETED, handler=self.handler
-                # )
+                # --- [修改点 13] 注销 MESSAGE_DELETED ---
+                self.chat_observer.notification_manager.unregister_handler(
+                     target="observation_info", notification_type=NotificationType.MESSAGE_DELETED, handler=self.handler
+                 )
                 logger.info(f"[私聊][{self.private_name}]成功从 ChatObserver 解绑")
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]从 ChatObserver 解绑时出错: {e}")
-            finally:  # 确保 chat_observer 被重置
+            finally:
                 self.chat_observer = None
         else:
-            logger.warning(f"[私聊][{self.private_name}]尝试解绑时 ChatObserver 不存在或无效")
+            logger.warning(f"[私聊][{self.private_name}]尝试解绑时 ChatObserver 不存在、无效或 handler 未设置")
 
-    # 修改：update_from_message 接收 UserInfo 对象
     async def update_from_message(self, message: Dict[str, Any], user_info: Optional[UserInfo]):
-        """从消息更新信息
-
-        Args:
-            message: 消息数据字典
-            user_info: 解析后的 UserInfo 对象 (可能为 None)
-        """
+        """从消息更新信息 (保持不变)"""
         message_time = message.get("time")
         message_id = message.get("message_id")
         processed_text = message.get("processed_plain_text", "")
 
-        # 只有在新消息到达时才更新 last_message 相关信息
         if message_time and message_time > (self.last_message_time or 0):
             self.last_message_time = message_time
             self.last_message_id = message_id
             self.last_message_content = processed_text
-            # 重置冷场计时器
             self.is_cold_chat = False
             self.cold_chat_start_time = None
             self.cold_chat_duration = 0.0
 
             if user_info:
-                sender_id = str(user_info.user_id)  # 确保是字符串
+                sender_id = str(user_info.user_id)
                 self.last_message_sender = sender_id
-                # 更新发言时间
                 if sender_id == self.bot_id:
                     self.last_bot_speak_time = message_time
                 else:
                     self.last_user_speak_time = message_time
-                    self.active_users.add(sender_id)  # 用户发言则认为其活跃
+                    self.active_users.add(sender_id)
             else:
                 logger.warning(
                     f"[私聊][{self.private_name}]处理消息更新时缺少有效的 UserInfo 对象, message_id: {message_id}"
                 )
-                self.last_message_sender = None  # 发送者未知
+                self.last_message_sender = None
 
-            # 将原始消息字典添加到未处理列表
-            self.unprocessed_messages.append(message)
-            self.new_messages_count = len(self.unprocessed_messages)  # 直接用列表长度
+            # --- [修改点 14] 添加到未处理列表，并更新计数 ---
+            # 检查消息是否已存在于未处理列表中，避免重复添加
+            if not any(msg.get("message_id") == message_id for msg in self.unprocessed_messages):
+                 self.unprocessed_messages.append(message)
+                 self.new_messages_count = len(self.unprocessed_messages)
+                 logger.debug(f"[私聊][{self.private_name}]添加新未处理消息 ID: {message_id}, 当前未处理数: {self.new_messages_count}")
+                 self.update_changed()
+            else:
+                 logger.warning(f"[私聊][{self.private_name}]尝试重复添加未处理消息 ID: {message_id}")
 
-            # logger.debug(f"[私聊][{self.private_name}]消息更新: last_time={self.last_message_time}, new_count={self.new_messages_count}")
-            self.update_changed()  # 标记状态已改变
         else:
-            # 如果消息时间戳不是最新的，可能不需要处理，或者记录一个警告
             pass
-            # logger.warning(f"[私聊][{self.private_name}]收到过时或无效时间戳的消息: ID={message_id}, time={message_time}")
+
 
     def update_changed(self):
-        """标记状态已改变，并重置标记"""
-        # logger.debug(f"[私聊][{self.private_name}]状态标记为已改变 (changed=True)")
+        """标记状态已改变，并重置标记 (保持不变)"""
         self.changed = True
 
     async def update_cold_chat_status(self, is_cold: bool, current_time: float):
-        """更新冷场状态
-
-        Args:
-            is_cold: 是否处于冷场状态
-            current_time: 当前时间戳
-        """
-        if is_cold != self.is_cold_chat:  # 仅在状态变化时更新
+        """更新冷场状态 (保持不变)"""
+        if is_cold != self.is_cold_chat:
             self.is_cold_chat = is_cold
             if is_cold:
-                # 进入冷场状态
                 self.cold_chat_start_time = (
                     self.last_message_time or current_time
-                )  # 从最后消息时间开始算，或从当前时间开始
+                )
                 logger.info(f"[私聊][{self.private_name}]进入冷场状态，开始时间: {self.cold_chat_start_time}")
             else:
-                # 结束冷场状态
                 if self.cold_chat_start_time:
                     self.cold_chat_duration = current_time - self.cold_chat_start_time
                     logger.info(f"[私聊][{self.private_name}]结束冷场状态，持续时间: {self.cold_chat_duration:.2f} 秒")
-                self.cold_chat_start_time = None  # 重置开始时间
-            self.update_changed()  # 状态变化，标记改变
+                self.cold_chat_start_time = None
+            self.update_changed()
 
-        # 即使状态没变，如果是冷场状态，也更新持续时间
         if self.is_cold_chat and self.cold_chat_start_time:
             self.cold_chat_duration = current_time - self.cold_chat_start_time
 
     def get_active_duration(self) -> float:
-        """获取当前活跃时长 (距离最后一条消息的时间)
-
-        Returns:
-            float: 最后一条消息到现在的时长（秒）
-        """
+        """获取当前活跃时长 (保持不变)"""
         if not self.last_message_time:
             return 0.0
         return time.time() - self.last_message_time
 
     def get_user_response_time(self) -> Optional[float]:
-        """获取用户最后响应时间 (距离用户最后发言的时间)
-
-        Returns:
-            Optional[float]: 用户最后发言到现在的时长（秒），如果没有用户发言则返回None
-        """
+        """获取用户最后响应时间 (保持不变)"""
         if not self.last_user_speak_time:
             return None
         return time.time() - self.last_user_speak_time
 
     def get_bot_response_time(self) -> Optional[float]:
-        """获取机器人最后响应时间 (距离机器人最后发言的时间)
-
-        Returns:
-            Optional[float]: 机器人最后发言到现在的时长（秒），如果没有机器人发言则返回None
-        """
+        """获取机器人最后响应时间 (保持不变)"""
         if not self.last_bot_speak_time:
             return None
         return time.time() - self.last_bot_speak_time
 
-    async def clear_unprocessed_messages(self):
-        """将未处理消息移入历史记录，并更新相关状态"""
-        if not self.unprocessed_messages:
-            return  # 没有未处理消息，直接返回
+    # --- [修改点 15] 重命名并修改 clear_unprocessed_messages ---
+    # async def clear_unprocessed_messages(self): <-- 旧方法注释掉或删除
+    async def clear_processed_messages(self, message_ids_to_clear: Set[str]):
+        """将指定ID的未处理消息移入历史记录，并更新相关状态"""
+        if not message_ids_to_clear:
+            logger.debug(f"[私聊][{self.private_name}]没有需要清理的消息 ID。")
+            return
 
-        # logger.debug(f"[私聊][{self.private_name}]处理 {len(self.unprocessed_messages)} 条未处理消息...")
-        # 将未处理消息添加到历史记录中 (确保历史记录有长度限制，避免无限增长)
-        max_history_len = 100  # 示例：最多保留100条历史记录
-        self.chat_history.extend(self.unprocessed_messages)
+        messages_to_move = []
+        remaining_messages = []
+        cleared_count = 0
+
+        # 分离要清理和要保留的消息
+        for msg in self.unprocessed_messages:
+            if msg.get("message_id") in message_ids_to_clear:
+                messages_to_move.append(msg)
+                cleared_count += 1
+            else:
+                remaining_messages.append(msg)
+
+        if not messages_to_move:
+            logger.debug(f"[私聊][{self.private_name}]未找到与 ID 列表匹配的未处理消息进行清理。")
+            return
+
+        logger.debug(f"[私聊][{self.private_name}]准备清理 {cleared_count} 条已处理消息...")
+
+        # 将要移动的消息添加到历史记录
+        max_history_len = 100
+        self.chat_history.extend(messages_to_move)
         if len(self.chat_history) > max_history_len:
             self.chat_history = self.chat_history[-max_history_len:]
 
-        # 更新历史记录字符串 (只使用最近一部分生成，例如20条)
-        history_slice_for_str = self.chat_history[-20:]
+        # 更新历史记录字符串 (仅使用最近一部分生成)
+        history_slice_for_str = self.chat_history[-20:] # 例如最近20条
         try:
             self.chat_history_str = await build_readable_messages(
                 history_slice_for_str,
                 replace_bot_name=True,
                 merge_messages=False,
                 timestamp_mode="relative",
-                read_mark=0.0,  # read_mark 可能需要根据逻辑调整
+                read_mark=0.0,
             )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]构建聊天记录字符串时出错: {e}")
-            self.chat_history_str = "[构建聊天记录出错]"  # 提供错误提示
+            self.chat_history_str = "[构建聊天记录出错]"
 
-        # 清空未处理消息列表和计数
-        # cleared_count = len(self.unprocessed_messages)
-        self.unprocessed_messages.clear()
-        self.new_messages_count = 0
-        # self.has_unread_messages = False # 这个状态可以通过 new_messages_count 判断
+        # 更新未处理消息列表和计数
+        self.unprocessed_messages = remaining_messages
+        self.new_messages_count = len(self.unprocessed_messages)
+        self.chat_history_count = len(self.chat_history)
 
-        self.chat_history_count = len(self.chat_history)  # 更新历史记录总数
-        # logger.debug(f"[私聊][{self.private_name}]已处理 {cleared_count} 条消息，当前历史记录 {self.chat_history_count} 条。")
+        logger.info(f"[私聊][{self.private_name}]已清理 {cleared_count} 条消息，剩余未处理 {self.new_messages_count} 条，当前历史记录 {self.chat_history_count} 条。")
 
-        self.update_changed()  # 状态改变
+        self.update_changed() # 状态改变

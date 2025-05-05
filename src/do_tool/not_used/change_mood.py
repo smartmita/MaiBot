@@ -3,7 +3,7 @@ from src.config.config import global_config
 from src.common.logger_manager import get_logger
 from src.plugins.moods.moods import MoodManager
 
-from typing import Dict, Any
+from typing import Any
 
 logger = get_logger("change_mood_tool")
 
@@ -22,7 +22,7 @@ class ChangeMoodTool(BaseTool):
         "required": ["text", "response_set"],
     }
 
-    async def execute(self, function_args: Dict[str, Any], message_txt: str = "") -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any], message_txt: str = "") -> dict[str, Any]:
         """执行心情改变
 
         Args:
@@ -30,7 +30,7 @@ class ChangeMoodTool(BaseTool):
             message_txt: 原始消息文本
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         try:
             response_set = function_args.get("response_set")

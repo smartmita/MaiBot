@@ -5,6 +5,7 @@ from bson.decimal128 import Decimal128
 from .person_info import person_info_manager
 import time
 import random
+from maim_message import UserInfo
 # import re
 # import traceback
 
@@ -102,7 +103,7 @@ class RelationshipManager:
         # await person_info_manager.update_one_field(person_id, "user_avatar", user_avatar)
         await person_info_manager.qv_person_name(person_id, user_nickname, user_cardname, user_avatar)
 
-    async def calculate_update_relationship_value(self, chat_stream: ChatStream, label: str, stance: str) -> tuple:
+    async def calculate_update_relationship_value(self, user_info: UserInfo, platform: str, label: str, stance: str):
         """计算并变更关系值
         新的关系值变更计算方式：
             将关系值限定在-1000到1000
@@ -134,11 +135,11 @@ class RelationshipManager:
             "困惑": 0.5,
         }
 
-        person_id = person_info_manager.get_person_id(chat_stream.user_info.platform, chat_stream.user_info.user_id)
+        person_id = person_info_manager.get_person_id(platform, user_info.user_id)
         data = {
-            "platform": chat_stream.user_info.platform,
-            "user_id": chat_stream.user_info.user_id,
-            "nickname": chat_stream.user_info.user_nickname,
+            "platform": platform,
+            "user_id": user_info.user_id,
+            "nickname": user_info.user_nickname,
             "konw_time": int(time.time()),
         }
         old_value = await person_info_manager.get_value(person_id, "relationship_value")
@@ -178,7 +179,7 @@ class RelationshipManager:
         level_num = self.calculate_level_num(old_value + value)
         relationship_level = ["厌恶", "冷漠", "一般", "友好", "喜欢", "暧昧"]
         logger.info(
-            f"用户: {chat_stream.user_info.user_nickname}"
+            f"用户: {user_info.user_nickname}"
             f"当前关系: {relationship_level[level_num]}, "
             f"关系值: {old_value:.2f}, "
             f"当前立场情感: {stance}-{label}, "
@@ -186,8 +187,6 @@ class RelationshipManager:
         )
 
         await person_info_manager.update_one_field(person_id, "relationship_value", old_value + value, data)
-
-        return chat_stream.user_info.user_nickname, value, relationship_level[level_num]
 
     async def calculate_update_relationship_value_with_reason(
         self, chat_stream: ChatStream, label: str, stance: str, reason: str

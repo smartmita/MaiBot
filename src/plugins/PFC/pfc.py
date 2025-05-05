@@ -8,11 +8,34 @@ from src.individuality.individuality import Individuality
 from .conversation_info import ConversationInfo
 from .observation_info import ObservationInfo
 from src.plugins.utils.chat_message_builder import build_readable_messages
+from rich.traceback import install
+
+install(extra_lines=3)
 
 if TYPE_CHECKING:
     pass
 
 logger = get_module_logger("pfc")
+
+
+def _calculate_similarity(goal1: str, goal2: str) -> float:
+    """简单计算两个目标之间的相似度
+
+    这里使用一个简单的实现，实际可以使用更复杂的文本相似度算法
+
+    Args:
+        goal1: 第一个目标
+        goal2: 第二个目标
+
+    Returns:
+        float: 相似度得分 (0-1)
+    """
+    # 简单实现：检查重叠字数比例
+    words1 = set(goal1)
+    words2 = set(goal2)
+    overlap = len(words1.intersection(words2))
+    total = len(words1.union(words2))
+    return overlap / total if total > 0 else 0
 
 
 class GoalAnalyzer:
@@ -147,14 +170,14 @@ class GoalAnalyzer:
                 # 返回第一个目标作为当前主要目标（如果有）
                 if result:
                     first_goal = result[0]
-                    return (first_goal.get("goal", ""), "", first_goal.get("reasoning", ""))
+                    return first_goal.get("goal", ""), "", first_goal.get("reasoning", "")
             else:
                 # 单个目标的情况
                 conversation_info.goal_list.append(result)
-                return (goal, "", reasoning)
+                return goal, "", reasoning
 
         # 如果解析失败，返回默认值
-        return ("", "", "")
+        return "", "", ""
 
     async def _update_goals(self, new_goal: str, method: str, reasoning: str):
         """更新目标列表
@@ -166,7 +189,7 @@ class GoalAnalyzer:
         """
         # 检查新目标是否与现有目标相似
         for i, (existing_goal, _, _) in enumerate(self.goals):
-            if self._calculate_similarity(new_goal, existing_goal) > 0.7:  # 相似度阈值
+            if _calculate_similarity(new_goal, existing_goal) > 0.7:  # 相似度阈值
                 # 更新现有目标
                 self.goals[i] = (new_goal, method, reasoning)
                 # 将此目标移到列表前面（最主要的位置）
@@ -179,25 +202,6 @@ class GoalAnalyzer:
         # 限制目标数量
         if len(self.goals) > self.max_goals:
             self.goals.pop()  # 移除最老的目标
-
-    def _calculate_similarity(self, goal1: str, goal2: str) -> float:
-        """简单计算两个目标之间的相似度
-
-        这里使用一个简单的实现，实际可以使用更复杂的文本相似度算法
-
-        Args:
-            goal1: 第一个目标
-            goal2: 第二个目标
-
-        Returns:
-            float: 相似度得分 (0-1)
-        """
-        # 简单实现：检查重叠字数比例
-        words1 = set(goal1)
-        words2 = set(goal2)
-        overlap = len(words1.intersection(words2))
-        total = len(words1.union(words2))
-        return overlap / total if total > 0 else 0
 
     async def get_all_goals(self) -> List[Tuple[str, str, str]]:
         """获取所有当前目标

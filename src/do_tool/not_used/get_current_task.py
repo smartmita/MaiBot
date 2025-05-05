@@ -1,7 +1,7 @@
 from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.plugins.schedule.schedule_generator import bot_schedule
 from src.common.logger import get_module_logger
-from typing import Dict, Any
+from typing import Any
 from datetime import datetime
 
 logger = get_module_logger("get_current_task_tool")
@@ -21,7 +21,7 @@ class GetCurrentTaskTool(BaseTool):
         "required": ["start_time", "end_time"],
     }
 
-    async def execute(self, function_args: Dict[str, Any], message_txt: str = "") -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any], message_txt: str = "") -> dict[str, Any]:
         """执行获取当前任务或指定时间段的日程信息
 
         Args:
@@ -29,7 +29,7 @@ class GetCurrentTaskTool(BaseTool):
             message_txt: 原始消息文本，此工具不使用
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         start_time = function_args.get("start_time")
         end_time = function_args.get("end_time")
@@ -55,5 +55,6 @@ class GetCurrentTaskTool(BaseTool):
                 task_info = "\n".join(task_list)
             else:
                 task_info = f"在 {start_time} 到 {end_time} 之间没有找到日程信息"
-
+        else:
+            task_info = "请提供有效的开始时间和结束时间"
         return {"name": "get_current_task", "content": f"日程信息: {task_info}"}

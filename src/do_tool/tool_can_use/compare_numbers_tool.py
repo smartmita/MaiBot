@@ -1,6 +1,6 @@
 from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.common.logger import get_module_logger
-from typing import Dict, Any
+from typing import Any
 
 logger = get_module_logger("compare_numbers_tool")
 
@@ -9,7 +9,7 @@ class CompareNumbersTool(BaseTool):
     """比较两个数大小的工具"""
 
     name = "compare_numbers"
-    description = "比较两个数的大小，返回较大的数"
+    description = "使用工具 比较两个数的大小，返回较大的数"
     parameters = {
         "type": "object",
         "properties": {
@@ -19,15 +19,14 @@ class CompareNumbersTool(BaseTool):
         "required": ["num1", "num2"],
     }
 
-    async def execute(self, function_args: Dict[str, Any]) -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any]) -> dict[str, Any]:
         """执行比较两个数的大小
 
         Args:
             function_args: 工具参数
-            message_txt: 原始消息文本
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         try:
             num1 = function_args.get("num1")
@@ -40,10 +39,10 @@ class CompareNumbersTool(BaseTool):
             else:
                 result = f"{num1} 等于 {num2}"
 
-            return {"name": self.name, "content": result}
+            return {"type": "comparison_result", "id": f"{num1}_vs_{num2}", "content": result}
         except Exception as e:
             logger.error(f"比较数字失败: {str(e)}")
-            return {"name": self.name, "content": f"比较数字失败: {str(e)}"}
+            return {"type": "info", "id": f"{num1}_vs_{num2}", "content": f"比较数字失败，炸了: {str(e)}"}
 
 
 # 注册工具

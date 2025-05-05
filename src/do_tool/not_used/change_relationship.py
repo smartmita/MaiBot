@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Any
 from src.common.logger_manager import get_logger
 from src.do_tool.tool_can_use.base_tool import BaseTool
 
@@ -19,7 +19,7 @@ class RelationshipTool(BaseTool):
         "required": ["text", "changed_value", "reason"],
     }
 
-    async def execute(self, function_args: Dict[str, Any], message_txt: str = "") -> dict:
+    async def execute(self, function_args: dict[str, Any], message_txt: str = "") -> dict:
         """执行工具功能
 
         Args:

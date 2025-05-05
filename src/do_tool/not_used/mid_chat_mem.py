@@ -1,6 +1,6 @@
 from src.do_tool.tool_can_use.base_tool import BaseTool
 from src.common.logger import get_module_logger
-from typing import Dict, Any
+from typing import Any
 
 logger = get_module_logger("get_mid_memory_tool")
 
@@ -18,7 +18,7 @@ class GetMidMemoryTool(BaseTool):
         "required": ["id"],
     }
 
-    async def execute(self, function_args: Dict[str, Any], message_txt: str = "") -> Dict[str, Any]:
+    async def execute(self, function_args: dict[str, Any], message_txt: str = "") -> dict[str, Any]:
         """执行记忆获取
 
         Args:
@@ -26,7 +26,7 @@ class GetMidMemoryTool(BaseTool):
             message_txt: 原始消息文本
 
         Returns:
-            Dict: 工具执行结果
+            dict: 工具执行结果
         """
         try:
             id = function_args.get("id")

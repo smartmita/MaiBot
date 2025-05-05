@@ -76,10 +76,8 @@ class LlmcheckWillingManager(MxpWillingManager):
 
         current_date = time.strftime("%Y-%m-%d", time.localtime())
         current_time = time.strftime("%H:%M:%S", time.localtime())
-        chat_talking_prompt = ""
-        if chat_id:
-            chat_talking_prompt = get_recent_group_detailed_plain_text(chat_id, limit=length, combine=True)
-        else:
+        chat_talking_prompt = get_recent_group_detailed_plain_text(chat_id, limit=length, combine=True)
+        if not chat_id:
             return 0
 
         # if is_mentioned_bot:

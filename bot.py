@@ -13,6 +13,9 @@ from src.common.logger_manager import get_logger
 # from src.common.logger import LogConfig, CONFIRM_STYLE_CONFIG
 from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 logger = get_logger("main")
@@ -119,7 +122,6 @@ async def graceful_shutdown():
         for task in tasks:
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-
     except Exception as e:
         logger.error(f"麦麦关闭失败: {e}")
 
@@ -131,9 +133,7 @@ def check_eula():
     privacy_file = Path("PRIVACY.md")
 
     eula_updated = True
-    eula_new_hash = None
     privacy_updated = True
-    privacy_new_hash = None
 
     eula_confirmed = False
     privacy_confirmed = False

@@ -7,6 +7,9 @@ from datetime import datetime
 from tqdm import tqdm
 from rich.console import Console
 from rich.table import Table
+from rich.traceback import install
+
+install(extra_lines=3)
 
 # 添加项目根目录到 Python 路径
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../.."))
@@ -14,6 +17,7 @@ sys.path.append(root_path)
 
 # 现在可以导入src模块
 from src.common.database import db  # noqa E402
+
 
 # 加载根目录下的env.edv文件
 env_path = os.path.join(root_path, ".env")

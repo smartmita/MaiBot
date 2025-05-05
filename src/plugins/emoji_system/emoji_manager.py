@@ -15,7 +15,9 @@ from ...config.config import global_config
 from ..chat.utils_image import image_path_to_base64, image_manager
 from ..models.utils_model import LLMRequest
 from src.common.logger_manager import get_logger
+from rich.traceback import install
 
+install(extra_lines=3)
 
 logger = get_logger("emoji")
 
@@ -23,7 +25,6 @@ BASE_DIR = os.path.join("data")
 EMOJI_DIR = os.path.join(BASE_DIR, "emoji")  # 表情包存储目录
 EMOJI_REGISTED_DIR = os.path.join(BASE_DIR, "emoji_registed")  # 已注册的表情包注册目录
 MAX_EMOJI_FOR_PROMPT = 20  # 最大允许的表情包描述数量于图片替换的 prompt 中
-
 
 """
 还没经过测试，有些地方数据库和内存数据同步可能不完全
@@ -52,8 +53,6 @@ class MaiEmoji:
 
     async def initialize_hash_format(self):
         """从文件创建表情包实例, 计算哈希值和格式"""
-        image_base64 = None
-        image_bytes = None
         try:
             # 使用 full_path 检查文件是否存在
             if not os.path.exists(self.full_path):
@@ -225,6 +224,139 @@ class MaiEmoji:
             return False
 
 
+def _emoji_objects_to_readable_list(emoji_objects):
+    """将表情包对象列表转换为可读的字符串列表
+
+    参数:
+        emoji_objects: MaiEmoji对象列表
+
+    返回:
+        list[str]: 可读的表情包信息字符串列表
+    """
+    emoji_info_list = []
+    for i, emoji in enumerate(emoji_objects):
+        # 转换时间戳为可读时间
+        time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(emoji.register_time))
+        # 构建每个表情包的信息字符串
+        emoji_info = f"编号: {i + 1}\n描述: {emoji.description}\n使用次数: {emoji.usage_count}\n添加时间: {time_str}\n"
+        emoji_info_list.append(emoji_info)
+    return emoji_info_list
+
+
+def _to_emoji_objects(data):
+    emoji_objects = []
+    load_errors = 0
+    emoji_data_list = list(data)
+
+    for emoji_data in emoji_data_list:
+        full_path = emoji_data.get("full_path")
+        if not full_path:
+            logger.warning(f"[加载错误] 数据库记录缺少 'full_path' 字段: {emoji_data.get('_id')}")
+            load_errors += 1
+            continue  # 跳过缺少 full_path 的记录
+
+        try:
+            # 使用 full_path 初始化 MaiEmoji 对象
+            emoji = MaiEmoji(full_path=full_path)
+
+            # 设置从数据库加载的属性
+            emoji.hash = emoji_data.get("hash", "")
+            # 如果 hash 为空，也跳过？取决于业务逻辑
+            if not emoji.hash:
+                logger.warning(f"[加载错误] 数据库记录缺少 'hash' 字段: {full_path}")
+                load_errors += 1
+                continue
+
+            emoji.description = emoji_data.get("description", "")
+            emoji.emotion = emoji_data.get("emotion", [])
+            emoji.usage_count = emoji_data.get("usage_count", 0)
+            # 优先使用 last_used_time，否则用 timestamp，最后用当前时间
+            last_used = emoji_data.get("last_used_time")
+            timestamp = emoji_data.get("timestamp")
+            emoji.last_used_time = (
+                last_used if last_used is not None else (timestamp if timestamp is not None else time.time())
+            )
+            emoji.register_time = timestamp if timestamp is not None else time.time()
+            emoji.format = emoji_data.get("format", "")  # 加载格式
+
+            # 不需要再手动设置 path 和 filename，__init__ 会自动处理
+
+            emoji_objects.append(emoji)
+
+        except ValueError as ve:  # 捕获 __init__ 可能的错误
+            logger.error(f"[加载错误] 初始化 MaiEmoji 失败 ({full_path}): {ve}")
+            load_errors += 1
+        except Exception as e:
+            logger.error(f"[加载错误] 处理数据库记录时出错 ({full_path}): {str(e)}")
+            load_errors += 1
+    return emoji_objects, load_errors
+
+
+def _ensure_emoji_dir():
+    """确保表情存储目录存在"""
+    os.makedirs(EMOJI_DIR, exist_ok=True)
+    os.makedirs(EMOJI_REGISTED_DIR, exist_ok=True)
+
+
+async def clear_temp_emoji():
+    """清理临时表情包
+    清理/data/emoji和/data/image目录下的所有文件
+    当目录中文件数超过100时，会全部删除
+    """
+
+    logger.info("[清理] 开始清理缓存...")
+
+    for need_clear in (os.path.join(BASE_DIR, "emoji"), os.path.join(BASE_DIR, "image")):
+        if os.path.exists(need_clear):
+            files = os.listdir(need_clear)
+            # 如果文件数超过50就全部删除
+            if len(files) > 100:
+                for filename in files:
+                    file_path = os.path.join(need_clear, filename)
+                    if os.path.isfile(file_path):
+                        os.remove(file_path)
+                        logger.debug(f"[清理] 删除: {filename}")
+
+    logger.success("[清理] 完成")
+
+
+async def clean_unused_emojis(emoji_dir, emoji_objects):
+    """清理指定目录中未被 emoji_objects 追踪的表情包文件"""
+    if not os.path.exists(emoji_dir):
+        logger.warning(f"[清理] 目标目录不存在，跳过清理: {emoji_dir}")
+        return
+
+    try:
+        # 获取内存中所有有效表情包的完整路径集合
+        tracked_full_paths = {emoji.full_path for emoji in emoji_objects if not emoji.is_deleted}
+        cleaned_count = 0
+
+        # 遍历指定目录中的所有文件
+        for file_name in os.listdir(emoji_dir):
+            file_full_path = os.path.join(emoji_dir, file_name)
+
+            # 确保处理的是文件而不是子目录
+            if not os.path.isfile(file_full_path):
+                continue
+
+            # 如果文件不在被追踪的集合中，则删除
+            if file_full_path not in tracked_full_paths:
+                try:
+                    os.remove(file_full_path)
+                    logger.info(f"[清理] 删除未追踪的表情包文件: {file_full_path}")
+                    cleaned_count += 1
+                except Exception as e:
+                    logger.error(f"[错误] 删除文件时出错 ({file_full_path}): {str(e)}")
+
+        if cleaned_count > 0:
+            logger.success(f"[清理] 在目录 {emoji_dir} 中清理了 {cleaned_count} 个破损表情包。")
+        else:
+            logger.info(f"[清理] 目录 {emoji_dir} 中没有需要清理的。")
+
+    except Exception as e:
+        logger.error(f"[错误] 清理未使用表情包文件时出错 ({emoji_dir}): {str(e)}")
+
+
 class EmojiManager:
     _instance = None
 
@@ -235,6 +367,7 @@ class EmojiManager:
         return cls._instance
 
     def __init__(self):
+        self._initialized = None
         self._scan_task = None
         self.vlm = LLMRequest(model=global_config.vlm, temperature=0.3, max_tokens=1000, request_type="emoji")
         self.llm_emotion_judge = LLMRequest(
@@ -248,23 +381,18 @@ class EmojiManager:
 
         logger.info("启动表情包管理器")
 
-    def _ensure_emoji_dir(self):
-        """确保表情存储目录存在"""
-        os.makedirs(EMOJI_DIR, exist_ok=True)
-        os.makedirs(EMOJI_REGISTED_DIR, exist_ok=True)
-
     def initialize(self):
         """初始化数据库连接和表情目录"""
         if not self._initialized:
             try:
                 self._ensure_emoji_collection()
-                self._ensure_emoji_dir()
+                _ensure_emoji_dir()
                 self._initialized = True
                 # 更新表情包数量
                 # 启动时执行一次完整性检查
                 # await self.check_emoji_file_integrity()
-            except Exception:
-                logger.exception("初始化表情管理器失败")
+            except Exception as e:
+                logger.exception(f"初始化表情管理器失败: {e}")
 
     def _ensure_db(self):
         """确保数据库已初始化"""
@@ -291,12 +419,12 @@ class EmojiManager:
             db.emoji.create_index([("embedding", "2dsphere")])
             db.emoji.create_index([("filename", 1)], unique=True)
 
-    def record_usage(self, hash: str):
+    def record_usage(self, emoji_hash: str):
         """记录表情使用次数"""
         try:
-            db.emoji.update_one({"hash": hash}, {"$inc": {"usage_count": 1}})
+            db.emoji.update_one({"hash": emoji_hash}, {"$inc": {"usage_count": 1}})
             for emoji in self.emoji_objects:
-                if emoji.hash == hash:
+                if emoji.hash == emoji_hash:
                     emoji.usage_count += 1
                     break
 
@@ -458,7 +586,7 @@ class EmojiManager:
                 self.emoji_objects = [e for e in self.emoji_objects if e not in objects_to_remove]
 
             # 清理 EMOJI_REGISTED_DIR 目录中未被追踪的文件
-            await self.clean_unused_emojis(EMOJI_REGISTED_DIR, self.emoji_objects)
+            await clean_unused_emojis(EMOJI_REGISTED_DIR, self.emoji_objects)
 
             # 输出清理结果
             if removed_count > 0:
@@ -477,7 +605,7 @@ class EmojiManager:
         while True:
             logger.info("[扫描] 开始检查表情包完整性...")
             await self.check_emoji_file_integrity()
-            await self.clear_temp_emoji()
+            await clear_temp_emoji()
             logger.info("[扫描] 开始扫描新表情包...")
 
             # 检查表情包目录是否存在
@@ -531,51 +659,7 @@ class EmojiManager:
             self._ensure_db()
             logger.info("[数据库] 开始加载所有表情包记录...")
 
-            all_emoji_data = list(db.emoji.find())
-            emoji_objects = []
-            load_errors = 0
-
-            for emoji_data in all_emoji_data:
-                full_path = emoji_data.get("full_path")
-                if not full_path:
-                    logger.warning(f"[加载错误] 数据库记录缺少 'full_path' 字段: {emoji_data.get('_id')}")
-                    load_errors += 1
-                    continue  # 跳过缺少 full_path 的记录
-
-                try:
-                    # 使用 full_path 初始化 MaiEmoji 对象
-                    emoji = MaiEmoji(full_path=full_path)
-
-                    # 设置从数据库加载的属性
-                    emoji.hash = emoji_data.get("hash", "")
-                    # 如果 hash 为空，也跳过？取决于业务逻辑
-                    if not emoji.hash:
-                        logger.warning(f"[加载错误] 数据库记录缺少 'hash' 字段: {full_path}")
-                        load_errors += 1
-                        continue
-
-                    emoji.description = emoji_data.get("description", "")
-                    emoji.emotion = emoji_data.get("emotion", [])
-                    emoji.usage_count = emoji_data.get("usage_count", 0)
-                    # 优先使用 last_used_time，否则用 timestamp，最后用当前时间
-                    last_used = emoji_data.get("last_used_time")
-                    timestamp = emoji_data.get("timestamp")
-                    emoji.last_used_time = (
-                        last_used if last_used is not None else (timestamp if timestamp is not None else time.time())
-                    )
-                    emoji.register_time = timestamp if timestamp is not None else time.time()
-                    emoji.format = emoji_data.get("format", "")  # 加载格式
-
-                    # 不需要再手动设置 path 和 filename，__init__ 会自动处理
-
-                    emoji_objects.append(emoji)
-
-                except ValueError as ve:  # 捕获 __init__ 可能的错误
-                    logger.error(f"[加载错误] 初始化 MaiEmoji 失败 ({full_path}): {ve}")
-                    load_errors += 1
-                except Exception as e:
-                    logger.error(f"[加载错误] 处理数据库记录时出错 ({full_path}): {str(e)}")
-                    load_errors += 1
+            emoji_objects, load_errors = _to_emoji_objects(db.emoji.find())
 
             # 更新内存中的列表和数量
             self.emoji_objects = emoji_objects
@@ -590,11 +674,11 @@ class EmojiManager:
             self.emoji_objects = []  # 加载失败则清空列表
             self.emoji_num = 0
 
-    async def get_emoji_from_db(self, hash=None):
+    async def get_emoji_from_db(self, emoji_hash=None):
         """获取指定哈希值的表情包并初始化为MaiEmoji类对象列表 (主要用于调试或特定查找)
 
         参数:
-            hash: 可选，如果提供则只返回指定哈希值的表情包
+            emoji_hash: 可选，如果提供则只返回指定哈希值的表情包
 
         返回:
             list[MaiEmoji]: 表情包对象列表
@@ -603,49 +687,14 @@ class EmojiManager:
             self._ensure_db()
 
             query = {}
-            if hash:
-                query = {"hash": hash}
+            if emoji_hash:
+                query = {"hash": emoji_hash}
             else:
                 logger.warning(
                     "[查询] 未提供 hash，将尝试加载所有表情包，建议使用 get_all_emoji_from_db 更新管理器状态。"
                 )
 
-            emoji_data_list = list(db.emoji.find(query))
-            emoji_objects = []
-            load_errors = 0
-
-            for emoji_data in emoji_data_list:
-                full_path = emoji_data.get("full_path")
-                if not full_path:
-                    logger.warning(f"[加载错误] 数据库记录缺少 'full_path' 字段: {emoji_data.get('_id')}")
-                    load_errors += 1
-                    continue
-
-                try:
-                    emoji = MaiEmoji(full_path=full_path)
-                    emoji.hash = emoji_data.get("hash", "")
-                    if not emoji.hash:
-                        logger.warning(f"[加载错误] 数据库记录缺少 'hash' 字段: {full_path}")
-                        load_errors += 1
-                        continue
-
-                    emoji.description = emoji_data.get("description", "")
-                    emoji.emotion = emoji_data.get("emotion", [])
-                    emoji.usage_count = emoji_data.get("usage_count", 0)
-                    last_used = emoji_data.get("last_used_time")
-                    timestamp = emoji_data.get("timestamp")
-                    emoji.last_used_time = (
-                        last_used if last_used is not None else (timestamp if timestamp is not None else time.time())
-                    )
-                    emoji.register_time = timestamp if timestamp is not None else time.time()
-                    emoji.format = emoji_data.get("format", "")
-                    emoji_objects.append(emoji)
-                except ValueError as ve:
-                    logger.error(f"[加载错误] 初始化 MaiEmoji 失败 ({full_path}): {ve}")
-                    load_errors += 1
-                except Exception as e:
-                    logger.error(f"[加载错误] 处理数据库记录时出错 ({full_path}): {str(e)}")
-                    load_errors += 1
+            emoji_objects, load_errors = _to_emoji_objects(db.emoji.find(query))
 
             if load_errors > 0:
                 logger.warning(f"[查询] 加载过程中出现 {load_errors} 个错误。")
@@ -656,17 +705,17 @@ class EmojiManager:
             logger.error(f"[错误] 从数据库获取表情包对象失败: {str(e)}")
             return []
 
-    async def get_emoji_from_manager(self, hash) -> Optional[MaiEmoji]:
+    async def get_emoji_from_manager(self, emoji_hash) -> Optional[MaiEmoji]:
         """从内存中的 emoji_objects 列表获取表情包
 
         参数:
-            hash: 要查找的表情包哈希值
+            emoji_hash: 要查找的表情包哈希值
         返回:
             MaiEmoji 或 None: 如果找到则返回 MaiEmoji 对象，否则返回 None
         """
         for emoji in self.emoji_objects:
             # 确保对象未被标记为删除且哈希值匹配
-            if not emoji.is_deleted and emoji.hash == hash:
+            if not emoji.is_deleted and emoji.hash == emoji_hash:
                 return emoji
         return None  # 如果循环结束还没找到，则返回 None
 
@@ -709,26 +758,6 @@ class EmojiManager:
             logger.error(traceback.format_exc())
             return False
 
-    def _emoji_objects_to_readable_list(self, emoji_objects):
-        """将表情包对象列表转换为可读的字符串列表
-
-        参数:
-            emoji_objects: MaiEmoji对象列表
-
-        返回:
-            list[str]: 可读的表情包信息字符串列表
-        """
-        emoji_info_list = []
-        for i, emoji in enumerate(emoji_objects):
-            # 转换时间戳为可读时间
-            time_str = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(emoji.register_time))
-            # 构建每个表情包的信息字符串
-            emoji_info = (
-                f"编号: {i + 1}\n描述: {emoji.description}\n使用次数: {emoji.usage_count}\n添加时间: {time_str}\n"
-            )
-            emoji_info_list.append(emoji_info)
-        return emoji_info_list
-
     async def replace_a_emoji(self, new_emoji: MaiEmoji):
         """替换一个表情包
 
@@ -755,7 +784,7 @@ class EmojiManager:
             )
 
             # 将表情包信息转换为可读的字符串
-            emoji_info_list = self._emoji_objects_to_readable_list(selected_emojis)
+            emoji_info_list = _emoji_objects_to_readable_list(selected_emojis)
 
             # 构建提示词
             prompt = (
@@ -853,7 +882,7 @@ class EmojiManager:
                 '''
                 content, _ = await self.vlm.generate_response_for_image(prompt, image_base64, image_format)
                 if content == "否":
-                    return None, []
+                    return "", []
 
             # 分析情感含义
             emotion_prompt = f"""
@@ -988,76 +1017,6 @@ class EmojiManager:
                 except Exception as remove_error:
                     logger.error(f"[错误] 删除异常处理文件时出错: {remove_error}")
             return False
-
-    async def clear_temp_emoji(self):
-        """清理临时表情包
-        清理/data/emoji和/data/image目录下的所有文件
-        当目录中文件数超过100时，会全部删除
-        """
-
-        logger.info("[清理] 开始清理缓存...")
-
-        # 清理emoji目录
-        emoji_dir = os.path.join(BASE_DIR, "emoji")
-        if os.path.exists(emoji_dir):
-            files = os.listdir(emoji_dir)
-            # 如果文件数超过50就全部删除
-            if len(files) > 100:
-                for filename in files:
-                    file_path = os.path.join(emoji_dir, filename)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        logger.debug(f"[清理] 删除: {filename}")
-
-        # 清理image目录
-        image_dir = os.path.join(BASE_DIR, "image")
-        if os.path.exists(image_dir):
-            files = os.listdir(image_dir)
-            # 如果文件数超过50就全部删除
-            if len(files) > 100:
-                for filename in files:
-                    file_path = os.path.join(image_dir, filename)
-                    if os.path.isfile(file_path):
-                        os.remove(file_path)
-                        logger.debug(f"[清理] 删除图片: {filename}")
-
-        logger.success("[清理] 完成")
-
-    async def clean_unused_emojis(self, emoji_dir, emoji_objects):
-        """清理指定目录中未被 emoji_objects 追踪的表情包文件"""
-        if not os.path.exists(emoji_dir):
-            logger.warning(f"[清理] 目标目录不存在，跳过清理: {emoji_dir}")
-            return
-
-        try:
-            # 获取内存中所有有效表情包的完整路径集合
-            tracked_full_paths = {emoji.full_path for emoji in emoji_objects if not emoji.is_deleted}
-            cleaned_count = 0
-
-            # 遍历指定目录中的所有文件
-            for file_name in os.listdir(emoji_dir):
-                file_full_path = os.path.join(emoji_dir, file_name)
-
-                # 确保处理的是文件而不是子目录
-                if not os.path.isfile(file_full_path):
-                    continue
-
-                # 如果文件不在被追踪的集合中，则删除
-                if file_full_path not in tracked_full_paths:
-                    try:
-                        os.remove(file_full_path)
-                        logger.info(f"[清理] 删除未追踪的表情包文件: {file_full_path}")
-                        cleaned_count += 1
-                    except Exception as e:
-                        logger.error(f"[错误] 删除文件时出错 ({file_full_path}): {str(e)}")
-
-            if cleaned_count > 0:
-                logger.success(f"[清理] 在目录 {emoji_dir} 中清理了 {cleaned_count} 个破损表情包。")
-            else:
-                logger.info(f"[清理] 目录 {emoji_dir} 中没有需要清理的。")
-
-        except Exception as e:
-            logger.error(f"[错误] 清理未使用表情包文件时出错 ({emoji_dir}): {str(e)}")
 
 
 # 创建全局单例

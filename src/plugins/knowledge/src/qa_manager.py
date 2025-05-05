@@ -27,7 +27,7 @@ class QAManager:
         self.kg_manager = kg_manager
         self.llm_client_list = {
             "embedding": llm_client_embedding,
-            "filter": llm_client_filter,
+            "message_filter": llm_client_filter,
             "qa": llm_client_qa,
         }
 

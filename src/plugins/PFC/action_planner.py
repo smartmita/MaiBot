@@ -1,5 +1,9 @@
 import time
-from typing import Tuple, Optional  # 增加了 Optional
+from typing import Tuple, Optional
+from .pfc_utils import retrieve_contextual_info
+
+# import jieba # 如果需要旧版知识库的回退，可能需要
+# import re    # 如果需要旧版知识库的回退，可能需要
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -21,20 +25,21 @@ PROMPT_INITIAL_REPLY = """{persona_text}。现在你在参与一场QQ私聊，�
 
 【当前对话目标】
 {goals_str}
-{knowledge_info_str}
-
 【最近行动历史概要】
 {action_history_summary}
+【你想起来的相关知识】
+{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
 {time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
+【你的的回忆】
+{retrieved_memory_str}
 
 ------
 可选行动类型以及解释：
-fetch_knowledge: 需要调取知识或记忆，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
 direct_reply: 直接回复对方
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
@@ -50,24 +55,24 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
 
 # Prompt(2): 上一次成功回复后，决定继续发言时的决策 Prompt
-PROMPT_FOLLOW_UP = """{persona_text}。现在你在参与一场QQ私聊，刚刚你已经回复了对方，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方： 
+PROMPT_FOLLOW_UP = """{persona_text}。现在你在参与一场QQ私聊，刚刚你已经回复了对方，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
-{knowledge_info_str}
-
 【最近行动历史概要】
 {action_history_summary}
+【你想起来的相关知识】
+{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
-{time_since_last_bot_message_info}{timeout_context} 
+{time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-
+【你的的回忆】
+{retrieved_memory_str}
 ------
 可选行动类型以及解释：
-fetch_knowledge: 需要调取知识，当需要专业知识或特定信息时选择，对方若提到你不太认识的人名或实体也可以尝试选择
 wait: 暂时不说话，留给对方交互空间，等待对方回复（尤其是在你刚发言后、或上次发言因重复、发言过多被拒时、或不确定做什么时，这是不错的选择）
 listening: 倾听对方发言（虽然你刚发过言，但如果对方立刻回复且明显话没说完，可以选择这个）
 send_new_message: 发送一条新消息继续对话，允许适当的追问、补充、深入话题，或开启相关新话题。**但是避免在因重复被拒后立即使用，也不要在对方没有回复的情况下过多的“消息轰炸”或重复发言**
@@ -117,7 +122,6 @@ class ActionPlanner:
         self.name = global_config.BOT_NICKNAME
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-        # self.action_planner_info = ActionPlannerInfo() # 移除未使用的变量
 
     # 修改 plan 方法签名，增加 last_successful_reply_action 参数
     async def plan(
@@ -226,43 +230,7 @@ class ActionPlanner:
             logger.error(f"[私聊][{self.private_name}]构建对话目标字符串时出错: {e}")
             goals_str = "- 构建对话目标时出错。\n"
 
-        # --- 知识信息字符串构建开始 ---
-        knowledge_info_str = "【已获取的相关知识和记忆】\n"
-        try:
-            # 检查 conversation_info 是否有 knowledge_list 并且不为空
-            if hasattr(conversation_info, "knowledge_list") and conversation_info.knowledge_list:
-                # 最多只显示最近的 5 条知识，防止 Prompt 过长
-                recent_knowledge = conversation_info.knowledge_list[-5:]
-                for i, knowledge_item in enumerate(recent_knowledge):
-                    if isinstance(knowledge_item, dict):
-                        query = knowledge_item.get("query", "未知查询")
-                        knowledge = knowledge_item.get("knowledge", "无知识内容")
-                        source = knowledge_item.get("source", "未知来源")
-                        # 只取知识内容的前 2000 个字，避免太长
-                        knowledge_snippet = knowledge[:2000] + "..." if len(knowledge) > 2000 else knowledge
-                        knowledge_info_str += (
-                            f"{i + 1}. 关于 '{query}' 的知识 (来源: {source}):\n   {knowledge_snippet}\n"
-                        )
-                    else:
-                        # 处理列表里不是字典的异常情况
-                        knowledge_info_str += f"{i + 1}. 发现一条格式不正确的知识记录。\n"
-
-                if not recent_knowledge:  # 如果 knowledge_list 存在但为空
-                    knowledge_info_str += "- 暂无相关知识和记忆。\n"
-
-            else:
-                # 如果 conversation_info 没有 knowledge_list 属性，或者列表为空
-                knowledge_info_str += "- 暂无相关知识记忆。\n"
-        except AttributeError:
-            logger.warning(f"[私聊][{self.private_name}]ConversationInfo 对象可能缺少 knowledge_list 属性。")
-            knowledge_info_str += "- 获取知识列表时出错。\n"
-        except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]构建知识信息字符串时出错: {e}")
-            knowledge_info_str += "- 处理知识列表时出错。\n"
-        # --- 知识信息字符串构建结束 ---
-
         # 获取聊天历史记录 (chat_history_text)
-        chat_history_text = ""
         try:
             if hasattr(observation_info, "chat_history") and observation_info.chat_history:
                 chat_history_text = observation_info.chat_history_str
@@ -369,6 +337,14 @@ class ActionPlanner:
                         last_action_context += f"- 该行动当前状态: {status}\n"
                         # self.last_successful_action_type = None # 非完成状态，清除记录
 
+        retrieved_memory_str_planner, retrieved_knowledge_str_planner = await retrieve_contextual_info(
+            chat_history_text, self.private_name
+        )
+        # Optional: 可以加一行日志确认结果，方便调试
+        logger.info(
+            f"[私聊][{self.private_name}] (ActionPlanner) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str_planner else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str_planner and '无相关知识' not in retrieved_knowledge_str_planner else '无'}"
+        )
+
         # --- 选择 Prompt ---
         if last_successful_reply_action in ["direct_reply", "send_new_message"]:
             prompt_template = PROMPT_FOLLOW_UP
@@ -386,7 +362,11 @@ class ActionPlanner:
             time_since_last_bot_message_info=time_since_last_bot_message_info,
             timeout_context=timeout_context,
             chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
-            knowledge_info_str=knowledge_info_str,
+            # knowledge_info_str=knowledge_info_str, # 移除了旧知识展示方式
+            retrieved_memory_str=retrieved_memory_str_planner if retrieved_memory_str_planner else "无相关记忆。",
+            retrieved_knowledge_str=retrieved_knowledge_str_planner
+            if retrieved_knowledge_str_planner
+            else "无相关知识。",
         )
 
         logger.debug(f"[私聊][{self.private_name}]发送到LLM的最终提示词:\n------\n{prompt}\n------")
@@ -469,7 +449,6 @@ class ActionPlanner:
                 valid_actions = [
                     "direct_reply",
                     "send_new_message",
-                    "fetch_knowledge",
                     "wait",
                     "listening",
                     "rethink_goal",

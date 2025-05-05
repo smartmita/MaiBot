@@ -14,6 +14,9 @@ from packaging.version import Version, InvalidVersion
 from packaging.specifiers import SpecifierSet, InvalidSpecifier
 
 from src.common.logger_manager import get_logger
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 # 配置主程序日志格式
@@ -22,7 +25,7 @@ logger = get_logger("config")
 # 考虑到，实际上配置文件中的mai_version是不会自动更新的,所以采用硬编码
 is_test = False
 mai_version_main = "0.6.3"
-mai_version_fix = "fix-1"
+mai_version_fix = "fix-2"
 
 if mai_version_fix:
     if is_test:
@@ -268,11 +271,12 @@ class BotConfig:
     # experimental
     enable_friend_chat: bool = False  # 是否启用好友聊天
     # enable_think_flow: bool = False  # 是否启用思考流程
+    talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
 
     # 模型配置
-    llm_reasoning: Dict[str, str] = field(default_factory=lambda: {})
-    # llm_reasoning_minor: Dict[str, str] = field(default_factory=lambda: {})
+    llm_reasoning: dict[str, str] = field(default_factory=lambda: {})
+    # llm_reasoning_minor: dict[str, str] = field(default_factory=lambda: {})
     llm_normal: Dict[str, str] = field(default_factory=lambda: {})
     llm_topic_judge: Dict[str, str] = field(default_factory=lambda: {})
     llm_summary: Dict[str, str] = field(default_factory=lambda: {})
@@ -651,6 +655,7 @@ class BotConfig:
             experimental_config = parent["experimental"]
             config.enable_friend_chat = experimental_config.get("enable_friend_chat", config.enable_friend_chat)
             # config.enable_think_flow = experimental_config.get("enable_think_flow", config.enable_think_flow)
+            config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
             if config.INNER_VERSION in SpecifierSet(">=1.1.0"):
                 config.enable_pfc_chatting = experimental_config.get("pfc_chatting", config.enable_pfc_chatting)
 

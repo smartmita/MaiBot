@@ -28,8 +28,26 @@ matplotlib.rcParams["font.sans-serif"] = ["SimHei", "Microsoft YaHei"]
 matplotlib.rcParams["axes.unicode_minus"] = False  # 解决负号'-'显示为方块的问题
 
 
+def get_random_color():
+    """生成随机颜色用于区分线条"""
+    return "#{:06x}".format(random.randint(0, 0xFFFFFF))
+
+
+def format_timestamp(ts):
+    """辅助函数：格式化时间戳，处理 None 或无效值"""
+    if ts is None:
+        return "N/A"
+    try:
+        # 假设 ts 是 float 类型的时间戳
+        dt_object = datetime.fromtimestamp(float(ts))
+        return dt_object.strftime("%Y-%m-%d %H:%M:%S")
+    except (ValueError, TypeError):
+        return "Invalid Time"
+
+
 class InterestMonitorApp:
     def __init__(self, root):
+        self._main_mind_loaded = None
         self.root = root
         self.root.title(WINDOW_TITLE)
         self.root.geometry("1800x800")  # 调整窗口大小以适应图表
@@ -172,10 +190,6 @@ class InterestMonitorApp:
     def on_stream_selected(self, event=None):
         """当 Combobox 选择改变时调用，更新单个流的图表"""
         self.update_single_stream_plot()
-
-    def get_random_color(self):
-        """生成随机颜色用于区分线条"""
-        return "#{:06x}".format(random.randint(0, 0xFFFFFF))
 
     def load_main_mind_history(self):
         """只读取包含main_mind的日志行，维护历史想法队列"""
@@ -332,7 +346,7 @@ class InterestMonitorApp:
                                 new_probability_history[stream_id] = deque(maxlen=MAX_HISTORY_POINTS)  # 创建概率 deque
                                 # 检查是否已有颜色，没有则分配
                                 if stream_id not in self.stream_colors:
-                                    self.stream_colors[stream_id] = self.get_random_color()
+                                    self.stream_colors[stream_id] = get_random_color()
 
                             # *** 存储此 stream_id 最新的显示名称 ***
                             new_stream_display_names[stream_id] = group_name
@@ -593,17 +607,6 @@ class InterestMonitorApp:
         # --- 新增：重新绘制画布 ---
         self.canvas_single.draw()
 
-    def format_timestamp(self, ts):
-        """辅助函数：格式化时间戳，处理 None 或无效值"""
-        if ts is None:
-            return "N/A"
-        try:
-            # 假设 ts 是 float 类型的时间戳
-            dt_object = datetime.fromtimestamp(float(ts))
-            return dt_object.strftime("%Y-%m-%d %H:%M:%S")
-        except (ValueError, TypeError):
-            return "Invalid Time"
-
     def update_single_stream_details(self, stream_id):
         """更新单个流详情区域的标签内容"""
         if stream_id:
@@ -616,8 +619,8 @@ class InterestMonitorApp:
             self.single_stream_sub_mind.set(f"想法: {sub_mind}")
             self.single_stream_chat_state.set(f"状态: {chat_state}")
             self.single_stream_threshold.set(f"阈值以上: {'是' if threshold else '否'}")
-            self.single_stream_last_active.set(f"最后活跃: {self.format_timestamp(last_active_ts)}")
-            self.single_stream_last_interaction.set(f"最后交互: {self.format_timestamp(last_interaction_ts)}")
+            self.single_stream_last_active.set(f"最后活跃: {format_timestamp(last_active_ts)}")
+            self.single_stream_last_interaction.set(f"最后交互: {format_timestamp(last_interaction_ts)}")
         else:
             # 如果没有选择流，则清空详情
             self.single_stream_sub_mind.set("想法: N/A")

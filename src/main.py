@@ -17,6 +17,9 @@ from .common.logger_manager import get_logger
 from .plugins.remote import heartbeat_thread  # noqa: F401
 from .individuality.individuality import Individuality
 from .common.server import global_server
+from rich.traceback import install
+
+install(extra_lines=3)
 
 logger = get_logger("main")
 

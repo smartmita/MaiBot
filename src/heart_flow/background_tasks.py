@@ -18,11 +18,40 @@ INTEREST_EVAL_INTERVAL_SECONDS = 5
 # 新增聊天超时检查间隔
 NORMAL_CHAT_TIMEOUT_CHECK_INTERVAL_SECONDS = 60
 # 新增状态评估间隔
-HF_JUDGE_STATE_UPDATE_INTERVAL_SECONDS = 60
+HF_JUDGE_STATE_UPDATE_INTERVAL_SECONDS = 20
+# 新增私聊激活检查间隔
+PRIVATE_CHAT_ACTIVATION_CHECK_INTERVAL_SECONDS = 5  # 与兴趣评估类似，设为5秒
 
 CLEANUP_INTERVAL_SECONDS = 1200
 STATE_UPDATE_INTERVAL_SECONDS = 60
 LOG_INTERVAL_SECONDS = 3
+
+
+async def _run_periodic_loop(
+    task_name: str, interval: int, task_func: Callable[..., Coroutine[Any, Any, None]], **kwargs
+):
+    """周期性任务主循环"""
+    while True:
+        start_time = asyncio.get_event_loop().time()
+        # logger.debug(f"开始执行后台任务: {task_name}")
+
+        try:
+            await task_func(**kwargs)  # 执行实际任务
+        except asyncio.CancelledError:
+            logger.info(f"任务 {task_name} 已取消")
+            break
+        except Exception as e:
+            logger.error(f"任务 {task_name} 执行出错: {e}")
+            logger.error(traceback.format_exc())
+
+        # 计算并执行间隔等待
+        elapsed = asyncio.get_event_loop().time() - start_time
+        sleep_time = max(0, interval - elapsed)
+        # if sleep_time < 0.1:  # 任务超时处理, DEBUG 时可能干扰断点
+        #     logger.warning(f"任务 {task_name} 超时执行 ({elapsed:.2f}s > {interval}s)")
+        await asyncio.sleep(sleep_time)
+
+    logger.debug(f"任务循环结束: {task_name}")  # 调整日志信息
 
 
 class BackgroundTaskManager:
@@ -44,9 +73,10 @@ class BackgroundTaskManager:
         self._state_update_task: Optional[asyncio.Task] = None
         self._cleanup_task: Optional[asyncio.Task] = None
         self._logging_task: Optional[asyncio.Task] = None
-        self._normal_chat_timeout_check_task: Optional[asyncio.Task] = None  # Nyaa~ 添加聊天超时检查任务的引用
-        self._hf_judge_state_update_task: Optional[asyncio.Task] = None  # Nyaa~ 添加状态评估任务的引用
-        self._into_focus_task: Optional[asyncio.Task] = None  # Nyaa~ 添加兴趣评估任务的引用
+        self._normal_chat_timeout_check_task: Optional[asyncio.Task] = None
+        self._hf_judge_state_update_task: Optional[asyncio.Task] = None
+        self._into_focus_task: Optional[asyncio.Task] = None
+        self._private_chat_activation_task: Optional[asyncio.Task] = None  # 新增私聊激活任务引用
         self._tasks: List[Optional[asyncio.Task]] = []  # Keep track of all tasks
 
     async def start_tasks(self):
@@ -97,6 +127,14 @@ class BackgroundTaskManager:
                 f"专注评估任务已启动 间隔:{INTEREST_EVAL_INTERVAL_SECONDS}s",
                 "_into_focus_task",
             ),
+            # 新增私聊激活任务配置
+            (
+                # Use lambda to pass the interval to the runner function
+                lambda: self._run_private_chat_activation_cycle(PRIVATE_CHAT_ACTIVATION_CHECK_INTERVAL_SECONDS),
+                "debug",
+                f"私聊激活检查任务已启动 间隔:{PRIVATE_CHAT_ACTIVATION_CHECK_INTERVAL_SECONDS}s",
+                "_private_chat_activation_task",
+            ),
         ]
 
         # 统一启动所有任务
@@ -142,32 +180,6 @@ class BackgroundTaskManager:
 
         # 第三步：清空任务列表
         self._tasks = []  # 重置任务列表
-
-    async def _run_periodic_loop(
-        self, task_name: str, interval: int, task_func: Callable[..., Coroutine[Any, Any, None]], **kwargs
-    ):
-        """周期性任务主循环"""
-        while True:
-            start_time = asyncio.get_event_loop().time()
-            # logger.debug(f"开始执行后台任务: {task_name}")
-
-            try:
-                await task_func(**kwargs)  # 执行实际任务
-            except asyncio.CancelledError:
-                logger.info(f"任务 {task_name} 已取消")
-                break
-            except Exception as e:
-                logger.error(f"任务 {task_name} 执行出错: {e}")
-                logger.error(traceback.format_exc())
-
-            # 计算并执行间隔等待
-            elapsed = asyncio.get_event_loop().time() - start_time
-            sleep_time = max(0, interval - elapsed)
-            # if sleep_time < 0.1:  # 任务超时处理, DEBUG 时可能干扰断点
-            #     logger.warning(f"任务 {task_name} 超时执行 ({elapsed:.2f}s > {interval}s)")
-            await asyncio.sleep(sleep_time)
-
-        logger.debug(f"任务循环结束: {task_name}")  # 调整日志信息
 
     async def _perform_state_update_work(self):
         """执行状态更新工作"""
@@ -249,34 +261,38 @@ class BackgroundTaskManager:
 
     # --- Specific Task Runners --- #
     async def _run_state_update_cycle(self, interval: int):
-        await self._run_periodic_loop(
-            task_name="State Update", interval=interval, task_func=self._perform_state_update_work
-        )
+        await _run_periodic_loop(task_name="State Update", interval=interval, task_func=self._perform_state_update_work)
 
     async def _run_absent_into_chat(self, interval: int):
-        await self._run_periodic_loop(
-            task_name="Into Chat", interval=interval, task_func=self._perform_absent_into_chat
-        )
+        await _run_periodic_loop(task_name="Into Chat", interval=interval, task_func=self._perform_absent_into_chat)
 
     async def _run_normal_chat_timeout_check_cycle(self, interval: int):
-        await self._run_periodic_loop(
+        await _run_periodic_loop(
             task_name="Normal Chat Timeout Check", interval=interval, task_func=self._normal_chat_timeout_check_work
         )
 
     async def _run_cleanup_cycle(self):
-        await self._run_periodic_loop(
+        await _run_periodic_loop(
             task_name="Subflow Cleanup", interval=CLEANUP_INTERVAL_SECONDS, task_func=self._perform_cleanup_work
         )
 
     async def _run_logging_cycle(self):
-        await self._run_periodic_loop(
+        await _run_periodic_loop(
             task_name="State Logging", interval=LOG_INTERVAL_SECONDS, task_func=self._perform_logging_work
         )
 
     # --- 新增兴趣评估任务运行器 ---
     async def _run_into_focus_cycle(self):
-        await self._run_periodic_loop(
+        await _run_periodic_loop(
             task_name="Into Focus",
             interval=INTEREST_EVAL_INTERVAL_SECONDS,
             task_func=self._perform_into_focus_work,
+        )
+
+    # 新增私聊激活任务运行器
+    async def _run_private_chat_activation_cycle(self, interval: int):
+        await _run_periodic_loop(
+            task_name="Private Chat Activation Check",
+            interval=interval,
+            task_func=self.subheartflow_manager.sbhf_absent_private_into_focus,
         )

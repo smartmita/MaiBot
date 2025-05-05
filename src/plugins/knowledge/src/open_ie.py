@@ -1,8 +1,12 @@
 import json
+import os
+import glob
 from typing import Any, Dict, List
 
 
 from .lpmmconfig import INVALID_ENTITY, global_config
+
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
 
 
 def _filter_invalid_entities(entities: List[str]) -> List[str]:
@@ -74,12 +78,22 @@ class OpenIE:
             doc["extracted_triples"] = _filter_invalid_triples(doc["extracted_triples"])
 
     @staticmethod
-    def _from_dict(data):
-        """从字典中获取OpenIE对象"""
+    def _from_dict(data_list):
+        """从多个字典合并OpenIE对象"""
+        # data_list: List[dict]
+        all_docs = []
+        for data in data_list:
+            all_docs.extend(data.get("docs", []))
+        # 重新计算统计
+        sum_phrase_chars = sum([len(e) for chunk in all_docs for e in chunk["extracted_entities"]])
+        sum_phrase_words = sum([len(e.split()) for chunk in all_docs for e in chunk["extracted_entities"]])
+        num_phrases = sum([len(chunk["extracted_entities"]) for chunk in all_docs])
+        avg_ent_chars = round(sum_phrase_chars / num_phrases, 4) if num_phrases else 0
+        avg_ent_words = round(sum_phrase_words / num_phrases, 4) if num_phrases else 0
         return OpenIE(
-            docs=data["docs"],
-            avg_ent_chars=data["avg_ent_chars"],
-            avg_ent_words=data["avg_ent_words"],
+            docs=all_docs,
+            avg_ent_chars=avg_ent_chars,
+            avg_ent_words=avg_ent_words,
         )
 
     def _to_dict(self):
@@ -92,12 +106,20 @@ class OpenIE:
 
     @staticmethod
     def load() -> "OpenIE":
-        """从文件中加载OpenIE数据"""
-        with open(global_config["persistence"]["openie_data_path"], "r", encoding="utf-8") as f:
-            data = json.loads(f.read())
-
-        openie_data = OpenIE._from_dict(data)
-
+        """从OPENIE_DIR下所有json文件合并加载OpenIE数据"""
+        openie_dir = os.path.join(ROOT_PATH, global_config["persistence"]["openie_data_path"])
+        if not os.path.exists(openie_dir):
+            raise Exception(f"OpenIE数据目录不存在: {openie_dir}")
+        json_files = sorted(glob.glob(os.path.join(openie_dir, "*.json")))
+        data_list = []
+        for file in json_files:
+            with open(file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                data_list.append(data)
+        if not data_list:
+            # print(f"111111111111111111111Root Path : \n{ROOT_PATH}")
+            raise Exception(f"未在 {openie_dir} 找到任何OpenIE json文件")
+        openie_data = OpenIE._from_dict(data_list)
         return openie_data
 
     @staticmethod
@@ -132,3 +154,8 @@ class OpenIE:
         """提取原始段落"""
         raw_paragraph_dict = dict({doc_item["idx"]: doc_item["passage"] for doc_item in self.docs})
         return raw_paragraph_dict
+
+
+if __name__ == "__main__":
+    # 测试代码
+    print(ROOT_PATH)

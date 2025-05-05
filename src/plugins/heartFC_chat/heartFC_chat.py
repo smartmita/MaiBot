@@ -26,7 +26,10 @@ from .heartFC_sender import HeartFCSender
 from src.plugins.chat.utils import process_llm_response
 from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.moods.moods import MoodManager
-from src.individuality.individuality import Individuality
+from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 WAITING_TIME_THRESHOLD = 300  # 等待新消息时间阈值，单位秒
@@ -144,6 +147,25 @@ class SenderError(HeartFCError):
     pass
 
 
+async def _handle_cycle_delay(action_taken_this_cycle: bool, cycle_start_time: float, log_prefix: str):
+    """处理循环延迟"""
+    cycle_duration = time.monotonic() - cycle_start_time
+
+    try:
+        sleep_duration = 0.0
+        if not action_taken_this_cycle and cycle_duration < 1:
+            sleep_duration = 1 - cycle_duration
+        elif cycle_duration < 0.2:
+            sleep_duration = 0.2
+
+        if sleep_duration > 0:
+            await asyncio.sleep(sleep_duration)
+
+    except asyncio.CancelledError:
+        logger.info(f"{log_prefix} Sleep interrupted, loop likely cancelling.")
+        raise
+
+
 class HeartFChatting:
     """
     管理一个连续的Plan-Replier-Sender循环
@@ -155,7 +177,7 @@ class HeartFChatting:
         self,
         chat_id: str,
         sub_mind: SubMind,
-        observations: Observation,
+        observations: list[Observation],
         on_consecutive_no_reply_callback: Callable[[], Coroutine[None, None, None]],
     ):
         """
@@ -175,7 +197,12 @@ class HeartFChatting:
         self.on_consecutive_no_reply_callback = on_consecutive_no_reply_callback
 
         # 日志前缀
-        self.log_prefix: str = f"[{chat_manager.get_stream_name(chat_id) or chat_id}]"
+        self.log_prefix: str = str(chat_id)  # Initial default, will be updated
+
+        # --- Initialize attributes (defaults) ---
+        self.is_group_chat: bool = False
+        self.chat_target_info: Optional[dict] = None
+        # --- End Initialization ---
 
         # 动作管理器
         self.action_manager = ActionManager()
@@ -215,22 +242,35 @@ class HeartFChatting:
 
     async def _initialize(self) -> bool:
         """
-        懒初始化以使用提供的标识符解析chat_stream。
-        确保实例已准备好处理触发器。
+        懒初始化，解析chat_stream, 获取聊天类型和目标信息。
         """
         if self._initialized:
             return True
 
-        self.chat_stream = chat_manager.get_stream(self.stream_id)
-        if not self.chat_stream:
-            logger.error(f"{self.log_prefix} 获取ChatStream失败。")
+        # --- Use utility function to determine chat type and fetch info ---
+        # Note: get_chat_type_and_target_info handles getting the chat_stream internally
+        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.stream_id)
+
+        # Update log prefix based on potential stream name (if needed, or get it from chat_stream if util doesn't return it)
+        # Assuming get_chat_type_and_target_info focuses only on type/target
+        # We still need the chat_stream object itself for other operations
+        try:
+            self.chat_stream = await asyncio.to_thread(chat_manager.get_stream, self.stream_id)
+            if not self.chat_stream:
+                logger.error(
+                    f"[HFC:{self.stream_id}] 获取ChatStream失败 during _initialize, though util func might have succeeded earlier."
+                )
+                return False  # Cannot proceed without chat_stream object
+            # Update log prefix using the fetched stream object
+            self.log_prefix = f"[{chat_manager.get_stream_name(self.stream_id) or self.stream_id}]"
+        except Exception as e:
+            logger.error(f"[HFC:{self.stream_id}] 获取ChatStream时出错 in _initialize: {e}")
             return False
 
-        # 更新日志前缀（以防流名称发生变化）
-        self.log_prefix = f"[{chat_manager.get_stream_name(self.stream_id) or self.stream_id}]"
+        # --- End using utility function ---
 
         self._initialized = True
-        logger.debug(f"{self.log_prefix}麦麦感觉到了，可以开始认真水群 ")
+        logger.debug(f"{self.log_prefix} 麦麦感觉到了，可以开始认真水群 ")
         return True
 
     async def start(self):
@@ -327,7 +367,7 @@ class HeartFChatting:
                     self._current_cycle.timers = cycle_timers
 
                     # 防止循环过快消耗资源
-                    await self._handle_cycle_delay(action_taken, loop_cycle_start_time, self.log_prefix)
+                    await _handle_cycle_delay(action_taken, loop_cycle_start_time, self.log_prefix)
 
                 # 完成当前循环并保存历史
                 self._current_cycle.complete_cycle()
@@ -612,19 +652,18 @@ class HeartFChatting:
         observation = self.observations[0] if self.observations else None
 
         try:
-            dang_qian_deng_dai = 0.0  # 初始化本次等待时间
             with Timer("等待新消息", cycle_timers):
                 # 等待新消息、超时或关闭信号，并获取结果
                 await self._wait_for_new_message(observation, planner_start_db_time, self.log_prefix)
             # 从计时器获取实际等待时间
-            dang_qian_deng_dai = cycle_timers.get("等待新消息", 0.0)
+            current_waiting = cycle_timers.get("等待新消息", 0.0)
 
             if not self._shutting_down:
                 self._lian_xu_bu_hui_fu_ci_shu += 1
-                self._lian_xu_deng_dai_shi_jian += dang_qian_deng_dai  # 累加等待时间
+                self._lian_xu_deng_dai_shi_jian += current_waiting  # 累加等待时间
                 logger.debug(
                     f"{self.log_prefix} 连续不回复计数增加: {self._lian_xu_bu_hui_fu_ci_shu}/{CONSECUTIVE_NO_REPLY_THRESHOLD}, "
-                    f"本次等待: {dang_qian_deng_dai:.2f}秒, 累计等待: {self._lian_xu_deng_dai_shi_jian:.2f}秒"
+                    f"本次等待: {current_waiting:.2f}秒, 累计等待: {self._lian_xu_deng_dai_shi_jian:.2f}秒"
                 )
 
                 # 检查是否同时达到次数和时间阈值
@@ -714,24 +753,6 @@ class HeartFChatting:
                 # 在记录前检查关闭标志
                 if not self._shutting_down:
                     logger.debug(f"{log_prefix} 该次决策耗时: {'; '.join(timer_strings)}")
-
-    async def _handle_cycle_delay(self, action_taken_this_cycle: bool, cycle_start_time: float, log_prefix: str):
-        """处理循环延迟"""
-        cycle_duration = time.monotonic() - cycle_start_time
-
-        try:
-            sleep_duration = 0.0
-            if not action_taken_this_cycle and cycle_duration < 1:
-                sleep_duration = 1 - cycle_duration
-            elif cycle_duration < 0.2:
-                sleep_duration = 0.2
-
-            if sleep_duration > 0:
-                await asyncio.sleep(sleep_duration)
-
-        except asyncio.CancelledError:
-            logger.info(f"{log_prefix} Sleep interrupted, loop likely cancelling.")
-            raise
 
     async def _get_submind_thinking(self, cycle_timers: dict) -> str:
         """
@@ -833,18 +854,15 @@ class HeartFChatting:
                     f"{self.log_prefix}[Planner] 临时移除的动作: {actions_to_remove_temporarily}, 当前可用: {list(current_available_actions.keys())}"
                 )
 
-            # --- 构建提示词 (调用修改后的 _build_planner_prompt) ---
-            # replan_prompt_str = "" # 暂时简化
-            # if is_re_planned:
-            #     replan_prompt_str = await self._build_replan_prompt(
-            #         self._current_cycle.action_type, self._current_cycle.reasoning
-            #     )
-            prompt = await self._build_planner_prompt(
-                observed_messages_str,
-                current_mind,
-                self.sub_mind.structured_info,
-                "",  # replan_prompt_str,
-                current_available_actions,  # <--- 传入当前可用动作
+            # --- 构建提示词 (调用修改后的 PromptBuilder 方法) ---
+            prompt = await prompt_builder.build_planner_prompt(
+                is_group_chat=self.is_group_chat,  # <-- Pass HFC state
+                chat_target_info=self.chat_target_info,  # <-- Pass HFC state
+                cycle_history=self._cycle_history,  # <-- Pass HFC state
+                observed_messages_str=observed_messages_str,  # <-- Pass local variable
+                current_mind=current_mind,  # <-- Pass argument
+                structured_info=self.sub_mind.structured_info_str,  # <-- Pass SubMind info
+                current_available_actions=current_available_actions,  # <-- Pass determined actions
             )
 
             # --- 调用 LLM (普通文本生成) ---
@@ -1108,217 +1126,6 @@ class HeartFChatting:
 
         return prompt
 
-    async def _build_planner_prompt(
-        self,
-        observed_messages_str: str,
-        current_mind: Optional[str],
-        structured_info: Dict[str, Any],
-        replan_prompt: str,
-        current_available_actions: Dict[str, str],
-    ) -> str:
-        """构建 Planner LLM 的提示词 (获取模板并填充数据)"""
-        try:
-            # 准备结构化信息块
-            structured_info_block = ""
-            if structured_info:
-                structured_info_block = f"以下是一些额外的信息：\n{structured_info}\n"
-
-            # 准备聊天内容块
-            chat_content_block = ""
-            if observed_messages_str:
-                chat_content_block = "观察到的最新聊天内容如下：\n---\n"
-                chat_content_block += observed_messages_str
-                chat_content_block += "\n---"
-            else:
-                chat_content_block = "当前没有观察到新的聊天内容。\n"
-
-            # 准备当前思维块 (修改以匹配模板)
-            current_mind_block = ""
-            if current_mind:
-                # 模板中占位符是 {current_mind_block}，它期望包含"你的内心想法："的前缀
-                current_mind_block = f"你的内心想法：\n{current_mind}"
-            else:
-                current_mind_block = "你的内心想法：\n[没有特别的想法]"
-
-            # 准备循环信息块 (分析最近的活动循环)
-            recent_active_cycles = []
-            for cycle in reversed(self._cycle_history):
-                # 只关心实际执行了动作的循环
-                if cycle.action_taken:
-                    recent_active_cycles.append(cycle)
-                    # 最多找最近的3个活动循环
-                    if len(recent_active_cycles) == 3:
-                        break
-
-            cycle_info_block = ""
-            consecutive_text_replies = 0
-            responses_for_prompt = []
-
-            # 检查这最近的活动循环中有多少是连续的文本回复 (从最近的开始看)
-            for cycle in recent_active_cycles:
-                if cycle.action_type == "text_reply":
-                    consecutive_text_replies += 1
-                    # 获取回复内容，如果不存在则返回'[空回复]'
-                    response_text = cycle.response_info.get("response_text", [])
-                    # 使用简单的 join 来格式化回复内容列表
-                    formatted_response = "[空回复]" if not response_text else " ".join(response_text)
-                    responses_for_prompt.append(formatted_response)
-                else:
-                    # 一旦遇到非文本回复，连续性中断
-                    break
-
-            # 根据连续文本回复的数量构建提示信息
-            # 注意: responses_for_prompt 列表是从最近到最远排序的
-            if consecutive_text_replies >= 3:  # 如果最近的三个活动都是文本回复
-                cycle_info_block = f'你已经连续回复了三条消息（最近: "{responses_for_prompt[0]}"，第二近: "{responses_for_prompt[1]}"，第三近: "{responses_for_prompt[2]}"）。你回复的有点多了，请注意'
-            elif consecutive_text_replies == 2:  # 如果最近的两个活动是文本回复
-                cycle_info_block = f'你已经连续回复了两条消息（最近: "{responses_for_prompt[0]}"，第二近: "{responses_for_prompt[1]}"），请注意'
-            elif consecutive_text_replies == 1:  # 如果最近的一个活动是文本回复
-                cycle_info_block = f'你刚刚已经回复一条消息（内容: "{responses_for_prompt[0]}"）'
-
-            # 包装提示块，增加可读性，即使没有连续回复也给个标记
-            if cycle_info_block:
-                # 模板中占位符是 {cycle_info_block}，它期望包含"【近期回复历史】"的前缀
-                cycle_info_block = f"\n【近期回复历史】\n{cycle_info_block}\n"
-            else:
-                # 如果最近的活动循环不是文本回复，或者没有活动循环
-                cycle_info_block = "\n【近期回复历史】\n(最近没有连续文本回复)\n"
-
-            individuality = Individuality.get_instance()
-            # 模板中占位符是 {prompt_personality}
-            prompt_personality = individuality.get_prompt(x_person=2, level=2)
-
-            # --- 构建可用动作描述 (用于填充模板中的 {action_options_text}) ---
-            action_options_text = "当前你可以选择的行动有：\n"
-            action_keys = list(current_available_actions.keys())
-            for name in action_keys:
-                desc = current_available_actions[name]
-                action_options_text += f"- '{name}': {desc}\n"
-
-            # --- 选择一个示例动作键 (用于填充模板中的 {example_action}) ---
-            example_action_key = action_keys[0] if action_keys else "no_reply"
-
-            # --- 获取提示词模板 ---
-            planner_prompt_template = await global_prompt_manager.get_prompt_async("planner_prompt")
-
-            # --- 填充模板 ---
-            prompt = planner_prompt_template.format(
-                bot_name=global_config.BOT_NICKNAME,
-                prompt_personality=prompt_personality,
-                structured_info_block=structured_info_block,
-                chat_content_block=chat_content_block,
-                current_mind_block=current_mind_block,
-                replan="",  # 暂时留空 replan 信息
-                cycle_info_block=cycle_info_block,
-                action_options_text=action_options_text,  # 传入可用动作描述
-                example_action=example_action_key,  # 传入示例动作键
-            )
-
-            return prompt
-
-        except Exception as e:
-            logger.error(f"{self.log_prefix}[Planner] 构建提示词时出错: {e}")
-            logger.error(traceback.format_exc())
-            return "[构建 Planner Prompt 时出错]"  # 返回错误提示，避免空字符串
-
-    # --- 回复器 (Replier) 的定义 --- #
-    async def _replier_work(
-        self,
-        reason: str,
-        anchor_message: MessageRecv,
-        thinking_id: str,
-    ) -> Optional[List[str]]:
-        """
-        回复器 (Replier): 核心逻辑，负责生成回复文本。
-        (已整合原 HeartFCGenerator 的功能)
-        """
-        try:
-            # 1. 获取情绪影响因子并调整模型温度
-            arousal_multiplier = MoodManager.get_instance().get_arousal_multiplier()
-            current_temp = global_config.llm_normal["temp"] * arousal_multiplier
-            self.model_normal.temperature = current_temp  # 动态调整温度
-
-            # 2. 获取信息捕捉器
-            info_catcher = info_catcher_manager.get_info_catcher(thinking_id)
-
-            # 3. 构建 Prompt
-            with Timer("构建Prompt", {}):  # 内部计时器，可选保留
-                prompt = await prompt_builder.build_prompt(
-                    build_mode="focus",
-                    reason=reason,
-                    current_mind_info=self.sub_mind.current_mind,
-                    structured_info=self.sub_mind.structured_info,
-                    message_txt="",  # 似乎是固定的空字符串
-                    sender_name="",  # 似乎是固定的空字符串
-                    chat_stream=anchor_message.chat_stream,
-                )
-
-            # 4. 调用 LLM 生成回复
-            content = None
-            reasoning_content = None
-            model_name = "unknown_model"
-            try:
-                with Timer("LLM生成", {}):  # 内部计时器，可选保留
-                    content, reasoning_content, model_name = await self.model_normal.generate_response(prompt)
-                # logger.info(f"{self.log_prefix}[Replier-{thinking_id}]\\nPrompt:\\n{prompt}\\n生成回复: {content}\\n")
-                # 捕捉 LLM 输出信息
-                info_catcher.catch_after_llm_generated(
-                    prompt=prompt, response=content, reasoning_content=reasoning_content, model_name=model_name
-                )
-
-            except Exception as llm_e:
-                # 精简报错信息
-                logger.error(f"{self.log_prefix}[Replier-{thinking_id}] LLM 生成失败: {llm_e}")
-                return None  # LLM 调用失败则无法生成回复
-
-            # 5. 处理 LLM 响应
-            if not content:
-                logger.warning(f"{self.log_prefix}[Replier-{thinking_id}] LLM 生成了空内容。")
-                return None
-
-            with Timer("处理响应", {}):  # 内部计时器，可选保留
-                processed_response = process_llm_response(content)
-
-            if not processed_response:
-                logger.warning(f"{self.log_prefix}[Replier-{thinking_id}] 处理后的回复为空。")
-                return None
-
-            return processed_response
-
-        except Exception as e:
-            # 更通用的错误处理，精简信息
-            logger.error(f"{self.log_prefix}[Replier-{thinking_id}] 回复生成意外失败: {e}")
-            # logger.error(traceback.format_exc()) # 可以取消注释这行以在调试时查看完整堆栈
-            return None
-
-    # --- Methods moved from HeartFCController start ---
-    async def _create_thinking_message(self, anchor_message: Optional[MessageRecv]) -> Optional[str]:
-        """创建思考消息 (尝试锚定到 anchor_message)"""
-        if not anchor_message or not anchor_message.chat_stream:
-            logger.error(f"{self.log_prefix} 无法创建思考消息，缺少有效的锚点消息或聊天流。")
-            return None
-
-        chat = anchor_message.chat_stream
-        messageinfo = anchor_message.message_info
-        bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
-            platform=messageinfo.platform,
-        )
-
-        thinking_time_point = round(time.time(), 2)
-        thinking_id = "mt" + str(thinking_time_point)
-        thinking_message = MessageThinking(
-            message_id=thinking_id,
-            chat_stream=chat,
-            bot_user_info=bot_user_info,
-            reply=anchor_message,  # 回复的是锚点消息
-            thinking_start_time=thinking_time_point,
-        )
-        # Access MessageManager directly
-        await self.heart_fc_sender.register_thinking(thinking_message)
-        return thinking_id
-
     async def _send_response_messages(
         self, anchor_message: Optional[MessageRecv], response_set: List[str], thinking_id: str
     ) -> Optional[MessageSending]:
@@ -1371,9 +1178,9 @@ class HeartFChatting:
                 if not mark_head:
                     mark_head = True
                     first_bot_msg = bot_message  # 保存第一个成功发送的消息对象
-                    await self.heart_fc_sender.type_and_send_message(bot_message, type=False)
+                    await self.heart_fc_sender.type_and_send_message(bot_message, typing=False)
                 else:
-                    await self.heart_fc_sender.type_and_send_message(bot_message, type=True)
+                    await self.heart_fc_sender.type_and_send_message(bot_message, typing=True)
 
                 reply_message_ids.append(part_message_id)  # 记录我们生成的ID
 
@@ -1454,3 +1261,118 @@ class HeartFChatting:
         if self._cycle_history:
             return self._cycle_history[-1].to_dict()
         return None
+
+    # --- 回复器 (Replier) 的定义 --- #
+    async def _replier_work(
+        self,
+        reason: str,
+        anchor_message: MessageRecv,
+        thinking_id: str,
+    ) -> Optional[List[str]]:
+        """
+        回复器 (Replier): 核心逻辑，负责生成回复文本。
+        (已整合原 HeartFCGenerator 的功能)
+        """
+        try:
+            # 1. 获取情绪影响因子并调整模型温度
+            arousal_multiplier = MoodManager.get_instance().get_arousal_multiplier()
+            current_temp = global_config.llm_normal["temp"] * arousal_multiplier
+            self.model_normal.temperature = current_temp  # 动态调整温度
+
+            # 2. 获取信息捕捉器
+            info_catcher = info_catcher_manager.get_info_catcher(thinking_id)
+
+            # --- Determine sender_name for private chat ---
+            sender_name_for_prompt = "某人"  # Default for group or if info unavailable
+            if not self.is_group_chat and self.chat_target_info:
+                # Prioritize person_name, then nickname
+                sender_name_for_prompt = (
+                    self.chat_target_info.get("person_name")
+                    or self.chat_target_info.get("user_nickname")
+                    or sender_name_for_prompt
+                )
+            # --- End determining sender_name ---
+
+            # 3. 构建 Prompt
+            with Timer("构建Prompt", {}):  # 内部计时器，可选保留
+                prompt = await prompt_builder.build_prompt(
+                    build_mode="focus",
+                    chat_stream=self.chat_stream,  # Pass the stream object
+                    # Focus specific args:
+                    reason=reason,
+                    current_mind_info=self.sub_mind.current_mind,
+                    structured_info=self.sub_mind.structured_info_str,
+                    sender_name=sender_name_for_prompt,  # Pass determined name
+                    # Normal specific args (not used in focus mode):
+                    # message_txt="",
+                )
+
+            # 4. 调用 LLM 生成回复
+            content = None
+            reasoning_content = None
+            model_name = "unknown_model"
+            if not prompt:
+                logger.error(f"{self.log_prefix}[Replier-{thinking_id}] Prompt 构建失败，无法生成回复。")
+                return None
+
+            try:
+                with Timer("LLM生成", {}):  # 内部计时器，可选保留
+                    content, reasoning_content, model_name = await self.model_normal.generate_response(prompt)
+                # logger.info(f"{self.log_prefix}[Replier-{thinking_id}]\nPrompt:\n{prompt}\n生成回复: {content}\n")
+                # 捕捉 LLM 输出信息
+                info_catcher.catch_after_llm_generated(
+                    prompt=prompt, response=content, reasoning_content=reasoning_content, model_name=model_name
+                )
+
+            except Exception as llm_e:
+                # 精简报错信息
+                logger.error(f"{self.log_prefix}[Replier-{thinking_id}] LLM 生成失败: {llm_e}")
+                return None  # LLM 调用失败则无法生成回复
+
+            # 5. 处理 LLM 响应
+            if not content:
+                logger.warning(f"{self.log_prefix}[Replier-{thinking_id}] LLM 生成了空内容。")
+                return None
+
+            with Timer("处理响应", {}):  # 内部计时器，可选保留
+                processed_response = process_llm_response(content)
+
+            if not processed_response:
+                logger.warning(f"{self.log_prefix}[Replier-{thinking_id}] 处理后的回复为空。")
+                return None
+
+            return processed_response
+
+        except Exception as e:
+            # 更通用的错误处理，精简信息
+            logger.error(f"{self.log_prefix}[Replier-{thinking_id}] 回复生成意外失败: {e}")
+            # logger.error(traceback.format_exc()) # 可以取消注释这行以在调试时查看完整堆栈
+            return None
+
+    # --- Methods moved from HeartFCController start ---
+    async def _create_thinking_message(self, anchor_message: Optional[MessageRecv]) -> Optional[str]:
+        """创建思考消息 (尝试锚定到 anchor_message)"""
+        if not anchor_message or not anchor_message.chat_stream:
+            logger.error(f"{self.log_prefix} 无法创建思考消息，缺少有效的锚点消息或聊天流。")
+            return None
+
+        chat = anchor_message.chat_stream
+        messageinfo = anchor_message.message_info
+        bot_user_info = UserInfo(
+            user_id=global_config.BOT_QQ,
+            user_nickname=global_config.BOT_NICKNAME,
+            platform=messageinfo.platform,
+        )
+
+        thinking_time_point = round(time.time(), 2)
+        thinking_id = "mt" + str(thinking_time_point)
+        thinking_message = MessageThinking(
+            message_id=thinking_id,
+            chat_stream=chat,
+            bot_user_info=bot_user_info,
+            reply=anchor_message,  # 回复的是锚点消息
+            thinking_start_time=thinking_time_point,
+        )
+        # Access MessageManager directly (using heart_fc_sender)
+        await self.heart_fc_sender.register_thinking(thinking_message)
+        return thinking_id

@@ -42,7 +42,7 @@ class MyNewTool(BaseTool):
             message_txt: 原始消息文本
             
         Returns:
-            Dict: 包含执行结果的字典，必须包含name和content字段
+            dict: 包含执行结果的字典，必须包含name和content字段
         """
         # 实现工具逻辑
         result = f"工具执行结果: {function_args.get('param1')}"

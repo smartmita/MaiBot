@@ -1,5 +1,5 @@
 from loguru import logger
-from typing import Dict, Optional, Union, List, Tuple
+from typing import Optional, Union, List, Tuple
 import sys
 import os
 from types import ModuleType
@@ -75,8 +75,8 @@ if default_handler_id is not None:
 LoguruLogger = logger.__class__
 
 # 全局注册表：记录模块与处理器ID的映射
-_handler_registry: Dict[str, List[int]] = {}
-_custom_style_handlers: Dict[Tuple[str, str], List[int]] = {}  # 记录自定义样式处理器ID
+_handler_registry: dict[str, List[int]] = {}
+_custom_style_handlers: dict[Tuple[str, str], List[int]] = {}  # 记录自定义样式处理器ID
 
 # 获取日志存储根地址
 current_file_path = Path(__file__).resolve()
@@ -321,7 +321,7 @@ CHAT_STYLE_CONFIG = {
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 见闻 | {message}",
     },
     "simple": {
-        "console_format": ("<level>{time:MM-DD HH:mm}</level> | <green>见闻</green> | <green>{message}</green>"),  # noqa: E501
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <green>见闻</green> | <green>{message}</green>",  # noqa: E501
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 见闻 | {message}",
     },
 }
@@ -353,7 +353,7 @@ SUB_HEARTFLOW_STYLE_CONFIG = {
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
     },
     "simple": {
-        "console_format": ("<level>{time:MM-DD HH:mm}</level> | <fg #3399FF>麦麦水群 | {message}</fg #3399FF>"),  # noqa: E501
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <fg #3399FF>麦麦水群 | {message}</fg #3399FF>",  # noqa: E501
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群 | {message}",
     },
 }
@@ -369,7 +369,7 @@ SUB_HEARTFLOW_MIND_STYLE_CONFIG = {
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
     },
     "simple": {
-        "console_format": ("<level>{time:MM-DD HH:mm}</level> | <fg #66CCFF>麦麦小脑袋 | {message}</fg #66CCFF>"),  # noqa: E501
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <fg #66CCFF>麦麦小脑袋 | {message}</fg #66CCFF>",  # noqa: E501
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
     },
 }
@@ -385,7 +385,7 @@ SUBHEARTFLOW_MANAGER_STYLE_CONFIG = {
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群[管理] | {message}",
     },
     "simple": {
-        "console_format": ("<level>{time:MM-DD HH:mm}</level> | <fg #005BA2>麦麦水群[管理] | {message}</fg #005BA2>"),  # noqa: E501
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <fg #005BA2>麦麦水群[管理] | {message}</fg #005BA2>",  # noqa: E501
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群[管理] | {message}",
     },
 }
@@ -633,7 +633,7 @@ HFC_STYLE_CONFIG = {
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 专注聊天 | {message}",
     },
     "simple": {
-        "console_format": ("<level>{time:MM-DD HH:mm}</level> | <light-green>专注聊天 | {message}</light-green>"),
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <light-green>专注聊天 | {message}</light-green>",
         "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 专注聊天 | {message}",
     },
 }
@@ -1031,7 +1031,7 @@ def add_custom_style_handler(
     #             retention=current_config["retention"],
     #             compression=current_config["compression"],
     #             encoding="utf-8",
-    #             filter=lambda record: record["extra"].get("module") == module_name
+    #             message_filter=lambda record: record["extra"].get("module") == module_name
     #             and record["extra"].get("custom_style") == style_name,
     #             enqueue=True,
     #         )

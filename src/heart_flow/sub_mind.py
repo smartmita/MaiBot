@@ -1,4 +1,4 @@
-from .observation import Observation
+from .observation import ChattingObservation
 from src.plugins.models.utils_model import LLMRequest
 from src.config.config import global_config
 import time
@@ -20,34 +20,63 @@ logger = get_logger("sub_heartflow")
 
 
 def init_prompt():
-    prompt = ""
-    prompt += "{extra_info}\n"
-    prompt += "{relation_prompt}\n"
-    prompt += "你的名字是{bot_name},{prompt_personality}\n"
-    prompt += "{last_loop_prompt}\n"
-    prompt += "{cycle_info_block}\n"
-    prompt += "现在是{time_now}，你正在上网，和qq群里的网友们聊天，以下是正在进行的聊天内容：\n{chat_observe_info}\n"
-    prompt += "\n你现在{mood_info}\n"
-    prompt += "请仔细阅读当前群聊内容，分析讨论话题和群成员关系，分析你刚刚发言和别人对你的发言的反应，思考你要不要回复。然后思考你是否需要使用函数工具。"
-    prompt += "思考并输出你的内心想法\n"
-    prompt += "输出要求：\n"
-    prompt += "1. 根据聊天内容生成你的想法，{hf_do_next}\n"
-    prompt += "2. 不要分点、不要使用表情符号\n"
-    prompt += "3. 避免多余符号(冒号、引号、括号等)\n"
-    prompt += "4. 语言简洁自然，不要浮夸\n"
-    prompt += "5. 如果你刚发言，并且没有人回复你，不要回复\n"
-    prompt += "工具使用说明：\n"
-    prompt += "1. 输出想法后考虑是否需要使用工具\n"
-    prompt += "2. 工具可获取信息或执行操作\n"
-    prompt += "3. 如需处理消息或回复，请使用工具\n"
+    # --- Group Chat Prompt ---
+    group_prompt = """
+{extra_info}
+{relation_prompt}
+你的名字是{bot_name},{prompt_personality}
+{last_loop_prompt}
+{cycle_info_block}
+现在是{time_now}，你正在上网，和qq群里的网友们聊天，以下是正在进行的聊天内容：
+{chat_observe_info}
 
-    Prompt(prompt, "sub_heartflow_prompt_before")
+你现在{mood_info}
+请仔细阅读当前群聊内容，分析讨论话题和群成员关系，分析你刚刚发言和别人对你的发言的反应，思考你要不要回复。然后思考你是否需要使用函数工具。
+思考并输出你的内心想法
+输出要求：
+1. 根据聊天内容生成你的想法，{hf_do_next}
+2. 不要分点、不要使用表情符号
+3. 避免多余符号(冒号、引号、括号等)
+4. 语言简洁自然，不要浮夸
+5. 如果你刚发言，并且没有人回复你，不要回复
+工具使用说明：
+1. 输出想法后考虑是否需要使用工具
+2. 工具可获取信息或执行操作
+3. 如需处理消息或回复，请使用工具。"""
+    Prompt(group_prompt, "sub_heartflow_prompt_before")
 
-    prompt = ""
-    prompt += "刚刚你的内心想法是：{current_thinking_info}\n"
-    prompt += "{if_replan_prompt}\n"
+    # --- Private Chat Prompt ---
+    private_prompt = """
+{extra_info}
+{relation_prompt}
+你的名字是{bot_name},{prompt_personality}
+{last_loop_prompt}
+{cycle_info_block}
+现在是{time_now}，你正在上网，和 {chat_target_name} 私聊，以下是你们的聊天内容：
+{chat_observe_info}
 
-    Prompt(prompt, "last_loop")
+你现在{mood_info}
+请仔细阅读聊天内容，想想你和 {chat_target_name} 的关系，回顾你们刚刚的交流,你刚刚发言和对方的反应，思考聊天的主题。
+请思考你要不要回复以及如何回复对方。然后思考你是否需要使用函数工具。
+思考并输出你的内心想法
+输出要求：
+1. 根据聊天内容生成你的想法，{hf_do_next}
+2. 不要分点、不要使用表情符号
+3. 避免多余符号(冒号、引号、括号等)
+4. 语言简洁自然，不要浮夸
+5. 如果你刚发言，对方没有回复你，请谨慎回复
+工具使用说明：
+1. 输出想法后考虑是否需要使用工具
+2. 工具可获取信息或执行操作
+3. 如需处理消息或回复，请使用工具。"""
+    Prompt(private_prompt, "sub_heartflow_prompt_private_before")  # New template name
+
+    # --- Last Loop Prompt (remains the same) ---
+    last_loop_t = """
+刚刚你的内心想法是：{current_thinking_info}
+{if_replan_prompt}
+"""
+    Prompt(last_loop_t, "last_loop")
 
 
 def calculate_similarity(text_a: str, text_b: str) -> float:
@@ -78,14 +107,15 @@ def calculate_replacement_probability(similarity: float) -> float:
         # p = 3.5 * s - 1.4
         probability = 3.5 * similarity - 1.4
         return max(0.0, probability)
-    elif 0.6 < similarity < 0.9:
+    else:  # 0.6 < similarity < 0.9
         # p = s + 0.1
         probability = similarity + 0.1
         return min(1.0, max(0.0, probability))
 
 
 class SubMind:
-    def __init__(self, subheartflow_id: str, chat_state: ChatStateInfo, observations: Observation):
+    def __init__(self, subheartflow_id: str, chat_state: ChatStateInfo, observations: ChattingObservation):
+        self.last_active_time = None
         self.subheartflow_id = subheartflow_id
 
         self.llm_model = LLMRequest(
@@ -100,10 +130,40 @@ class SubMind:
 
         self.current_mind = ""
         self.past_mind = []
-        self.structured_info = {}
+        self.structured_info = []
+        self.structured_info_str = ""
 
         name = chat_manager.get_stream_name(self.subheartflow_id)
         self.log_prefix = f"[{name}] "
+        self._update_structured_info_str()
+
+    def _update_structured_info_str(self):
+        """根据 structured_info 更新 structured_info_str"""
+        if not self.structured_info:
+            self.structured_info_str = ""
+            return
+
+        lines = ["【信息】"]
+        for item in self.structured_info:
+            # 简化展示，突出内容和类型，包含TTL供调试
+            type_str = item.get("type", "未知类型")
+            content_str = item.get("content", "")
+
+            if type_str == "info":
+                lines.append(f"刚刚: {content_str}")
+            elif type_str == "memory":
+                lines.append(f"{content_str}")
+            elif type_str == "comparison_result":
+                lines.append(f"数字大小比较结果: {content_str}")
+            elif type_str == "time_info":
+                lines.append(f"{content_str}")
+            elif type_str == "lpmm_knowledge":
+                lines.append(f"你知道：{content_str}")
+            else:
+                lines.append(f"{type_str}的信息: {content_str}")
+
+        self.structured_info_str = "\n".join(lines)
+        logger.debug(f"{self.log_prefix} 更新 structured_info_str: \n{self.structured_info_str}")
 
     async def do_thinking_before_reply(self, history_cycle: list[CycleInfo] = None):
         """
@@ -115,17 +175,49 @@ class SubMind:
         # 更新活跃时间
         self.last_active_time = time.time()
 
+        # ---------- 0. 更新和清理 structured_info ----------
+        if self.structured_info:
+            logger.debug(
+                f"{self.log_prefix} 更新前的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
+            )
+            updated_info = []
+            for item in self.structured_info:
+                item["ttl"] -= 1
+                if item["ttl"] > 0:
+                    updated_info.append(item)
+                else:
+                    logger.debug(f"{self.log_prefix} 移除过期的 structured_info 项: {item['id']}")
+            self.structured_info = updated_info
+            logger.debug(
+                f"{self.log_prefix} 更新后的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
+            )
+            self._update_structured_info_str()
+        logger.debug(
+            f"{self.log_prefix} 当前完整的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
+        )
+
         # ---------- 1. 准备基础数据 ----------
         # 获取现有想法和情绪状态
         previous_mind = self.current_mind if self.current_mind else ""
         mood_info = self.chat_state.mood
 
         # 获取观察对象
-        observation = self.observations[0]
-        if not observation:
-            logger.error(f"{self.log_prefix} 无法获取观察对象")
-            self.update_current_mind("(我没看到任何聊天内容...)")
+        observation: ChattingObservation = self.observations[0] if self.observations else None
+        if not observation or not hasattr(observation, "is_group_chat"):  # Ensure it's ChattingObservation or similar
+            logger.error(f"{self.log_prefix} 无法获取有效的观察对象或缺少聊天类型信息")
+            self.update_current_mind("(观察出错了...)")
             return self.current_mind, self.past_mind
+
+        is_group_chat = observation.is_group_chat
+        # logger.debug(f"is_group_chat: {is_group_chat}")
+
+        chat_target_info = observation.chat_target_info
+        chat_target_name = "对方"  # Default for private
+        if not is_group_chat and chat_target_info:
+            chat_target_name = (
+                chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or chat_target_name
+            )
+        # --- End getting observation info ---
 
         # 获取观察内容
         chat_observe_info = observation.get_observe_info()
@@ -168,7 +260,7 @@ class SubMind:
 
         last_cycle = history_cycle[-1] if history_cycle else None
         # 上一次决策信息
-        if last_cycle != None:
+        if last_cycle is not None:
             last_action = last_cycle.action_type
             last_reasoning = last_cycle.reasoning
             is_replan = last_cycle.replanned
@@ -237,19 +329,39 @@ class SubMind:
         )[0]
 
         # ---------- 4. 构建最终提示词 ----------
-        # 获取提示词模板并填充数据
-        prompt = (await global_prompt_manager.get_prompt_async("sub_heartflow_prompt_before")).format(
-            extra_info="",  # 可以在这里添加额外信息
-            prompt_personality=prompt_personality,
-            relation_prompt=relation_prompt,
-            bot_name=individuality.name,
-            time_now=time_now,
-            chat_observe_info=chat_observe_info,
-            mood_info=mood_info,
-            hf_do_next=hf_do_next,
-            last_loop_prompt=last_loop_prompt,
-            cycle_info_block=cycle_info_block,
-        )
+        # --- Choose template based on chat type ---
+        logger.debug(f"is_group_chat: {is_group_chat}")
+        if is_group_chat:
+            template_name = "sub_heartflow_prompt_before"
+            prompt = (await global_prompt_manager.get_prompt_async(template_name)).format(
+                extra_info=self.structured_info_str,
+                prompt_personality=prompt_personality,
+                relation_prompt=relation_prompt,
+                bot_name=individuality.name,
+                time_now=time_now,
+                chat_observe_info=chat_observe_info,
+                mood_info=mood_info,
+                hf_do_next=hf_do_next,
+                last_loop_prompt=last_loop_prompt,
+                cycle_info_block=cycle_info_block,
+                # chat_target_name is not used in group prompt
+            )
+        else:  # Private chat
+            template_name = "sub_heartflow_prompt_private_before"
+            prompt = (await global_prompt_manager.get_prompt_async(template_name)).format(
+                extra_info=self.structured_info_str,
+                prompt_personality=prompt_personality,
+                relation_prompt=relation_prompt,  # Might need adjustment for private context
+                bot_name=individuality.name,
+                time_now=time_now,
+                chat_target_name=chat_target_name,  # Pass target name
+                chat_observe_info=chat_observe_info,
+                mood_info=mood_info,
+                hf_do_next=hf_do_next,
+                last_loop_prompt=last_loop_prompt,
+                cycle_info_block=cycle_info_block,
+            )
+        # --- End choosing template ---
 
         # ---------- 5. 执行LLM请求并处理响应 ----------
         content = ""  # 初始化内容变量
@@ -389,7 +501,7 @@ class SubMind:
             tool_instance: 工具使用器实例
         """
         tool_results = []
-        structured_info = {}  # 动态生成键
+        new_structured_items = []  # 收集新产生的结构化信息
 
         # 执行所有工具调用
         for tool_call in tool_calls:
@@ -397,23 +509,34 @@ class SubMind:
                 result = await tool_instance._execute_tool_call(tool_call)
                 if result:
                     tool_results.append(result)
+                    # 创建新的结构化信息项
+                    new_item = {
+                        "type": result.get("type", "unknown_type"),  # 使用 'type' 键
+                        "id": result.get("id", f"fallback_id_{time.time()}"),  # 使用 'id' 键
+                        "content": result.get("content", ""),  # 'content' 键保持不变
+                        "ttl": 3,
+                    }
+                    new_structured_items.append(new_item)
 
-                    # 使用工具名称作为键
-                    tool_name = result["name"]
-                    if tool_name not in structured_info:
-                        structured_info[tool_name] = []
-
-                    structured_info[tool_name].append({"name": result["name"], "content": result["content"]})
             except Exception as tool_e:
                 logger.error(f"[{self.subheartflow_id}] 工具执行失败: {tool_e}")
+                logger.error(traceback.format_exc())  # 添加 traceback 记录
 
-        # 如果有工具结果，记录并更新结构化信息
-        if structured_info:
-            logger.debug(f"工具调用收集到结构化信息: {safe_json_dumps(structured_info, ensure_ascii=False)}")
-            self.structured_info = structured_info
+        # 如果有新的工具结果，记录并更新结构化信息
+        if new_structured_items:
+            self.structured_info.extend(new_structured_items)  # 添加到现有列表
+            logger.debug(f"工具调用收集到新的结构化信息: {safe_json_dumps(new_structured_items, ensure_ascii=False)}")
+            # logger.debug(f"当前完整的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}") # 可以取消注释以查看完整列表
+            self._update_structured_info_str()  # 添加新信息后，更新字符串表示
 
     def update_current_mind(self, response):
-        self.past_mind.append(self.current_mind)
+        if self.current_mind:  # 只有当 current_mind 非空时才添加到 past_mind
+            self.past_mind.append(self.current_mind)
+            # 可以考虑限制 past_mind 的大小，例如:
+            # max_past_mind_size = 10
+            # if len(self.past_mind) > max_past_mind_size:
+            #     self.past_mind.pop(0) # 移除最旧的
+
         self.current_mind = response
 
 

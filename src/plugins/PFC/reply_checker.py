@@ -29,6 +29,8 @@ class ReplyChecker:
         Args:
             reply: 生成的回复
             goal: 对话目标
+            chat_history: 对话历史记录
+            chat_history_text: 对话历史记录文本
             retry_count: 当前重试次数
 
         Returns:

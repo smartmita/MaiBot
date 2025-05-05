@@ -1,3 +1,5 @@
+from typing import Dict, Any
+
 from ..moods.moods import MoodManager  # 导入情绪管理器
 from ...config.config import global_config
 from .message import MessageRecv
@@ -46,7 +48,7 @@ class ChatBot:
         except Exception as e:
             logger.error(f"创建PFC聊天失败: {e}")
 
-    async def message_process(self, message_data: str) -> None:
+    async def message_process(self, message_data: Dict[str, Any]) -> None:
         """处理转化后的统一格式消息
         这个函数本质是预处理一些数据，根据配置信息和消息内容，预处理消息，并分发到合适的消息处理器中
         heart_flow模式：使用思维流系统进行回复
@@ -81,8 +83,15 @@ class ChatBot:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
+            if groupinfo is None:
+                logger.trace("检测到私聊消息，检查")
+                # 好友黑名单拦截
+                if userinfo.user_id not in global_config.talk_allowed_private:
+                    logger.debug(f"用户{userinfo.user_id}没有私聊权限")
+                    return
+
             # 群聊黑名单拦截
-            if groupinfo != None and groupinfo.group_id not in global_config.talk_allowed_groups:
+            if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
                 logger.trace(f"群{groupinfo.group_id}被禁止回复")
                 return
 

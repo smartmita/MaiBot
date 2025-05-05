@@ -23,6 +23,12 @@ LOG_DIRECTORY = "logs/interest"
 HISTORY_LOG_FILENAME = "interest_history.log"
 
 
+def _ensure_log_directory():
+    """确保日志目录存在。"""
+    os.makedirs(LOG_DIRECTORY, exist_ok=True)
+    logger.info(f"已确保日志目录 '{LOG_DIRECTORY}' 存在")
+
+
 class InterestLogger:
     """负责定期记录主心流和所有子心流的状态到日志文件。"""
 
@@ -37,12 +43,7 @@ class InterestLogger:
         self.subheartflow_manager = subheartflow_manager
         self.heartflow = heartflow  # 存储 Heartflow 实例
         self._history_log_file_path = os.path.join(LOG_DIRECTORY, HISTORY_LOG_FILENAME)
-        self._ensure_log_directory()
-
-    def _ensure_log_directory(self):
-        """确保日志目录存在。"""
-        os.makedirs(LOG_DIRECTORY, exist_ok=True)
-        logger.info(f"已确保日志目录 '{LOG_DIRECTORY}' 存在")
+        _ensure_log_directory()
 
     async def get_all_subflow_states(self) -> Dict[str, Dict]:
         """并发获取所有活跃子心流的当前完整状态。"""

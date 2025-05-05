@@ -62,6 +62,7 @@ class MaiState(enum.Enum):
             return MAX_NORMAL_CHAT_NUM_NORMAL
         elif self == MaiState.FOCUSED_CHAT:
             return MAX_NORMAL_CHAT_NUM_FOCUSED
+        return None
 
     def get_focused_chat_max_num(self):
         # 调试用
@@ -76,6 +77,7 @@ class MaiState(enum.Enum):
             return MAX_FOCUSED_CHAT_NUM_NORMAL
         elif self == MaiState.FOCUSED_CHAT:
             return MAX_FOCUSED_CHAT_NUM_FOCUSED
+        return None
 
 
 class MaiStateInfo:
@@ -135,7 +137,8 @@ class MaiStateManager:
     def __init__(self):
         pass
 
-    def check_and_decide_next_state(self, current_state_info: MaiStateInfo) -> Optional[MaiState]:
+    @staticmethod
+    def check_and_decide_next_state(current_state_info: MaiStateInfo) -> Optional[MaiState]:
         """
         根据当前状态和规则检查是否需要转换状态，并决定下一个状态。
 

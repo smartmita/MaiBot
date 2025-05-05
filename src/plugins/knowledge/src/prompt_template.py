@@ -1,5 +1,3 @@
-from typing import List
-
 from .llm_client import LLMMessage
 
 entity_extract_system_prompt = """你是一个性能优异的实体提取系统。请从段落中提取出所有实体，并以JSON列表的形式输出。
@@ -13,7 +11,7 @@ entity_extract_system_prompt = """你是一个性能优异的实体提取系统�
 """
 
 
-def build_entity_extract_context(paragraph: str) -> List[LLMMessage]:
+def build_entity_extract_context(paragraph: str) -> list[LLMMessage]:
     messages = [
         LLMMessage("system", entity_extract_system_prompt).to_dict(),
         LLMMessage("user", f"""段落：\n```\n{paragraph}```""").to_dict(),
@@ -38,7 +36,7 @@ rdf_triple_extract_system_prompt = """你是一个性能优异的RDF（资源描
 """
 
 
-def build_rdf_triple_extract_context(paragraph: str, entities: str) -> List[LLMMessage]:
+def build_rdf_triple_extract_context(paragraph: str, entities: str) -> list[LLMMessage]:
     messages = [
         LLMMessage("system", rdf_triple_extract_system_prompt).to_dict(),
         LLMMessage("user", f"""段落：\n```\n{paragraph}```\n\n实体列表：\n```\n{entities}```""").to_dict(),
@@ -56,7 +54,7 @@ qa_system_prompt = """
 """
 
 
-def build_qa_context(question: str, knowledge: list[(str, str, str)]) -> List[LLMMessage]:
+def build_qa_context(question: str, knowledge: list[tuple[str, str, str]]) -> list[LLMMessage]:
     knowledge = "\n".join([f"{i + 1}. 相关性：{k[0]}\n{k[1]}" for i, k in enumerate(knowledge)])
     messages = [
         LLMMessage("system", qa_system_prompt).to_dict(),

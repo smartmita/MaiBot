@@ -106,7 +106,6 @@ class ToolUser:
 
         Args:
             message_txt: 用户消息文本
-            sender_name: 发送者名称
             chat_stream: 聊天流对象
             observation: 观察对象（可选）
 

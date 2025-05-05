@@ -1,15 +1,36 @@
 # src/plugins/heartFC_chat/heartFC_sender.py
 import asyncio  # 重新导入 asyncio
 from typing import Dict, Optional  # 重新导入类型
-from ..message.api import global_api
 from ..chat.message import MessageSending, MessageThinking  # 只保留 MessageSending 和 MessageThinking
+
+# from ..message import global_api
+from src.plugins.message.api import global_api
 from ..storage.storage import MessageStorage
 from ..chat.utils import truncate_message
 from src.common.logger_manager import get_logger
 from src.plugins.chat.utils import calculate_typing_time
+from rich.traceback import install
+
+install(extra_lines=3)
 
 
 logger = get_logger("sender")
+
+
+async def send_message(message: MessageSending) -> None:
+    """合并后的消息发送函数，包含WS发送和日志记录"""
+    message_preview = truncate_message(message.processed_plain_text)
+
+    try:
+        # 直接调用API发送消息
+        await global_api.send_message(message)
+        logger.success(f"发送消息   '{message_preview}'   成功")
+
+    except Exception as e:
+        logger.error(f"发送消息   '{message_preview}'   失败: {str(e)}")
+        if not message.message_info.platform:
+            raise ValueError(f"未找到平台：{message.message_info.platform} 的url配置，请检查配置文件") from e
+        raise e  # 重新抛出其他异常
 
 
 class HeartFCSender:
@@ -20,21 +41,6 @@ class HeartFCSender:
         # 用于存储活跃的思考消息
         self.thinking_messages: Dict[str, Dict[str, MessageThinking]] = {}
         self._thinking_lock = asyncio.Lock()  # 保护 thinking_messages 的锁
-
-    async def send_message(self, message: MessageSending) -> None:
-        """合并后的消息发送函数，包含WS发送和日志记录"""
-        message_preview = truncate_message(message.processed_plain_text)
-
-        try:
-            # 直接调用API发送消息
-            await global_api.send_message(message)
-            logger.success(f"发送消息   '{message_preview}'   成功")
-
-        except Exception as e:
-            logger.error(f"发送消息   '{message_preview}'   失败: {str(e)}")
-            if not message.message_info.platform:
-                raise ValueError(f"未找到平台：{message.message_info.platform} 的url配置，请检查配置文件") from e
-            raise e  # 重新抛出其他异常
 
     async def register_thinking(self, thinking_message: MessageThinking):
         """注册一个思考中的消息。"""
@@ -73,7 +79,7 @@ class HeartFCSender:
             thinking_message = self.thinking_messages.get(chat_id, {}).get(message_id)
             return thinking_message.thinking_start_time if thinking_message else None
 
-    async def type_and_send_message(self, message: MessageSending, type=False):
+    async def type_and_send_message(self, message: MessageSending, typing=False):
         """
         立即处理、发送并存储单个 MessageSending 消息。
         调用此方法前，应先调用 register_thinking 注册对应的思考消息。
@@ -100,7 +106,7 @@ class HeartFCSender:
 
             await message.process()
 
-            if type:
+            if typing:
                 typing_time = calculate_typing_time(
                     input_string=message.processed_plain_text,
                     thinking_start_time=message.thinking_start_time,
@@ -108,7 +114,7 @@ class HeartFCSender:
                 )
                 await asyncio.sleep(typing_time)
 
-            await self.send_message(message)
+            await send_message(message)
             await self.storage.store_message(message, message.chat_stream)
 
         except Exception as e:
@@ -136,7 +142,7 @@ class HeartFCSender:
 
             await asyncio.sleep(0.5)
 
-            await self.send_message(message)  # 使用现有的发送方法
+            await send_message(message)  # 使用现有的发送方法
             await self.storage.store_message(message, message.chat_stream)  # 使用现有的存储方法
 
         except Exception as e:

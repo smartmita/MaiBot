@@ -19,6 +19,7 @@ from src.plugins.chat.chat_stream import ChatStream, chat_manager
 from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.utils.timer_calculator import Timer
+from src.heart_flow.utils_chat import get_chat_type_and_target_info
 
 
 logger = get_logger("chat")
@@ -26,31 +27,48 @@ logger = get_logger("chat")
 
 class NormalChat:
     def __init__(self, chat_stream: ChatStream, interest_dict: dict):
-        """
-        初始化 NormalChat 实例，针对特定的 ChatStream。
+        """初始化 NormalChat 实例。只进行同步操作。"""
 
-        Args:
-            chat_stream (ChatStream): 此 NormalChat 实例关联的聊天流对象。
-        """
-
+        # Basic info from chat_stream (sync)
         self.chat_stream = chat_stream
         self.stream_id = chat_stream.stream_id
+        # Get initial stream name, might be updated in initialize
         self.stream_name = chat_manager.get_stream_name(self.stream_id) or self.stream_id
 
+        # Interest dict
         self.interest_dict = interest_dict
 
+        # --- Initialize attributes (defaults) ---
+        self.is_group_chat: bool = False
+        self.chat_target_info: Optional[dict] = None
+        # --- End Initialization ---
+
+        # Other sync initializations
         self.gpt = NormalChatGenerator()
-        self.mood_manager = MoodManager.get_instance()  # MoodManager 保持单例
-        # 存储此实例的兴趣监控任务
+        self.mood_manager = MoodManager.get_instance()
         self.start_time = time.time()
-
         self.last_speak_time = 0
-
         self._chat_task: Optional[asyncio.Task] = None
-        logger.info(f"[{self.stream_name}] NormalChat 实例初始化完成。")
+        self._initialized = False  # Track initialization status
+
+        # logger.info(f"[{self.stream_name}] NormalChat 实例 __init__ 完成 (同步部分)。")
+        # Avoid logging here as stream_name might not be final
+
+    async def initialize(self):
+        """异步初始化，获取聊天类型和目标信息。"""
+        if self._initialized:
+            return
+
+        # --- Use utility function to determine chat type and fetch info ---
+        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.stream_id)
+        # Update stream_name again after potential async call in util func
+        self.stream_name = chat_manager.get_stream_name(self.stream_id) or self.stream_id
+        # --- End using utility function ---
+        self._initialized = True
+        logger.info(f"[{self.stream_name}] NormalChat 实例 initialize 完成 (异步部分)。")
 
     # 改为实例方法
-    async def _create_thinking_message(self, message: MessageRecv) -> str:
+    async def _create_thinking_message(self, message: MessageRecv, timestamp: Optional[float] = None) -> str:
         """创建思考消息"""
         messageinfo = message.message_info
 
@@ -64,10 +82,11 @@ class NormalChat:
         thinking_id = "mt" + str(thinking_time_point)
         thinking_message = MessageThinking(
             message_id=thinking_id,
-            chat_stream=self.chat_stream,  # 使用 self.chat_stream
+            chat_stream=self.chat_stream,
             bot_user_info=bot_user_info,
             reply=message,
             thinking_start_time=thinking_time_point,
+            timestamp=timestamp if timestamp is not None else None,
         )
 
         await message_manager.add_message(thinking_message)
@@ -159,8 +178,11 @@ class NormalChat:
         """更新关系情绪"""
         ori_response = ",".join(response_set)
         stance, emotion = await self.gpt._get_emotion_tags(ori_response, message.processed_plain_text)
+        user_info = message.message_info.user_info
+        platform = user_info.platform
         await relationship_manager.calculate_update_relationship_value(
-            chat_stream=self.chat_stream,
+            user_info,
+            platform,
             label=emotion,
             stance=stance,  # 使用 self.chat_stream
         )
@@ -188,7 +210,10 @@ class NormalChat:
                 try:
                     # 处理消息
                     await self.normal_response(
-                        message=message, is_mentioned=is_mentioned, interested_rate=interest_value
+                        message=message,
+                        is_mentioned=is_mentioned,
+                        interested_rate=interest_value,
+                        rewind_response=False,
                     )
                 except Exception as e:
                     logger.error(f"[{self.stream_name}] 处理兴趣消息{msg_id}时出错: {e}\n{traceback.format_exc()}")
@@ -196,7 +221,9 @@ class NormalChat:
                     self.interest_dict.pop(msg_id, None)
 
     # 改为实例方法, 移除 chat 参数
-    async def normal_response(self, message: MessageRecv, is_mentioned: bool, interested_rate: float) -> None:
+    async def normal_response(
+        self, message: MessageRecv, is_mentioned: bool, interested_rate: float, rewind_response: bool = False
+    ) -> None:
         # 检查收到的消息是否属于当前实例处理的 chat stream
         if message.chat_stream.stream_id != self.stream_id:
             logger.error(
@@ -243,7 +270,10 @@ class NormalChat:
             await willing_manager.before_generate_reply_handle(message.message_info.message_id)
 
             with Timer("创建思考消息", timing_results):
-                thinking_id = await self._create_thinking_message(message)
+                if rewind_response:
+                    thinking_id = await self._create_thinking_message(message, message.message_info.time)
+                else:
+                    thinking_id = await self._create_thinking_message(message)
 
             logger.debug(f"[{self.stream_name}] 创建捕捉器，thinking_id:{thinking_id}")
 
@@ -372,10 +402,19 @@ class NormalChat:
 
             try:
                 logger.info(f"[{self.stream_name}] 处理初始高兴趣消息 {msg_id} (兴趣值: {interest_value:.2f})")
-                await self.normal_response(message=message, is_mentioned=is_mentioned, interested_rate=interest_value)
+                await self.normal_response(
+                    message=message, is_mentioned=is_mentioned, interested_rate=interest_value, rewind_response=True
+                )
                 processed_count += 1
             except Exception as e:
                 logger.error(f"[{self.stream_name}] 处理初始兴趣消息 {msg_id} 时出错: {e}\\n{traceback.format_exc()}")
+
+        # --- 新增：处理完后清空整个字典 ---
+        logger.info(
+            f"[{self.stream_name}] 处理了 {processed_count} 条初始高兴趣消息。现在清空所有剩余的初始兴趣消息..."
+        )
+        self.interest_dict.clear()
+        # --- 新增结束 ---
 
         logger.info(
             f"[{self.stream_name}] 初始高兴趣消息处理完毕，共处理 {processed_count} 条。剩余 {len(self.interest_dict)} 条待轮询。"
@@ -416,22 +455,18 @@ class NormalChat:
     # 改为实例方法, 移除 chat 参数
 
     async def start_chat(self):
-        """为此 NormalChat 实例关联的 ChatStream 启动聊天任务（如果尚未运行），
-        并在后台处理一次初始的高兴趣消息。"""  # 文言文注释示例：启聊之始，若有遗珠，当于暗处拂拭，勿碍正途。
-        if self._chat_task is None or self._chat_task.done():
-            # --- 修改：使用 create_task 启动初始消息处理 ---
-            logger.info(f"[{self.stream_name}] 开始后台处理初始兴趣消息...")
-            # 创建一个任务来处理初始消息，不阻塞当前流程
-            _initial_process_task = asyncio.create_task(self._process_initial_interest_messages())
-            # 可以考虑给这个任务也添加完成回调来记录日志或处理错误
-            # initial_process_task.add_done_callback(...)
-            # --- 修改结束 ---
+        """先进行异步初始化，然后启动聊天任务。"""
+        if not self._initialized:
+            await self.initialize()  # Ensure initialized before starting tasks
 
-            # 启动后台轮询任务 (这部分不变)
-            logger.info(f"[{self.stream_name}] 启动后台兴趣消息轮询任务...")
-            polling_task = asyncio.create_task(self._reply_interested_message())  # 注意变量名区分
+        if self._chat_task is None or self._chat_task.done():
+            logger.info(f"[{self.stream_name}] 开始后台处理初始兴趣消息和轮询任务...")
+            # Process initial messages first
+            await self._process_initial_interest_messages()
+            # Then start polling task
+            polling_task = asyncio.create_task(self._reply_interested_message())
             polling_task.add_done_callback(lambda t: self._handle_task_completion(t))
-            self._chat_task = polling_task  # self._chat_task 仍然指向主要的轮询任务
+            self._chat_task = polling_task
         else:
             logger.info(f"[{self.stream_name}] 聊天轮询任务已在运行中。")
 

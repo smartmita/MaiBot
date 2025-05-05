@@ -303,39 +303,9 @@ class Conversation:
                               current_goal_str = goal_item.get('goal', '')
                          elif isinstance(goal_item, str):
                               current_goal_str = goal_item
-                    if is_suitable:
-                        # 检查是否有新消息
-                        if self._check_new_messages_after_planning():
-                            logger.info(f"[私聊][{self.private_name}]生成追问回复期间收到新消息，取消发送，重新规划行动")
-                            conversation_info.done_action[action_index].update(
-                                {"status": "recall", "final_reason": f"有新消息，取消发送追问: {final_reply_to_send}"}
-                            )
-                            return  # 直接返回，重新规划
 
-                        # 发送合适的回复
-                        self.generated_reply = final_reply_to_send
-                        # --- 在这里调用 _send_reply ---
-                        await self._send_reply()  # <--- 调用恢复后的函数
-
-                        # 更新状态: 标记上次成功是 send_new_message
-                        self.conversation_info.last_successful_reply_action = "send_new_message"
-                        action_successful = True  # 标记动作成功
-
-                        # 更新最后消息时间，重置空闲检测计时器
-                        await self.idle_conversation_starter.update_last_message_time()
-
-                    elif need_replan:
-                        # 打回动作决策
-                        logger.warning(
-                            f"[私聊][{self.private_name}]经过 {reply_attempt_count} 次尝试，追问回复决定打回动作决策。打回原因: {check_reason}"
-                        )
-                        conversation_info.done_action[action_index].update(
-                            {"status": "recall",
-                             "final_reason": f"追问尝试{reply_attempt_count}次后打回: {check_reason}"}
-                        )
                     chat_history_for_check = getattr(observation_info, 'chat_history', [])
                     chat_history_str_for_check = getattr(observation_info, 'chat_history_str', '')
-
 
                     is_suitable, check_reason, need_replan = await self.reply_generator.check_reply(
                         reply=self.generated_reply,
@@ -412,9 +382,6 @@ class Conversation:
                        await observation_info.clear_processed_messages(message_ids_to_clear)
                     else:
                        logger.debug(f"[私聊][{self.private_name}]没有需要清理的发送前消息。")
-
-
-
 
                     # 根据发送期间是否有新消息，决定下次规划用哪个 prompt
                     if new_messages_during_sending_count > 0:
@@ -601,7 +568,6 @@ class Conversation:
             conversation_info.last_reply_rejection_reason = None
             conversation_info.last_rejected_reply_content = None
 
-
         # --- 更新 Action History 状态 (保持不变) ---
         if action_successful:
             conversation_info.done_action[action_index].update(
@@ -613,7 +579,6 @@ class Conversation:
             logger.debug(f"[私聊][{self.private_name}]动作 '{action}' 标记为 'done'")
         else:
             logger.debug(f"[私聊][{self.private_name}]动作 '{action}' 标记为 'recall' 或失败")
-
 
     async def _send_reply(self) -> bool:
         """发送回复，并返回是否发送成功 (保持不变)"""
