@@ -4,17 +4,10 @@ from typing import List, Optional, Dict, Any, Set
 from maim_message import UserInfo
 import time
 from src.common.logger import get_module_logger
-# 移除旧的 ChatObserver 导入，因为它现在通过类型提示和方法参数传入
-# from .chat_observer import ChatObserver
+from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
 from src.plugins.utils.chat_message_builder import build_readable_messages
 import traceback  # 导入 traceback 用于调试
-
-# 确保 ChatObserver 类型可用，即使不直接导入
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from .chat_observer import ChatObserver
-
 
 logger = get_module_logger("observation_info")
 
@@ -84,7 +77,7 @@ class ObservationInfoHandler(NotificationHandler):
             elif notification_type == NotificationType.ACTIVE_CHAT:
                 # 处理活跃通知 (通常由 COLD_CHAT 的反向状态处理)
                 is_active = data.get("is_active", False)
-                self.observation_info.is_cold_chat = not is_active # Corrected variable name
+                self.observation_info.is_cold = not is_active
 
             elif notification_type == NotificationType.BOT_SPEAKING:
                 # 处理机器人说话通知 (按需实现)
@@ -154,9 +147,9 @@ class ObservationInfo:
     cold_chat_start_time: Optional[float]
     cold_chat_duration: float
     is_typing: bool
-    is_cold_chat: bool # Corrected variable name
+    is_cold_chat: bool
     changed: bool
-    chat_observer: Optional['ChatObserver'] # Use forward reference
+    chat_observer: Optional[ChatObserver]
     handler: Optional[ObservationInfoHandler]
 
     def __init__(self, private_name: str):
@@ -188,11 +181,11 @@ class ObservationInfo:
 
         # state
         self.is_typing: bool = False
-        self.is_cold_chat: bool = False # Corrected variable name
+        self.is_cold_chat: bool = False
         self.changed: bool = False
 
         # 关联对象
-        self.chat_observer: Optional['ChatObserver'] = None # Use forward reference
+        self.chat_observer: Optional[ChatObserver] = None
 
         self.handler: ObservationInfoHandler = ObservationInfoHandler(self, self.private_name)
 
