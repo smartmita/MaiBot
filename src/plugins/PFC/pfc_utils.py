@@ -2,9 +2,9 @@ import traceback
 import json
 import re
 from typing import Dict, Any, Optional, Tuple, List, Union
-from src.common.logger_manager import get_logger # 确认 logger 的导入路径
+from src.common.logger_manager import get_logger  # 确认 logger 的导入路径
 from src.plugins.memory_system.Hippocampus import HippocampusManager
-from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder # 确认 prompt_builder 的导入路径
+from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # 确认 prompt_builder 的导入路径
 
 logger = get_logger("pfc_utils")
 
@@ -47,31 +47,34 @@ async def retrieve_contextual_info(text: str, private_name: str) -> Tuple[str, s
                 retrieved_memory_str = f"你回忆起：\n{related_memory_info.strip()}\n(以上是你的回忆，供参考)\n"
                 memory_log_msg = f"自动检索到记忆: {related_memory_info.strip()[:100]}..."
             else:
-                 memory_log_msg = "自动检索记忆返回为空。"
+                memory_log_msg = "自动检索记忆返回为空。"
         logger.debug(f"[私聊][{private_name}] (retrieve_contextual_info) 记忆检索: {memory_log_msg}")
 
     except Exception as e:
-        logger.error(f"[私聊][{private_name}] (retrieve_contextual_info) 自动检索记忆时出错: {e}\n{traceback.format_exc()}")
+        logger.error(
+            f"[私聊][{private_name}] (retrieve_contextual_info) 自动检索记忆时出错: {e}\n{traceback.format_exc()}"
+        )
         retrieved_memory_str = "检索记忆时出错。\n"
 
     # 2. 检索知识 (逻辑来自原 action_planner 和 reply_generator)
     try:
         # 使用导入的 prompt_builder 实例及其方法
         knowledge_result = await prompt_builder.get_prompt_info(
-            message=text, threshold=0.38 # threshold 可以根据需要调整
+            message=text,
+            threshold=0.38,  # threshold 可以根据需要调整
         )
         if knowledge_result:
-             retrieved_knowledge_str = knowledge_result # 直接使用返回结果
-             knowledge_log_msg = "自动检索到相关知识。"
+            retrieved_knowledge_str = knowledge_result  # 直接使用返回结果
+            knowledge_log_msg = "自动检索到相关知识。"
         logger.debug(f"[私聊][{private_name}] (retrieve_contextual_info) 知识检索: {knowledge_log_msg}")
 
     except Exception as e:
-        logger.error(f"[私聊][{private_name}] (retrieve_contextual_info) 自动检索知识时出错: {e}\n{traceback.format_exc()}")
+        logger.error(
+            f"[私聊][{private_name}] (retrieve_contextual_info) 自动检索知识时出错: {e}\n{traceback.format_exc()}"
+        )
         retrieved_knowledge_str = "检索知识时出错。\n"
 
     return retrieved_memory_str, retrieved_knowledge_str
-
-
 
 
 def get_items_from_json(
