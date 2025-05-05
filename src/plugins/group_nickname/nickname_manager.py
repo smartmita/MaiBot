@@ -252,7 +252,7 @@ class NicknameManager:
                             ),
                             None,
                         )
-                        user_name_map[user_id] = latest_nickname or f"未知({user_id})"
+                        user_name_map[user_id] = latest_nickname or f"{global_config.BOT_NICKNAME}(你)" if user_id == global_config.BOT_QQ else f"未知"
 
             item = (chat_history_str, bot_reply_str, platform, group_id, user_name_map)
             await self._add_to_queue(item, platform, group_id)
@@ -391,7 +391,7 @@ class NicknameManager:
             return {"is_exist": False}
 
         prompt = _build_mapping_prompt(chat_history_str, bot_reply, user_name_map)
-        logger.debug(f"构建的绰号映射 Prompt:\n{prompt[:500]}...")
+        logger.debug(f"构建的绰号映射 Prompt:\n{prompt}...")
 
         try:
             response_content, _, _ = await self.llm_mapper.generate_response(prompt)
