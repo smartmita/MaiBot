@@ -32,7 +32,6 @@ def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: 
 
 已知用户信息（ID: 名称）：
 {user_list_str}
-*注意：名称后面带有"(你)"表示是你自己。*
 
 聊天记录：
 ---
