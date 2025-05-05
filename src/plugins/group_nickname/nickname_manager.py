@@ -252,7 +252,11 @@ class NicknameManager:
                             ),
                             None,
                         )
-                        user_name_map[user_id] = latest_nickname or f"{global_config.BOT_NICKNAME}(你)" if user_id == global_config.BOT_QQ else "未知"
+                        user_name_map[user_id] = (
+                            latest_nickname or f"{global_config.BOT_NICKNAME}(你)"
+                            if user_id == global_config.BOT_QQ
+                            else "未知"
+                        )
 
             item = (chat_history_str, bot_reply_str, platform, group_id, user_name_map)
             await self._add_to_queue(item, platform, group_id)
