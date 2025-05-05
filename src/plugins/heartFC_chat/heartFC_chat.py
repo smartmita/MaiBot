@@ -1,5 +1,6 @@
 import asyncio
 import time
+import re
 import traceback
 import random
 import json
@@ -912,9 +913,21 @@ class HeartFChatting:
             if not llm_error and llm_content:
                 try:
                     # 尝试去除可能的 markdown 代码块标记
-                    cleaned_content = (
-                        llm_content.strip().removeprefix("```json").removeprefix("```").removesuffix("```").strip()
-                    )
+                    response_content = llm_content
+                    markdown_code_regex = re.compile(r"^```(?:\w+)?\s*\n(.*?)\n\s*```$", re.DOTALL | re.IGNORECASE)
+                    match = markdown_code_regex.match(response_content)
+                    if match:
+                        response_content = match.group(1).strip()
+                    elif response_content.startswith("{") and response_content.endswith("}"):
+                        pass  # 可能是纯 JSON
+                    else:
+                        json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
+                        if json_match:
+                            response_content = json_match.group(0)
+                        else:
+                            logger.warning(f"LLM 响应似乎不包含有效的 JSON 对象。响应: {response_content}")
+                    
+                    cleaned_content = response_content
                     if not cleaned_content:
                         raise json.JSONDecodeError("Cleaned content is empty", cleaned_content, 0)
                     parsed_json = json.loads(cleaned_content)
