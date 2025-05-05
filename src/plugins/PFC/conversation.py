@@ -7,8 +7,8 @@ import datetime
 # from .message_storage import MongoDBMessageStorage
 from src.plugins.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 
-from ...config.config import global_config # 确保导入 global_config
-from typing import Dict, Any, Optional, Set # 引入 Set
+# from ...config.config import global_config
+from typing import Dict, Any, Optional
 from ..chat.message import Message
 from .pfc_types import ConversationState
 from .pfc import ChatObserver, GoalAnalyzer # pfc.py 包含了 GoalAnalyzer，无需重复导入
@@ -50,9 +50,6 @@ class Conversation:
         # 回复相关
         self.generated_reply = ""
 
-        # 初始化 bot_id
-        self.bot_id = str(global_config.BOT_QQ) # 从配置中获取
-
     async def _initialize(self):
         """初始化实例，注册所有组件"""
 
@@ -79,23 +76,17 @@ class Conversation:
             self.chat_observer = ChatObserver.get_instance(self.stream_id, self.private_name)
             self.chat_observer.start()
             self.observation_info = ObservationInfo(self.private_name)
-            # --- 在绑定前设置 bot_id ---
-            self.observation_info.bot_id = self.bot_id
-            # --- 设置结束 ---
             self.observation_info.bind_to_chat_observer(self.chat_observer)
+            # print(self.chat_observer.get_cached_messages(limit=)
 
             self.conversation_info = ConversationInfo()
-            # --- 初始化上次拒绝回复的信息 ---
-            self.conversation_info.last_reply_rejection_reason = None
-            self.conversation_info.last_rejected_reply_content = None
-
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]初始化对话实例：注册信息组件失败: {e}")
             logger.error(f"[私聊][{self.private_name}]{traceback.format_exc()}")
             raise
         try:
             logger.info(f"[私聊][{self.private_name}]为 {self.stream_id} 加载初始聊天记录...")
-            initial_messages = get_raw_msg_before_timestamp_with_chat(
+            initial_messages = get_raw_msg_before_timestamp_with_chat(  #
                 chat_id=self.stream_id,
                 timestamp=time.time(),
                 limit=30,  # 加载最近30条作为初始上下文，可以调整
@@ -116,15 +107,8 @@ class Conversation:
                 # 更新 ObservationInfo 中的时间戳等信息
                 last_msg = initial_messages[-1]
                 self.observation_info.last_message_time = last_msg.get("time")
-                # 确保 last_msg['user_info'] 是字典
-                last_user_info_dict = last_msg.get("user_info", {})
-                if isinstance(last_user_info_dict, dict):
-                     last_user_info = UserInfo.from_dict(last_user_info_dict)
-                     self.observation_info.last_message_sender = str(last_user_info.user_id) # 确保是字符串
-                else:
-                     logger.warning(f"Initial message user_info is not a dict: {last_user_info_dict}")
-                     self.observation_info.last_message_sender = None
-
+                last_user_info = UserInfo.from_dict(last_msg.get("user_info", {}))
+                self.observation_info.last_message_sender = last_user_info.user_id
                 self.observation_info.last_message_content = last_msg.get("processed_plain_text", "")
 
                 logger.info(
@@ -309,33 +293,30 @@ class Conversation:
     def _convert_to_message(self, msg_dict: Dict[str, Any]) -> Message:
         """将消息字典转换为Message对象 (保持不变)"""
         try:
+            # 尝试从 msg_dict 直接获取 chat_stream，如果失败则从全局 chat_manager 获取
             chat_info = msg_dict.get("chat_info")
             if chat_info and isinstance(chat_info, dict):
                 chat_stream = ChatStream.from_dict(chat_info)
-            elif self.chat_stream:
+            elif self.chat_stream:  # 使用实例变量中的 chat_stream
                 chat_stream = self.chat_stream
-            else:
+            else:  # Fallback: 尝试从 manager 获取 (可能需要 stream_id)
                 chat_stream = chat_manager.get_stream(self.stream_id)
                 if not chat_stream:
                     raise ValueError(f"无法确定 ChatStream for stream_id {self.stream_id}")
 
-            user_info_dict = msg_dict.get("user_info", {})
-            if isinstance(user_info_dict, dict):
-                 user_info = UserInfo.from_dict(user_info_dict)
-            else:
-                 logger.warning(f"Message user_info is not a dict: {user_info_dict}")
-                 user_info = UserInfo(user_id="unknown", user_nickname="Unknown", platform="unknown")
+            user_info = UserInfo.from_dict(msg_dict.get("user_info", {}))
 
             return Message(
-                message_id=msg_dict.get("message_id", f"gen_{time.time()}"),
-                chat_stream=chat_stream,
-                time=msg_dict.get("time", time.time()),
+                message_id=msg_dict.get("message_id", f"gen_{time.time()}"),  # 提供默认 ID
+                chat_stream=chat_stream,  # 使用确定的 chat_stream
+                time=msg_dict.get("time", time.time()),  # 提供默认时间
                 user_info=user_info,
                 processed_plain_text=msg_dict.get("processed_plain_text", ""),
                 detailed_plain_text=msg_dict.get("detailed_plain_text", ""),
             )
         except Exception as e:
             logger.warning(f"[私聊][{self.private_name}]转换消息时出错: {e}")
+            # 可以选择返回 None 或重新抛出异常，这里选择重新抛出以指示问题
             raise ValueError(f"无法将字典转换为 Message 对象: {e}") from e
 
     # --- [修改点 5] 修改 _handle_action 签名并调整内部逻辑 ---
@@ -351,7 +332,7 @@ class Conversation:
 
         logger.debug(f"[私聊][{self.private_name}]执行行动: {action}, 原因: {reason}")
 
-        # 记录action历史
+        # 记录action历史 (逻辑不变)
         current_action_record = {
             "action": action,
             "plan_reason": reason,
@@ -389,7 +370,7 @@ class Conversation:
                 )
                 logger.info(f"{log_prefix} 生成内容: {self.generated_reply}")
 
-                # 2. 检查回复
+                # 2. 检查回复 (逻辑不变)
                 self.state = ConversationState.CHECKING
                 try:
                     current_goal_str = "" # 初始化
@@ -547,7 +528,6 @@ class Conversation:
                     logger.error(f"[私聊][{self.private_name}]GoalAnalyzer 未初始化，无法重新思考目标。")
                     raise AttributeError("GoalAnalyzer not initialized")
                 await self.goal_analyzer.analyze_goal(conversation_info, observation_info)
-                await observation_info.mark_messages_processed_up_to(planning_marker_time)
                 action_successful = True
             except Exception as rethink_err:
                 logger.error(f"[私聊][{self.private_name}]重新思考目标时出错: {rethink_err}")
@@ -567,7 +547,6 @@ class Conversation:
                 if not hasattr(self, "waiter"):
                     logger.error(f"[私聊][{self.private_name}]Waiter 未初始化，无法倾听。")
                     raise AttributeError("Waiter not initialized")
-                await observation_info.mark_messages_processed_up_to(planning_marker_time)
                 await self.waiter.wait_listening(conversation_info)
                 action_successful = True
             except Exception as listen_err:
@@ -671,7 +650,6 @@ class Conversation:
                 if not hasattr(self, "waiter"):
                     logger.error(f"[私聊][{self.private_name}]Waiter 未初始化，无法等待。")
                     raise AttributeError("Waiter not initialized")
-                await observation_info.mark_messages_processed_up_to(planning_marker_time)
                 _timeout_occurred = await self.waiter.wait(self.conversation_info)
                 action_successful = True
             except Exception as wait_err:
@@ -738,22 +716,13 @@ class Conversation:
     async def _send_timeout_message(self):
         """发送超时结束消息 (保持不变)"""
         try:
-            if not hasattr(self, 'observation_info') or not self.observation_info.chat_history:
-                 logger.warning(f"[私聊][{self.private_name}]无法获取聊天历史，无法发送超时消息。")
-                 return
-
-            messages = self.observation_info.chat_history[-1:]
+            messages = self.chat_observer.get_cached_messages(limit=1)
             if not messages:
                 return
 
-            latest_message_dict = messages[0]
-            if not self.chat_stream:
-                 logger.error(f"[私聊][{self.private_name}]ChatStream 未初始化，无法发送超时消息。")
-                 return
-            latest_message = self._convert_to_message(latest_message_dict)
-
+            latest_message = self._convert_to_message(messages[0])
             await self.direct_sender.send_message(
-                chat_stream=self.chat_stream, content="[自动消息] 对方长时间未响应，对话已超时。", reply_to_message=latest_message
+                chat_stream=self.chat_stream, content="TODO:超时消息", reply_to_message=latest_message
             )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]发送超时消息失败: {str(e)}")
