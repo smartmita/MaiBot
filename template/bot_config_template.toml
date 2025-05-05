@@ -301,11 +301,11 @@ pri_out = 8
 
 #绰号映射生成模型
 [model.llm_nickname_mapping]
-name = "deepseek-ai/DeepSeek-V3"
+name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
-temp = 0.3
-pri_in = 2
-pri_out = 8
+temp = 0.7
+pri_in = 1.26
+pri_out = 1.26
 
 #以下模型暂时没有使用！！
 #以下模型暂时没有使用！！

@@ -253,7 +253,7 @@ class NicknameManager:
                             None,
                         )
                         user_name_map[user_id] = (
-                            latest_nickname or f"{global_config.BOT_NICKNAME}(你)"
+                            latest_nickname or f"{global_config.BOT_NICKNAME}"
                             if user_id == global_config.BOT_QQ
                             else "未知"
                         )
