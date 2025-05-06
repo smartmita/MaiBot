@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from ..chat.message import Message
     from .conversation import Conversation
 
-logger = get_module_logger("idle_conversation")
+logger = get_module_logger("pfc_idle")
 
 class IdleConversationStarter:
     """长时间无对话主动发起对话的组件
