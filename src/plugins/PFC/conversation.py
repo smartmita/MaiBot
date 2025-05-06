@@ -25,6 +25,7 @@ from ...config.config import global_config
 
 # 导入用户信息
 from ..person_info.person_info import person_info_manager
+from ..person_info.relationship_manager import relationship_manager
 # 导入关系
 from .pfc_relationship_translator import translate_relationship_value_to_text
 # 导入情绪
@@ -93,7 +94,7 @@ class Conversation:
 
         # --- 新增：初始化管理器实例 ---
         self.person_info_mng = person_info_manager
-        self.relationship_mng = translate_relationship_value_to_text
+        self.relationship_mng = relationship_manager
         self.mood_mng = MoodManager.get_instance() # MoodManager 是单例
 
         # 初始化所有核心组件为 None，将在 _initialize 中创建
@@ -282,17 +283,27 @@ class Conversation:
                 logger.warning(f"[私聊][{self.private_name}] MoodManager 未能启动，相关功能可能受限。")
 
             # --- 在初始化完成前，尝试加载一次关系和情绪信息 ---
-            if self.conversation_info and self.conversation_info.person_id and self.relationship_mng:
+            if self.conversation_info and self.conversation_info.person_id:
                 try:
-                   self.conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(
-                       self.conversation_info.person_id,
-                       is_id=True
-                   )
-                   logger.info(f"[私聊][{self.private_name}] 初始化时加载关系文本: {self.conversation_info.relationship_text}")
-                except Exception as e_init_rel:
-                   logger.error(f"[私聊][{self.private_name}] 初始化时加载关系文本出错: {e_init_rel}")
-                   # 保留默认值
+                    # 1. 获取数值型关系值
+                    numeric_relationship_value = await self.person_info_mng.get_value(
+                    self.conversation_info.person_id,
+                    "relationship_value"
+                    )
+                    # 确保是浮点数
+                    if not isinstance(numeric_relationship_value, (int, float)):
+                        from bson.decimal128 import Decimal128
+                        if isinstance(numeric_relationship_value, Decimal128):
+                            numeric_relationship_value = float(numeric_relationship_value.to_decimal())
+                        else:
+                            numeric_relationship_value = 0.0
 
+                    # 2. 使用PFC内部翻译函数
+                    self.conversation_info.relationship_text = translate_relationship_value_to_text(numeric_relationship_value)
+                    logger.info(f"[私聊][{self.private_name}] 初始化时加载关系文本: {self.conversation_info.relationship_text}")
+                except Exception as e_init_rel:
+                    logger.error(f"[私聊][{self.private_name}] 初始化时加载关系文本出错: {e_init_rel}")
+                    self.conversation_info.relationship_text = "你们的关系是：普通。" # 保留默认值
             if self.conversation_info and self.mood_mng:
                 try:
                    self.conversation_info.current_emotion_text = self.mood_mng.get_prompt()
