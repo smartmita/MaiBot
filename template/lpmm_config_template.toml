@@ -38,8 +38,8 @@ synonym_threshold = 0.8   # 同义词阈值（相似度高于此阈值的词语�
 provider = "siliconflow"                 # 服务提供商
 model = "deepseek-ai/DeepSeek-R1-Distill-Qwen-32B" # 模型名称
 
-[info_extraction]
-workers = 10
+[info_extraction] 
+workers = 3            # 实体提取同时执行线程数，非Pro模型不要设置超过5
 
 [qa.params]
 # QA参数配置
