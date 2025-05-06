@@ -26,7 +26,7 @@ from ...config.config import global_config
 # 导入用户信息
 from ..person_info.person_info import person_info_manager
 # 导入关系
-from ..person_info.relationship_manager import relationship_manager
+from .pfc_relationship_translator import translate_relationship_value_to_text
 # 导入情绪
 from ..moods.moods import MoodManager
 
@@ -93,7 +93,7 @@ class Conversation:
 
         # --- 新增：初始化管理器实例 ---
         self.person_info_mng = person_info_manager
-        self.relationship_mng = relationship_manager
+        self.relationship_mng = translate_relationship_value_to_text
         self.mood_mng = MoodManager.get_instance() # MoodManager 是单例
 
         # 初始化所有核心组件为 None，将在 _initialize 中创建
@@ -281,6 +281,27 @@ class Conversation:
             else:
                 logger.warning(f"[私聊][{self.private_name}] MoodManager 未能启动，相关功能可能受限。")
 
+            # --- 在初始化完成前，尝试加载一次关系和情绪信息 ---
+            if self.conversation_info and self.conversation_info.person_id and self.relationship_mng:
+                try:
+                   self.conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(
+                       self.conversation_info.person_id,
+                       is_id=True
+                   )
+                   logger.info(f"[私聊][{self.private_name}] 初始化时加载关系文本: {self.conversation_info.relationship_text}")
+                except Exception as e_init_rel:
+                   logger.error(f"[私聊][{self.private_name}] 初始化时加载关系文本出错: {e_init_rel}")
+                   # 保留默认值
+
+            if self.conversation_info and self.mood_mng:
+                try:
+                   self.conversation_info.current_emotion_text = self.mood_mng.get_prompt()
+                   logger.info(f"[私聊][{self.private_name}] 初始化时加载情绪文本: {self.conversation_info.current_emotion_text}")
+                except Exception as e_init_emo:
+                   logger.error(f"[私聊][{self.private_name}] 初始化时加载情绪文本出错: {e_init_emo}")
+                # 保留默认值
+
+
             # 6. 标记初始化成功并设置运行状态
             self._initialized = True
             self.should_continue = True  # 初始化成功，标记可以继续运行循环
@@ -428,6 +449,22 @@ class Conversation:
         logger.info(f"[私聊][{self.private_name}] 正在停止对话实例: {self.stream_id}")
         self.should_continue = False  # 设置标志，让主循环退出
 
+        # --- 新增：在对话结束时调用最终关系更新 ---
+        if self._initialized and self.relationship_updater and self.conversation_info and self.observation_info and self.chat_observer:
+            try:
+                logger.info(f"[私聊][{self.private_name}] 准备执行最终关系评估...")
+                await self.relationship_updater.update_relationship_final(
+                    conversation_info=self.conversation_info,
+                    observation_info=self.observation_info,
+                    chat_observer_for_history=self.chat_observer
+                )
+                logger.info(f"[私聊][{self.private_name}] 最终关系评估已调用。")
+            except Exception as e_final_rel:
+                logger.error(f"[私聊][{self.private_name}] 调用最终关系评估时出错: {e_final_rel}")
+                logger.error(traceback.format_exc())
+        else:
+            logger.warning(f"[私聊][{self.private_name}] 跳过最终关系评估，因为实例未完全初始化或缺少必要组件。")
+
         # 停止空闲对话检测器
         if self.idle_conversation_starter:
             self.idle_conversation_starter.stop()
@@ -515,46 +552,72 @@ class Conversation:
             try:
                 if self.conversation_info and self._initialized: # 确保 conversation_info 和实例已初始化
                     # 更新关系文本
-                    if self.conversation_info.person_id and self.observation_info and self.observation_info.sender_platform and self.observation_info.sender_user_id:
+                    if self.conversation_info.person_id: # 确保 person_id 已获取
                         try:
-                            # relationship_manager.build_relationship_info 需要一个 (platform, user_id, user_nickname) 格式的元组
-                            # 注意 user_id 应为 RelationshipManager 所期望的类型（通常是原始的，可能是字符串或数字，检查其内部实现）
-                            # person_info.py 中 get_person_id 接收 int，但 build_relationship_info 的 person 参数更灵活
-                            # 这里我们假设 observation_info.sender_user_id 是字符串形式的 user_id
-                            # 如果 RelationshipManager 内部的 get_person_id 需要 int，这里可能需要转换
-                            # 但 RelationshipManager 的 build_relationship_info 方法第一个参数 person 可以直接是 person_id (is_id=True)
-                            # 或者是一个 (platform, user_id, nickname) 元组 (is_id=False)
-                            # 为了安全，我们用 person_id
-                            self.conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(
+                            # 1.直接从 person_info_manager 获取数值型的 relationship_value
+                            numeric_relationship_value = await self.person_info_mng.get_value(
                                 self.conversation_info.person_id,
-                                is_id=True # 明确告知是 person_id
+                                "relationship_value"
                             )
-                            logger.debug(f"[私聊][{self.private_name}] 更新关系文本: {self.conversation_info.relationship_text}")
+                        
+                            # 确保 relationship_value 是浮点数 (可以复用 relationship_manager 中的 ensure_float，或者在这里简单处理)
+                            if not isinstance(numeric_relationship_value, (int, float)):
+                                # 尝试从 Decimal128 转换 (如果你的数据库用的是这个)
+                                from bson.decimal128 import Decimal128
+                                if isinstance(numeric_relationship_value, Decimal128):
+                                    numeric_relationship_value = float(numeric_relationship_value.to_decimal())
+                                else: # 其他类型，或转换失败，给默认值
+                                    logger.warning(f"[私聊][{self.private_name}] 获取的 relationship_value 类型未知 ({type(numeric_relationship_value)}) 或转换失败，默认为0.0")
+                                    numeric_relationship_value = 0.0
+                        
+                            logger.debug(f"[私聊][{self.private_name}] 获取到数值型关系值: {numeric_relationship_value}")
+                        
+                            # 2. 使用PFC内部的翻译函数将其转换为文本描述
+                            simplified_relationship_text = translate_relationship_value_to_text(numeric_relationship_value)
+                            self.conversation_info.relationship_text = simplified_relationship_text
+                        
+                            logger.debug(f"[私聊][{self.private_name}] 更新后关系文本 (PFC内部翻译): {self.conversation_info.relationship_text}")
+
                         except Exception as e_rel:
-                            logger.error(f"[私聊][{self.private_name}] 更新关系文本时出错: {e_rel}")
-                            self.conversation_info.relationship_text = "我们之间的关系有点微妙。" # 出错时的默认值
-                    elif not self.conversation_info.person_id and self.observation_info and self.observation_info.sender_user_id and self.observation_info.sender_platform:
-                        # 如果 person_id 之前没获取到，在这里尝试再次获取
+                            logger.error(f"[私聊][{self.private_name}] 更新关系文本(PFC内部翻译)时出错: {e_rel}")
+                            self.conversation_info.relationship_text = "你们的关系是：普通。" # 出错时的默认值
+                    elif self.observation_info and self.observation_info.sender_user_id and self.observation_info.sender_platform:
+                        # 如果 person_id 之前没获取到，在这里尝试再次获取 (这部分逻辑保持，因为 person_id 是必须的)
                         try:
                             private_user_id_int = int(self.observation_info.sender_user_id)
                             self.conversation_info.person_id = self.person_info_mng.get_person_id(
                                 self.observation_info.sender_platform,
                                 private_user_id_int
                             )
-                            await self.person_info_mng.get_or_create_person(
+                            await self.person_info_mng.get_or_create_person( #确保用户存在
                                 platform=self.observation_info.sender_platform,
                                 user_id=private_user_id_int,
                                 nickname=self.observation_info.sender_name if self.observation_info.sender_name else "未知用户",
                             )
-                            if self.conversation_info.person_id: # 再次尝试更新关系文本
-                               self.conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(
-                                  self.conversation_info.person_id, is_id=True
-                            )
+                            if self.conversation_info.person_id: # 如果成功获取 person_id，则再次尝试更新关系文本
+                                numeric_relationship_value = await self.person_info_mng.get_value(
+                                    self.conversation_info.person_id,
+                                    "relationship_value"
+                                )
+                                if not isinstance(numeric_relationship_value, (int, float)):
+                                    from bson.decimal128 import Decimal128
+                                    if isinstance(numeric_relationship_value, Decimal128):
+                                        numeric_relationship_value = float(numeric_relationship_value.to_decimal())
+                                    else:
+                                        numeric_relationship_value = 0.0
+                                self.conversation_info.relationship_text = translate_relationship_value_to_text(numeric_relationship_value)
+                                logger.debug(f"[私聊][{self.private_name}] (备用逻辑)更新后关系文本: {self.conversation_info.relationship_text}")
+
                         except ValueError:
                             logger.error(f"[私聊][{self.private_name}] 循环中无法将 sender_user_id ('{self.observation_info.sender_user_id}') 转换为整数。")
+                            self.conversation_info.relationship_text = "你们的关系是：普通。"
                         except Exception as e_pid_loop:
-                            logger.error(f"[私聊][{self.private_name}] 循环中获取 person_id 时出错: {e_pid_loop}")
-
+                            logger.error(f"[私聊][{self.private_name}] 循环中获取 person_id 并更新关系时出错: {e_pid_loop}")
+                            self.conversation_info.relationship_text = "你们的关系是：普通。"
+                    else:
+                         # 如果 person_id 仍无法确定
+                        self.conversation_info.relationship_text = "你们的关系是：普通。" # 或 "你们的关系是：未知。"
+                
                      # 更新情绪文本
                     if self.mood_mng:
                         self.conversation_info.current_emotion_text = self.mood_mng.get_prompt()
