@@ -1,7 +1,8 @@
+import datetime
 import time
 import traceback
+from dateutil import tz
 from typing import List, Optional, Dict, Any, Set
-
 from maim_message import UserInfo
 from src.common.logger import get_module_logger
 from src.plugins.utils.chat_message_builder import build_readable_messages
@@ -11,6 +12,17 @@ from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
 
 logger = get_module_logger("observation_info")
+
+try:
+    from ...config.config import global_config
+except ImportError:
+    # 如果路径不对，可能需要调整 '...' 的数量
+    # 或者在后面实际使用 TIME_ZONE 的地方导入
+    logger.warning("无法在 observation_info.py 中直接导入 global_config，时区将在使用时获取")
+    global_config = None # 设置为 None，后面检查
+    TIME_ZONE = tz.tzlocal() # 备选：使用本地时区
+else:
+    TIME_ZONE = tz.gettz(global_config.TIME_ZONE if global_config else 'Asia/Shanghai') # 使用配置的时区，提供默认值
 
 
 class ObservationInfoHandler(NotificationHandler):
@@ -138,6 +150,9 @@ class ObservationInfo:
         # 其他状态
         self.is_typing: bool = False  # 是否正在输入 (未来可能用到)
         self.changed: bool = False  # 状态是否有变化 (用于优化)
+        
+        # 用于存储格式化的当前时间
+        self.current_time_str: Optional[str] = None
 
         # 关联对象
         self.chat_observer: Optional[ChatObserver] = None

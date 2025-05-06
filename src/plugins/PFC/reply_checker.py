@@ -22,7 +22,7 @@ class ReplyChecker:
         self.max_retries = 3  # 最大重试次数
 
     async def check(
-        self, reply: str, goal: str, chat_history: List[Dict[str, Any]], chat_history_text: str, retry_count: int = 0
+        self, reply: str, goal: str, chat_history: List[Dict[str, Any]], chat_history_text: str,current_time_str: str,  retry_count: int = 0
     ) -> Tuple[bool, str, bool]:
         """检查生成的回复是否合适
 
@@ -85,7 +85,9 @@ class ReplyChecker:
             logger.error(f"[私聊][{self.private_name}]检查回复时出错: 类型={type(e)}, 值={e}")
             logger.error(f"[私聊][{self.private_name}]{traceback.format_exc()}")  # 打印详细的回溯信息
 
-        prompt = f"""你是一个聊天逻辑检查器，请检查以下回复或消息是否合适：
+        prompt_template = """
+当前时间：{current_time_str}   
+你是一个聊天逻辑检查器，请检查以下回复或消息是否合适：
 
 当前对话目标：{goal}
 最新的对话记录：
@@ -120,6 +122,16 @@ class ReplyChecker:
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
+
+        prompt = prompt_template.format(
+            current_time_str=current_time_str, # 使用传入的参数
+            goal=goal,
+            chat_history_text=chat_history_text,
+            reply=reply
+        )
+
+        # 调用 LLM
+        content, _ = await self.llm.generate_response_async(prompt)
 
         try:
             content, _ = await self.llm.generate_response_async(prompt)

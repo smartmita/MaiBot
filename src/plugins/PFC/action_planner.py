@@ -20,7 +20,9 @@ logger = get_logger("pfc_action_planner")
 # --- 定义 Prompt 模板  ---
 
 # Prompt(1): 首次回复或非连续回复时的决策 Prompt
-PROMPT_INITIAL_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以回复，可以倾听，可以调取知识，甚至可以屏蔽对方：
+PROMPT_INITIAL_REPLY = """
+当前时间：{current_time_str}
+{persona_text}。现在你在参与一场QQ私聊，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以回复，可以倾听，可以调取知识，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -54,7 +56,9 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
 
 # Prompt(2): 上一次成功回复后，决定继续发言时的决策 Prompt
-PROMPT_FOLLOW_UP = """{persona_text}。现在你在参与一场QQ私聊，刚刚你已经回复了对方，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
+PROMPT_FOLLOW_UP = """
+当前时间：{current_time_str}
+{persona_text}。现在你在参与一场QQ私聊，刚刚你已经回复了对方，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -88,7 +92,9 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
 
 # 新增：Prompt(3): 决定是否在结束对话前发送告别语
-PROMPT_END_DECISION = """{persona_text}。刚刚你决定结束一场 QQ 私聊。
+PROMPT_END_DECISION = """
+当前时间：{current_time_str}
+{persona_text}。刚刚你决定结束一场 QQ 私聊。
 
 【你们之前的聊天记录】
 {chat_history_text}
@@ -187,6 +193,10 @@ class ActionPlanner:
                 log_msg = "使用 PROMPT_INITIAL_REPLY (首次/非连续回复决策)"
             logger.debug(f"[私聊][{self.private_name}] {log_msg}")
 
+            current_time_value = "获取时间失败" # 默认值
+            if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+                current_time_value = observation_info.current_time_str
+
             prompt = prompt_template.format(
                 persona_text=persona_text,
                 goals_str=goals_str if goals_str.strip() else "- 目前没有明确对话目标，请考虑设定一个。",
@@ -197,6 +207,7 @@ class ActionPlanner:
                 chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
                 retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                 retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
+                current_time_str=current_time_value # 新增：传入当前时间字符串
             )
             logger.debug(f"[私聊][{self.private_name}] 发送到LLM的最终提示词:\n------\n{prompt}\n------")
         except KeyError as fmt_key_err:
@@ -235,8 +246,11 @@ class ActionPlanner:
 
         if initial_action == "end_conversation":
             try:
+                time_str_for_end_decision = "获取时间失败"
+                if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+                    time_str_for_end_decision = observation_info.current_time_str
                 final_action, final_reason = await self._handle_end_conversation_decision(
-                    persona_text, chat_history_text, initial_reason
+                    persona_text, chat_history_text, initial_reason,time_str_for_end_decision
                 )
             except Exception as end_dec_err:
                 logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
@@ -446,11 +460,11 @@ class ActionPlanner:
     # --- Helper method for handling end_conversation decision  ---
 
     async def _handle_end_conversation_decision(
-        self, persona_text: str, chat_history_text: str, initial_reason: str
+        self, persona_text: str, chat_history_text: str, initial_reason: str, current_time_str: str
     ) -> Tuple[str, str]:
         """处理结束对话前的告别决策"""
         logger.info(f"[私聊][{self.private_name}] 初步规划结束对话，进入告别决策...")
-        end_decision_prompt = PROMPT_END_DECISION.format(persona_text=persona_text, chat_history_text=chat_history_text)
+        end_decision_prompt = PROMPT_END_DECISION.format(persona_text=persona_text, chat_history_text=chat_history_text,current_time_str=current_time_str)
         logger.debug(f"[私聊][{self.private_name}] 发送到LLM的结束决策提示词:\n------\n{end_decision_prompt}\n------")
         llm_start_time = time.time()
         end_content, _ = await self.llm.generate_response_async(end_decision_prompt)

@@ -3,6 +3,7 @@ import asyncio
 import datetime
 import traceback
 from typing import Dict, Any, Optional, Set, List
+from dateutil import tz
 
 # 导入日志记录器
 from src.common.logger_manager import get_logger
@@ -44,6 +45,19 @@ install(extra_lines=3)
 # 获取当前模块的日志记录器
 logger = get_logger("pfc_conversation")
 
+try:
+    from ...config.config import global_config
+except ImportError:
+    logger.error("无法在 conversation.py 中导入 global_config，时区可能不准确！")
+    global_config = None
+    TIME_ZONE = tz.tzlocal() # 使用本地时区作为后备
+else:
+     # 确保 global_config.TIME_ZONE 存在且有效，否则使用默认值
+    configured_tz = getattr(global_config, 'TIME_ZONE', 'Asia/Shanghai') # 使用 getattr 安全访问
+    TIME_ZONE = tz.gettz(configured_tz)
+    if TIME_ZONE is None: # 如果 gettz 返回 None，说明时区字符串无效
+        logger.error(f"配置的时区 '{configured_tz}' 无效，将使用默认时区 'Asia/Shanghai'")
+        TIME_ZONE = tz.gettz('Asia/Shanghai')
 
 class Conversation:
     """
@@ -347,6 +361,30 @@ class Conversation:
         while self.should_continue:
             loop_iter_start_time = time.time()  # 记录本次循环开始时间
             logger.debug(f"[私聊][{self.private_name}] 开始新一轮循环迭代 ({loop_iter_start_time:.2f})")
+            try:
+        # 重新获取 TIME_ZONE 以防在 __init__ 中导入失败
+                if 'TIME_ZONE' not in locals() or TIME_ZONE is None:
+                    from dateutil import tz
+                    try:
+                       from ...config.config import global_config
+                    except ImportError:
+                        global_config = None
+                        TIME_ZONE = tz.tzlocal()
+                    else:
+                        configured_tz = getattr(global_config, 'TIME_ZONE', 'Asia/Shanghai')
+                        TIME_ZONE = tz.gettz(configured_tz)
+                        if TIME_ZONE is None: TIME_ZONE = tz.gettz('Asia/Shanghai')
+
+                current_time = datetime.datetime.now(TIME_ZONE)
+                if self.observation_info: # 确保 observation_info 存在
+                    time_str = current_time.strftime("%Y-%m-%d %H:%M:%S %Z%z") # 包含时区信息的格式
+                    self.observation_info.current_time_str = time_str
+                    logger.debug(f"[私聊][{self.private_name}] 更新 ObservationInfo 当前时间: {time_str}")
+                else:
+                    logger.warning(f"[私聊][{self.private_name}] ObservationInfo 未初始化，无法更新当前时间。")
+            except Exception as time_update_err:
+                logger.error(f"[私聊][{self.private_name}] 更新 ObservationInfo 当前时间时出错: {time_update_err}")
+                 # --- 更新时间代码结束 ---
 
             # --- 处理忽略状态 ---
             if self.ignore_until_timestamp and loop_iter_start_time < self.ignore_until_timestamp:
@@ -389,7 +427,9 @@ class Conversation:
                 logger.debug(f"[私聊][{self.private_name}] 调用 ActionPlanner.plan...")
                 # 传入当前观察信息、对话信息和上次成功回复的动作类型
                 action, reason = await self.action_planner.plan(
-                    self.observation_info, self.conversation_info, self.conversation_info.last_successful_reply_action
+                    self.observation_info, 
+                    self.conversation_info,
+                    self.conversation_info.last_successful_reply_action
                 )
                 planning_duration = time.time() - planning_start_time
                 logger.debug(
@@ -663,6 +703,12 @@ class Conversation:
                     # retry_count for checker starts from 0
                     current_retry_for_checker = reply_attempt_count - 1
 
+
+                    current_time_value_for_check = "获取时间失败"
+                    if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+                        current_time_value_for_check = observation_info.current_time_str
+
+
                     logger.debug(f"{log_prefix} 调用 ReplyChecker 检查...")
                     # 调用 ReplyChecker 的 check 方法
                     is_suitable, check_reason, need_replan_from_checker = await self.reply_checker.check(
@@ -670,6 +716,7 @@ class Conversation:
                         goal=current_goal_str,
                         chat_history=chat_history_for_check,  # 传递列表形式的历史记录
                         chat_history_text=chat_history_text_for_check,  # 传递文本形式的历史记录
+                        current_time_str=current_time_value_for_check, # 新增：传递时间字符串
                         retry_count=current_retry_for_checker,
                     )
                     logger.info(

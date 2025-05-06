@@ -21,7 +21,9 @@ logger = get_logger("reply_generator")
 # --- 定义 Prompt 模板 ---
 
 # Prompt for direct_reply (首次回复)
-PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请根据以下信息生成一条回复：
+PROMPT_DIRECT_REPLY = """
+当前时间：{current_time_str}
+{persona_text}。现在你在参与一场QQ私聊，请根据以下信息生成一条回复：
 
 当前对话目标：{goals_str}
 
@@ -52,7 +54,9 @@ PROMPT_DIRECT_REPLY = """{persona_text}。现在你在参与一场QQ私聊，请
 请直接输出回复内容，不需要任何额外格式。"""
 
 # Prompt for send_new_message (追问/补充)
-PROMPT_SEND_NEW_MESSAGE = """{persona_text}。现在你在参与一场QQ私聊，**刚刚你已经发送了一条或多条消息**，现在请根据以下信息再发一条新消息：
+PROMPT_SEND_NEW_MESSAGE = """
+当前时间：{current_time_str}
+{persona_text}。现在你在参与一场QQ私聊，**刚刚你已经发送了一条或多条消息**，现在请根据以下信息再发一条新消息：
 
 当前对话目标：{goals_str}
 
@@ -82,7 +86,9 @@ PROMPT_SEND_NEW_MESSAGE = """{persona_text}。现在你在参与一场QQ私聊�
 请直接输出回复内容，不需要任何额外格式。"""
 
 # Prompt for say_goodbye (告别语生成)
-PROMPT_FAREWELL = """{persona_text}。你在参与一场 QQ 私聊，现在对话似乎已经结束，你决定再发一条最后的消息来圆满结束。
+PROMPT_FAREWELL = """
+当前时间：{current_time_str}
+{persona_text}。你在参与一场 QQ 私聊，现在对话似乎已经结束，你决定再发一条最后的消息来圆满结束。
 
 最近的聊天记录：
 {chat_history_text}
@@ -215,14 +221,26 @@ class ReplyGenerator:
 
         # --- 格式化最终的 Prompt ---
         try:  # <--- 增加 try-except 块处理可能的 format 错误
-            prompt = prompt_template.format(
-                persona_text=persona_text,
-                goals_str=goals_str,
-                chat_history_text=chat_history_text,
-                retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                last_rejection_info=last_rejection_info_str,  # <--- 新增传递上次拒绝原因
-            )
+            current_time_value = "获取时间失败" # 默认值
+            if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+               current_time_value = observation_info.current_time_str
+            if action_type == "say_goodbye":
+                 prompt = prompt_template.format(
+                    persona_text=persona_text,
+                    chat_history_text=chat_history_text,
+                    current_time_str=current_time_value # 添加时间
+                 )
+
+            else:
+                prompt = prompt_template.format(
+                    persona_text=persona_text,
+                    goals_str=goals_str,
+                    chat_history_text=chat_history_text,
+                    retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
+                    retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
+                    last_rejection_info=last_rejection_info_str,  # <--- 新增传递上次拒绝原因
+                    current_time_str=current_time_value # 新增：传入当前时间字符串
+                )
         except KeyError as e:
             logger.error(
                 f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
