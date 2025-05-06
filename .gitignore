@@ -4,6 +4,7 @@ mongodb/
 NapCat.Framework.Windows.Once/
 log/
 logs/
+out/
 tool_call_benchmark.py
 run_maibot_core.bat
 run_napcat_adapter.bat

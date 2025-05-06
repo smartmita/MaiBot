@@ -5,12 +5,21 @@ import sys  # 新增系统模块导入
 import datetime  # 新增导入
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-from src.common.logger import get_module_logger
+from src.common.logger_manager import get_logger
+from src.plugins.knowledge.src.lpmmconfig import global_config
 
-logger = get_module_logger("LPMM数据库-原始数据处理")
+logger = get_logger("lpmm")
 ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 RAW_DATA_PATH = os.path.join(ROOT_PATH, "data/lpmm_raw_data")
-IMPORTED_DATA_PATH = os.path.join(ROOT_PATH, "data/imported_lpmm_data")
+# 新增：确保 RAW_DATA_PATH 存在
+if not os.path.exists(RAW_DATA_PATH):
+    os.makedirs(RAW_DATA_PATH, exist_ok=True)
+    logger.info(f"已创建目录: {RAW_DATA_PATH}")
+
+if global_config.get("persistence", {}).get("raw_data_path") is not None:
+    IMPORTED_DATA_PATH = os.path.join(ROOT_PATH, global_config["persistence"]["raw_data_path"])
+else:
+    IMPORTED_DATA_PATH = os.path.join(ROOT_PATH, "data/imported_lpmm_data")
 
 # 添加项目根目录到 sys.path
 
@@ -54,7 +63,7 @@ def main():
     print("请确保原始数据已放置在正确的目录中。")
     confirm = input("确认继续执行？(y/n): ").strip().lower()
     if confirm != "y":
-        logger.error("操作已取消")
+        logger.info("操作已取消")
         sys.exit(1)
     print("\n" + "=" * 40 + "\n")
 
@@ -94,6 +103,6 @@ def main():
 
 
 if __name__ == "__main__":
-    print(f"Raw Data Path: {RAW_DATA_PATH}")
-    print(f"Imported Data Path: {IMPORTED_DATA_PATH}")
+    logger.info(f"原始数据路径: {RAW_DATA_PATH}")
+    logger.info(f"处理后的数据路径: {IMPORTED_DATA_PATH}")
     main()

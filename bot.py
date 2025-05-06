@@ -17,6 +17,11 @@ from rich.traceback import install
 
 install(extra_lines=3)
 
+# 设置工作目录为脚本所在目录
+script_dir = os.path.dirname(os.path.abspath(__file__))
+os.chdir(script_dir)
+print(f"已设置工作目录为: {script_dir}")
+
 
 logger = get_logger("main")
 confirm_logger = get_logger("confirm")
@@ -226,6 +231,7 @@ def raw_main():
 
 
 if __name__ == "__main__":
+    exit_code = 0  # 用于记录程序最终的退出状态
     try:
         # 获取MainSystem实例
         main_system = raw_main()
@@ -241,13 +247,29 @@ if __name__ == "__main__":
         except KeyboardInterrupt:
             # loop.run_until_complete(global_api.stop())
             logger.warning("收到中断信号，正在优雅关闭...")
-            loop.run_until_complete(graceful_shutdown())
-        finally:
-            loop.close()
+            if loop and not loop.is_closed():
+                try:
+                    loop.run_until_complete(graceful_shutdown())
+                except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
+                    logger.error(f"优雅关闭时发生错误: {ge}")
+        # except Exception as e: # 将主异常捕获移到外层 try...except
+        #     logger.error(f"事件循环内发生错误: {str(e)} {str(traceback.format_exc())}")
+        #     exit_code = 1
+        # finally: # finally 块移到最外层，确保 loop 关闭和暂停总是执行
+        #     if loop and not loop.is_closed():
+        #         loop.close()
+        #     # 在这里添加 input() 来暂停
+        #     input("按 Enter 键退出...") # <--- 添加这行
+        #     sys.exit(exit_code) # <--- 使用记录的退出码
 
     except Exception as e:
-        logger.error(f"主程序异常: {str(e)} {str(traceback.format_exc())}")
-        if loop and not loop.is_closed():
-            loop.run_until_complete(graceful_shutdown())
+        logger.error(f"主程序发生异常: {str(e)} {str(traceback.format_exc())}")
+        exit_code = 1  # 标记发生错误
+    finally:
+        # 确保 loop 在任何情况下都尝试关闭（如果存在且未关闭）
+        if "loop" in locals() and loop and not loop.is_closed():
             loop.close()
-        sys.exit(1)
+            logger.info("事件循环已关闭")
+        # 在程序退出前暂停，让你有机会看到输出
+        input("按 Enter 键退出...")  # <--- 添加这行
+        sys.exit(exit_code)  # <--- 使用记录的退出码

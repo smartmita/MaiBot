@@ -15,33 +15,67 @@ remote_log_config = LogConfig(
 )
 logger = get_module_logger("remote", config=remote_log_config)
 
-# UUID文件路径
-UUID_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "client_uuid.json")
+# --- 使用向上导航的方式定义路径 ---
+
+# 1. 获取当前文件 (remote.py) 所在的目录
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# 2. 从当前目录向上导航三级找到项目根目录
+#    (src/plugins/remote/ -> src/plugins/ -> src/ -> project_root)
+root_dir = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+
+# 3. 定义 data 目录的路径 (位于项目根目录下)
+data_dir = os.path.join(root_dir, "data")
+
+# 4. 定义 UUID 文件在 data 目录下的完整路径
+UUID_FILE = os.path.join(data_dir, "client_uuid.json")
+
+# --- 路径定义结束 ---
 
 
 # 生成或获取客户端唯一ID
 def get_unique_id():
+    # --- 在尝试读写 UUID_FILE 之前确保 data 目录存在 ---
+    # 将目录检查和创建逻辑移到这里，在首次需要写入前执行
+    try:
+        # exist_ok=True 意味着如果目录已存在也不会报错
+        os.makedirs(data_dir, exist_ok=True)
+    except OSError as e:
+        # 处理可能的权限错误等
+        logger.error(f"无法创建数据目录 {data_dir}: {e}")
+        # 根据你的错误处理逻辑，可能需要在这里返回错误或抛出异常
+        # 暂且返回 None 或抛出，避免继续执行导致问题
+        raise RuntimeError(f"无法创建必要的数据目录 {data_dir}") from e
+    # --- 目录检查结束 ---
+
     # 检查是否已经有保存的UUID
     if os.path.exists(UUID_FILE):
         try:
-            with open(UUID_FILE, "r") as f:
+            with open(UUID_FILE, "r", encoding="utf-8") as f:  # 指定 encoding
                 data = json.load(f)
                 if "client_id" in data:
-                    # print("从本地文件读取客户端ID")
+                    logger.debug(f"从本地文件读取客户端ID: {UUID_FILE}")
                     return data["client_id"]
         except (json.JSONDecodeError, IOError) as e:
-            print(f"读取UUID文件出错: {e}，将生成新的UUID")
+            logger.warning(f"读取UUID文件 {UUID_FILE} 出错: {e}，将生成新的UUID")
+        except Exception as e:  # 捕捉其他可能的异常
+            logger.error(f"读取UUID文件 {UUID_FILE} 时发生未知错误: {e}")
 
     # 如果没有保存的UUID或读取出错，则生成新的
     client_id = generate_unique_id()
+    logger.info(f"生成新的客户端ID: {client_id}")
 
     # 保存UUID到文件
     try:
-        with open(UUID_FILE, "w") as f:
-            json.dump({"client_id": client_id}, f)
-        logger.info("已保存新生成的客户端ID到本地文件")
+        # 再次确认目录存在 (虽然理论上前面已创建，但更保险)
+        os.makedirs(data_dir, exist_ok=True)
+        with open(UUID_FILE, "w", encoding="utf-8") as f:  # 指定 encoding
+            json.dump({"client_id": client_id}, f, indent=4)  # 添加 indent 使json可读
+        logger.info(f"已保存新生成的客户端ID到本地文件: {UUID_FILE}")
     except IOError as e:
-        logger.error(f"保存UUID时出错: {e}")
+        logger.error(f"保存UUID时出错: {UUID_FILE} - {e}")
+    except Exception as e:  # 捕捉其他可能的异常
+        logger.error(f"保存UUID文件 {UUID_FILE} 时发生未知错误: {e}")
 
     return client_id
 

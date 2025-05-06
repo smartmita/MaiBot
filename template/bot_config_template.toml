@@ -69,8 +69,8 @@ nonebot-qq="http://127.0.0.1:18002/api/message"
 allow_focus_mode = true # 是否允许专注聊天状态
 # 是否启用heart_flowC(HFC)模式
 # 启用后麦麦会自主选择进入heart_flowC模式(持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
-base_normal_chat_num = 3 # 最多允许多少个群进行普通聊天
-base_focused_chat_num = 2 # 最多允许多少个群进行专注聊天
+base_normal_chat_num = 8 # 最多允许多少个群进行普通聊天
+base_focused_chat_num = 5 # 最多允许多少个群进行专注聊天
 
 observation_context_size = 15 # 观察到的最长上下文大小,建议15，太短太长都会导致脑袋尖尖
 message_buffer = true # 启用消息缓冲器？启用此项以解决消息的拆分问题，但会使麦麦的回复延迟

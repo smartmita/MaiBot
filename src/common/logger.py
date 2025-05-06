@@ -358,6 +358,23 @@ SUB_HEARTFLOW_STYLE_CONFIG = {
     },
 }
 
+INTEREST_CHAT_STYLE_CONFIG = {
+    "advanced": {
+        "console_format": (
+            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
+            "<level>{level: <8}</level> | "
+            "<light-blue>兴趣</light-blue> | "
+            "<level>{message}</level>"
+        ),
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 兴趣 | {message}",
+    },
+    "simple": {
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <fg #55DDFF>兴趣 | {message}</fg #55DDFF>",  # noqa: E501
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 兴趣 | {message}",
+    },
+}
+
+
 SUB_HEARTFLOW_MIND_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
@@ -808,6 +825,22 @@ INIT_STYLE_CONFIG = {
     },
 }
 
+API_SERVER_STYLE_CONFIG = {
+    "advanced": {
+        "console_format": (
+            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
+            "<level>{level: <8}</level> | "
+            "<light-yellow>API服务</light-yellow> | "
+            "<level>{message}</level>"
+        ),
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | API服务 | {message}",
+    },
+    "simple": {
+        "console_format": "<level>{time:MM-DD HH:mm}</level> | <light-green>API服务</light-green> | {message}",
+        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | API服务 | {message}",
+    },
+}
+
 
 # 根据SIMPLE_OUTPUT选择配置
 MAIN_STYLE_CONFIG = MAIN_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else MAIN_STYLE_CONFIG["advanced"]
@@ -878,6 +911,10 @@ CHAT_MESSAGE_STYLE_CONFIG = (
 )
 CHAT_IMAGE_STYLE_CONFIG = CHAT_IMAGE_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else CHAT_IMAGE_STYLE_CONFIG["advanced"]
 INIT_STYLE_CONFIG = INIT_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else INIT_STYLE_CONFIG["advanced"]
+API_SERVER_STYLE_CONFIG = API_SERVER_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else API_SERVER_STYLE_CONFIG["advanced"]
+INTEREST_CHAT_STYLE_CONFIG = (
+    INTEREST_CHAT_STYLE_CONFIG["simple"] if SIMPLE_OUTPUT else INTEREST_CHAT_STYLE_CONFIG["advanced"]
+)
 
 
 def is_registered_module(record: dict) -> bool:

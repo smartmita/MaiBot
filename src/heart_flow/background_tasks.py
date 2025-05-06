@@ -78,6 +78,7 @@ class BackgroundTaskManager:
         self._into_focus_task: Optional[asyncio.Task] = None
         self._private_chat_activation_task: Optional[asyncio.Task] = None  # 新增私聊激活任务引用
         self._tasks: List[Optional[asyncio.Task]] = []  # Keep track of all tasks
+        self._detect_command_from_gui_task: Optional[asyncio.Task] = None  # 新增GUI命令检测任务引用
 
     async def start_tasks(self):
         """启动所有后台任务
@@ -135,6 +136,13 @@ class BackgroundTaskManager:
                 f"私聊激活检查任务已启动 间隔:{PRIVATE_CHAT_ACTIVATION_CHECK_INTERVAL_SECONDS}s",
                 "_private_chat_activation_task",
             ),
+            # 新增GUI命令检测任务配置
+            # (
+            #     lambda: self._run_detect_command_from_gui_cycle(3),
+            #     "debug",
+            #     f"GUI命令检测任务已启动 间隔:{3}s",
+            #     "_detect_command_from_gui_task",
+            # ),
         ]
 
         # 统一启动所有任务
@@ -296,3 +304,11 @@ class BackgroundTaskManager:
             interval=interval,
             task_func=self.subheartflow_manager.sbhf_absent_private_into_focus,
         )
+
+    # # 有api之后删除
+    # async def _run_detect_command_from_gui_cycle(self, interval: int):
+    #     await _run_periodic_loop(
+    #         task_name="Detect Command from GUI",
+    #         interval=interval,
+    #         task_func=self.subheartflow_manager.detect_command_from_gui,
+    #     )
