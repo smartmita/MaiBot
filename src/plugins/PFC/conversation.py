@@ -799,6 +799,7 @@ class Conversation:
                                 f"[私聊][{self.private_name}] 因规划期间收到 {other_new_msg_count_during_planning} 条他人新消息，下一轮强制使用【初始回复】逻辑。"
                             )
                             conversation_info.last_successful_reply_action = None  # 强制初始回复
+                            conversation_info.my_message_count = 0  # 自身发言数量清零
                         else:
                             # 规则：如果规划期间【没有】收到他人新消息，则允许追问
                             logger.info(
@@ -1061,6 +1062,8 @@ class Conversation:
                 content=reply_content,
                 reply_to_message=None,  # 私聊通常不需要引用回复
             )
+            # 自身发言数量累计 +1
+            self.conversation_info.my_message_count += 1
             # 发送成功后，将状态设置回分析，准备下一轮规划
             self.state = ConversationState.ANALYZING
             return True  # 返回成功
