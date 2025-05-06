@@ -345,7 +345,7 @@ class ObservationInfo:
             self.chat_history = self.chat_history[-max_history_len:]
 
         # 更新历史记录字符串 (仅使用最近一部分生成，提高效率)
-        history_slice_for_str = self.chat_history[-20:]  # 例如最近 20 条
+        history_slice_for_str = self.chat_history[-30:]  # 例如最近 20 条
         try:
             self.chat_history_str = await build_readable_messages(
                 history_slice_for_str,

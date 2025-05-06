@@ -248,7 +248,7 @@ class Conversation:
                 self.observation_info.last_message_content = last_msg.get("processed_plain_text", "")
 
                 # 构建用于 Prompt 的历史记录字符串 (只使用最近的一部分)
-                history_slice_for_str = initial_messages[-20:]  # 可配置
+                history_slice_for_str = initial_messages[-30:]  # 可配置
                 self.observation_info.chat_history_str = await build_readable_messages(
                     history_slice_for_str,
                     replace_bot_name=True,
