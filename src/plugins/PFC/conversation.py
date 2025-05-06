@@ -268,7 +268,7 @@ class Conversation:
         try:
             logger.debug(f"[私聊][{self.private_name}] 正在创建 _plan_and_action_loop 任务...")
             # 创建任务，但不等待其完成，让它在后台运行
-            loop_task = asyncio.create_task(self._plan_and_action_loop())
+            _loop_task = asyncio.create_task(self._plan_and_action_loop())
             # 可以选择性地添加完成回调来处理任务结束或异常
             # loop_task.add_done_callback(self._handle_loop_completion)
             logger.info(f"[私聊][{self.private_name}] 规划循环任务已创建。")

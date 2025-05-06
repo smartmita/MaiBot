@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-# File: action_planner.py
 import time
 import traceback
 from typing import Tuple, Optional, Dict, Any, List
@@ -117,22 +115,22 @@ class ActionPlanner:
         self.private_name = private_name
         # 初始化 LLM 请求对象
         try:
-             llm_config = global_config.llm_PFC_action_planner
-             if not isinstance(llm_config, dict):
-                 raise TypeError(f"LLM config 'llm_PFC_action_planner' is not a dictionary: {llm_config}")
+            llm_config = global_config.llm_PFC_action_planner
+            if not isinstance(llm_config, dict):
+                raise TypeError(f"LLM config 'llm_PFC_action_planner' is not a dictionary: {llm_config}")
 
-             self.llm = LLMRequest(
-                 model=llm_config,
-                 temperature=llm_config.get("temp", 0.7),
-                 max_tokens=1500,
-                 request_type="action_planning",
-             )
+            self.llm = LLMRequest(
+                model=llm_config,
+                temperature=llm_config.get("temp", 0.7),
+                max_tokens=1500,
+                request_type="action_planning",
+            )
         except TypeError as e:
-             logger.error(f"[私聊][{self.private_name}] 初始化 LLMRequest 时配置错误: {e}")
-             raise
+            logger.error(f"[私聊][{self.private_name}] 初始化 LLMRequest 时配置错误: {e}")
+            raise
         except Exception as e:
-             logger.error(f"[私聊][{self.private_name}] 初始化 LLMRequest 时发生未知错误: {e}")
-             raise
+            logger.error(f"[私聊][{self.private_name}] 初始化 LLMRequest 时发生未知错误: {e}")
+            raise
 
         # 获取个性化信息和机器人名称
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
@@ -173,12 +171,12 @@ class ActionPlanner:
                 chat_history_text, self.private_name
             )
             logger.info(
-                 f"[私聊][{self.private_name}] (ActionPlanner) 检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and '出错' not in retrieved_knowledge_str else '无'}"
+                f"[私聊][{self.private_name}] (ActionPlanner) 检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and '出错' not in retrieved_knowledge_str else '无'}"
             )
         except Exception as prep_err:
-             logger.error(f"[私聊][{self.private_name}] 准备 Prompt 输入时出错: {prep_err}")
-             logger.error(traceback.format_exc())
-             return "wait", f"准备行动规划输入时出错: {prep_err}"
+            logger.error(f"[私聊][{self.private_name}] 准备 Prompt 输入时出错: {prep_err}")
+            logger.error(traceback.format_exc())
+            return "wait", f"准备行动规划输入时出错: {prep_err}"
 
         # --- 2. 选择并格式化 Prompt ---
         try:
@@ -242,10 +240,10 @@ class ActionPlanner:
                     persona_text, chat_history_text, initial_reason
                 )
             except Exception as end_dec_err:
-                 logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
-                 logger.warning(f"[私聊][{self.private_name}] 结束决策出错，将按原计划执行 end_conversation")
-                 final_action = "end_conversation" # 保持原计划
-                 final_reason = initial_reason
+                logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
+                logger.warning(f"[私聊][{self.private_name}] 结束决策出错，将按原计划执行 end_conversation")
+                final_action = "end_conversation" # 保持原计划
+                final_reason = initial_reason
 
         # --- [移除] 不再需要在这里检查 wait 动作的约束 ---
         # elif initial_action == "wait":
@@ -332,14 +330,18 @@ class ActionPlanner:
                     if isinstance(goal_item, dict):
                         goal = goal_item.get("goal", goal)
                         reasoning = goal_item.get("reasoning", reasoning)
-                    elif isinstance(goal_item, str): goal = goal_item
+                    elif isinstance(goal_item, str):
+                        goal = goal_item
                     goal = str(goal) if goal is not None else "目标内容缺失"
                     reasoning = str(reasoning) if reasoning is not None else "没有明确原因"
                     goals_str += f"- 目标：{goal}\n  原因：{reasoning}\n"
-                if not goals_str: goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
+                if not goals_str:
+                    goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
             else: goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
-        except AttributeError as e: logger.warning(f"[私聊][{self.private_name}] 构建对话目标字符串时属性错误: {e}"); goals_str = "- 获取对话目标时出错。\n"
-        except Exception as e: logger.error(f"[私聊][{self.private_name}] 构建对话目标字符串时出错: {e}"); goals_str = "- 构建对话目标时出错。\n"
+        except AttributeError as e:
+            logger.warning(f"[私聊][{self.private_name}] 构建对话目标字符串时属性错误: {e}"); goals_str = "- 获取对话目标时出错。\n"
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}] 构建对话目标字符串时出错: {e}"); goals_str = "- 构建对话目标时出错。\n"
         return goals_str
 
     async def _build_chat_history_text(self, observation_info: ObservationInfo) -> str:
@@ -347,15 +349,16 @@ class ActionPlanner:
         
         chat_history_text = ""
         try:
-            if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str: chat_history_text = observation_info.chat_history_str
+            if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
+                chat_history_text = observation_info.chat_history_str
             elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
                 history_slice = observation_info.chat_history[-20:]
                 chat_history_text = await build_readable_messages(history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
-            else: chat_history_text = "还没有聊天记录。\n"
+            else:
+                chat_history_text = "还没有聊天记录。\n"
             unread_count = getattr(observation_info, 'new_messages_count', 0)
             unread_messages = getattr(observation_info, 'unprocessed_messages', [])
             if unread_count > 0 and unread_messages:
-                from ...config.config import global_config
                 bot_qq_str = str(global_config.BOT_QQ)
                 other_unread_messages = [msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str]
                 other_unread_count = len(other_unread_messages)
@@ -363,25 +366,32 @@ class ActionPlanner:
                     new_messages_str = await build_readable_messages(other_unread_messages, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
                     chat_history_text += f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
                     logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
-        except AttributeError as e: logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}"); chat_history_text = "[获取聊天记录时出错]\n"
-        except Exception as e: logger.error(f"[私聊][{self.private_name}] 处理聊天记录时发生未知错误: {e}"); chat_history_text = "[处理聊天记录时出错]\n"
+        except AttributeError as e:
+            logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}"); chat_history_text = "[获取聊天记录时出错]\n"
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}] 处理聊天记录时发生未知错误: {e}"); chat_history_text = "[处理聊天记录时出错]\n"
         return chat_history_text
 
 
     def _build_action_history_context(self, conversation_info: ConversationInfo) -> Tuple[str, str]:
         """构建行动历史概要和上一次行动详细情况"""
         
-        action_history_summary = "你最近执行的行动历史：\n"; last_action_context = "关于你【上一次尝试】的行动：\n"
+        action_history_summary = "你最近执行的行动历史：\n"
+        last_action_context = "关于你【上一次尝试】的行动：\n"
         action_history_list: List[Dict[str, Any]] = []
         try:
-            if hasattr(conversation_info, "done_action") and conversation_info.done_action: action_history_list = conversation_info.done_action[-5:]
-        except AttributeError as e: logger.warning(f"[私聊][{self.private_name}] 获取行动历史时属性错误: {e}")
-        except Exception as e: logger.error(f"[私聊][{self.private_name}] 访问行动历史时出错: {e}")
+            if hasattr(conversation_info, "done_action") and conversation_info.done_action:
+                action_history_list = conversation_info.done_action[-5:]
+        except AttributeError as e:
+            logger.warning(f"[私聊][{self.private_name}] 获取行动历史时属性错误: {e}")
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}] 访问行动历史时出错: {e}")
         if not action_history_list:
             action_history_summary += "- 还没有执行过行动。\n"; last_action_context += "- 这是你规划的第一个行动。\n"
         else:
             for i, action_data in enumerate(action_history_list):
-                if not isinstance(action_data, dict): logger.warning(f"[私聊][{self.private_name}] 行动历史记录格式错误，跳过: {action_data}"); continue
+                if not isinstance(action_data, dict):
+                    logger.warning(f"[私聊][{self.private_name}] 行动历史记录格式错误，跳过: {action_data}"); continue
                 action_type = action_data.get("action", "未知动作"); plan_reason = action_data.get("plan_reason", "未知规划原因")
                 status = action_data.get("status", "未知状态"); final_reason = action_data.get("final_reason", "")
                 action_time = action_data.get("time", "未知时间")
@@ -394,10 +404,14 @@ class ActionPlanner:
                     if status == "done": last_action_context += "- 该行动已【成功执行】。\n"
                     elif status == "recall" or status == "error" or status.startswith("cancelled"):
                         last_action_context += "- 但该行动最终【未能成功执行/被取消/出错】。\n"
-                        if final_reason: last_action_context += f"- 【重要】失败/取消/错误原因是: “{final_reason}”\n"
-                        else: last_action_context += "- 【重要】失败/取消/错误原因未明确记录。\n"
-                    elif status == "start": last_action_context += "- 该行动【正在执行中】或【未完成】。\n"
-                    else: last_action_context += f"- 该行动当前状态未知: {status}\n"
+                        if final_reason:
+                            last_action_context += f"- 【重要】失败/取消/错误原因是: “{final_reason}”\n"
+                        else:
+                            last_action_context += "- 【重要】失败/取消/错误原因未明确记录。\n"
+                    elif status == "start":
+                        last_action_context += "- 该行动【正在执行中】或【未完成】。\n"
+                    else:
+                        last_action_context += f"- 该行动当前状态未知: {status}\n"
         return action_history_summary, last_action_context
 
     # --- Helper method for handling end_conversation decision  ---
@@ -418,7 +432,8 @@ class ActionPlanner:
         end_decision_reason = end_result.get("reason", "未提供原因")
         if end_success and say_bye_decision == "yes":
             logger.info(f"[私聊][{self.private_name}] 结束决策: yes, 准备生成告别语. 原因: {end_decision_reason}")
-            final_action = "say_goodbye"; final_reason = f"决定发送告别语 (原因: {end_decision_reason})。原结束理由: {initial_reason}"
+            final_action = "say_goodbye"
+            final_reason = f"决定发送告别语 (原因: {end_decision_reason})。原结束理由: {initial_reason}"
             return final_action, final_reason
         else:
             logger.info(f"[私聊][{self.private_name}] 结束决策: no, 直接结束对话. 原因: {end_decision_reason}")
