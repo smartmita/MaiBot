@@ -629,7 +629,7 @@ class Conversation:
                     generated_content = await self.reply_generator.generate(
                         observation_info, conversation_info, action_type=action
                     )
-                    logger.info(f"{log_prefix} 生成内容: '{generated_content}...'")  # 日志中截断长内容
+                    logger.info(f"{log_prefix} 生成内容: '{generated_content}'")  # 日志中截断长内容
 
                     # 检查生成内容是否有效
                     if not generated_content or generated_content.startswith("抱歉"):
