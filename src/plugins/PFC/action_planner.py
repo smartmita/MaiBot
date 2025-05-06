@@ -408,6 +408,10 @@ class ActionPlanner:
                         f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
                     )
                     logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
+                else:
+                    chat_history_text += (
+                        f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+                    )
         except AttributeError as e:
             logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}")
             chat_history_text = "[获取聊天记录时出错]\n"

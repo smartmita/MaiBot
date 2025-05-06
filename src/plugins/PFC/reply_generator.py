@@ -175,7 +175,10 @@ class ReplyGenerator:
             chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
         elif not chat_history_text:
             chat_history_text = "还没有聊天记录。"
-
+        else:
+            chat_history_text += (
+                f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+            )
         # 构建 Persona 文本 (persona_text)
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
         retrieval_context = chat_history_text  # 使用前面构建好的 chat_history_text
