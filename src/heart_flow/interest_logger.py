@@ -29,6 +29,14 @@ def _ensure_log_directory():
     logger.info(f"已确保日志目录 '{LOG_DIRECTORY}' 存在")
 
 
+def _clear_and_create_log_file():
+    """清除日志文件并创建新的日志文件。"""
+    if os.path.exists(os.path.join(LOG_DIRECTORY, HISTORY_LOG_FILENAME)):
+        os.remove(os.path.join(LOG_DIRECTORY, HISTORY_LOG_FILENAME))
+    with open(os.path.join(LOG_DIRECTORY, HISTORY_LOG_FILENAME), "w", encoding="utf-8") as f:
+        f.write("")
+
+
 class InterestLogger:
     """负责定期记录主心流和所有子心流的状态到日志文件。"""
 
@@ -44,6 +52,7 @@ class InterestLogger:
         self.heartflow = heartflow  # 存储 Heartflow 实例
         self._history_log_file_path = os.path.join(LOG_DIRECTORY, HISTORY_LOG_FILENAME)
         _ensure_log_directory()
+        _clear_and_create_log_file()
 
     async def get_all_subflow_states(self) -> Dict[str, Dict]:
         """并发获取所有活跃子心流的当前完整状态。"""
@@ -92,7 +101,7 @@ class InterestLogger:
         try:
             current_timestamp = time.time()
 
-            main_mind = self.heartflow.current_mind
+            # main_mind = self.heartflow.current_mind
             # 获取 Mai 状态名称
             mai_state_name = self.heartflow.current_state.get_current_state().name
 
@@ -100,7 +109,7 @@ class InterestLogger:
 
             log_entry_base = {
                 "timestamp": round(current_timestamp, 2),
-                "main_mind": main_mind,
+                # "main_mind": main_mind,
                 "mai_state": mai_state_name,
                 "subflow_count": len(all_subflow_states),
                 "subflows": [],
@@ -135,7 +144,7 @@ class InterestLogger:
                     "sub_chat_state": state.get("chat_state", "未知"),
                     "interest_level": interest_state.get("interest_level", 0.0),
                     "start_hfc_probability": interest_state.get("start_hfc_probability", 0.0),
-                    "is_above_threshold": interest_state.get("is_above_threshold", False),
+                    # "is_above_threshold": interest_state.get("is_above_threshold", False),
                 }
                 subflow_details.append(subflow_entry)
 

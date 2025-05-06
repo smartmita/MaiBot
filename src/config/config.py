@@ -710,6 +710,18 @@ class BotConfig:
             if config.INNER_VERSION in SpecifierSet(">=1.6.1.5"):
                 config.api_polling_max_retries = experimental_config.get("api_polling_max_retries", config.api_polling_max_retries)
 
+        def idle_conversation(parent: dict):
+            idle_conversation_config = parent["idle_conversation"]
+            if config.INNER_VERSION in SpecifierSet(">=1.6.1.6"):
+                config.enable_idle_conversation = idle_conversation_config.get(
+                    "enable_idle_conversation", config.enable_idle_conversation
+                )
+                config.idle_check_interval = idle_conversation_config.get(
+                    "idle_check_interval", config.idle_check_interval
+                )
+                config.min_idle_time = idle_conversation_config.get("min_idle_time", config.min_idle_time)
+                config.max_idle_time = idle_conversation_config.get("max_idle_time", config.max_idle_time)
+
         # 版本表达式：>=1.0.0,<2.0.0
         # 允许字段：func: method, support: str, notice: str, necessary: bool
         # 如果使用 notice 字段，在该组配置加载时，会展示该字段对用户的警示
@@ -744,6 +756,7 @@ class BotConfig:
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
             "group_nickname": {"func": group_nickname, "support": ">=1.6.1.1", "necessary": False},
+            "idle_conversation": {"func": idle_conversation, "support": ">=1.6.1.6", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象

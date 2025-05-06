@@ -8,14 +8,16 @@ logger = get_logger("rename_person_tool")
 
 class RenamePersonTool(BaseTool):
     name = "rename_person"
-    description = "这个工具可以改变用户的昵称。你可以选择改变对他人的称呼。"
+    description = (
+        "这个工具可以改变用户的昵称。你可以选择改变对他人的称呼。你想给人改名，叫别人别的称呼，需要调用这个工具。"
+    )
     parameters = {
         "type": "object",
         "properties": {
             "person_name": {"type": "string", "description": "需要重新取名的用户的当前昵称"},
             "message_content": {
                 "type": "string",
-                "description": "可选的。当前的聊天内容或特定要求，用于提供取名建议的上下文。",
+                "description": "当前的聊天内容或特定要求，用于提供取名建议的上下文，尽可能详细。",
             },
         },
         "required": ["person_name"],

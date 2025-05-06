@@ -85,6 +85,7 @@ def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, k
         logger.error("系统将于2秒后开始检查数据完整性")
         sleep(2)
         found_missing = False
+        missing_idxs = []
         for doc in getattr(openie_data, "docs", []):
             idx = doc.get("idx", "<无idx>")
             passage = doc.get("passage", "<无passage>")
@@ -104,14 +105,38 @@ def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, k
             # print(f"检查: idx={idx}")
             if missing:
                 found_missing = True
+                missing_idxs.append(idx)
                 logger.error("\n")
                 logger.error("数据缺失：")
                 logger.error(f"对应哈希值：{idx}")
                 logger.error(f"对应文段内容内容：{passage}")
                 logger.error(f"非法原因：{', '.join(missing)}")
+        # 确保提示在所有非法数据输出后再输出
         if not found_missing:
-            print("所有数据均完整，没有发现缺失字段。")
-        return False
+            logger.info("所有数据均完整，没有发现缺失字段。")
+            return False
+        # 新增：提示用户是否删除非法文段继续导入
+        # 将print移到所有logger.error之后，确保不会被冲掉
+        logger.info("\n检测到非法文段，共{}条。".format(len(missing_idxs)))
+        logger.info("\n是否删除所有非法文段后继续导入？(y/n): ", end="")
+        user_choice = input().strip().lower()
+        if user_choice != "y":
+            logger.info("用户选择不删除非法文段，程序终止。")
+            sys.exit(1)
+        # 删除非法文段
+        logger.info("正在删除非法文段并继续导入...")
+        # 过滤掉非法文段
+        openie_data.docs = [
+            doc for doc in getattr(openie_data, "docs", []) if doc.get("idx", "<无idx>") not in missing_idxs
+        ]
+        # 重新提取数据
+        raw_paragraphs = openie_data.extract_raw_paragraph_dict()
+        entity_list_data = openie_data.extract_entity_dict()
+        triple_list_data = openie_data.extract_triple_dict()
+        # 再次校验
+        if len(raw_paragraphs) != len(entity_list_data) or len(raw_paragraphs) != len(triple_list_data):
+            logger.error("删除非法文段后，数据仍不一致，程序终止。")
+            sys.exit(1)
     # 将索引换为对应段落的hash值
     logger.info("正在进行段落去重与重索引")
     raw_paragraphs, triple_list_data = hash_deduplicate(
@@ -174,7 +199,13 @@ def main():
         embed_manager.load_from_file()
     except Exception as e:
         logger.error("从文件加载Embedding库时发生错误：{}".format(e))
-        logger.error("如果你是第一次导入知识，请忽略此错误")
+        if "嵌入模型与本地存储不一致" in str(e):
+            logger.error("检测到嵌入模型与本地存储不一致，已终止导入。请检查模型设置或清空嵌入库后重试。")
+            logger.error("请保证你的嵌入模型从未更改,并且在导入时使用相同的模型")
+            # print("检测到嵌入模型与本地存储不一致，已终止导入。请检查模型设置或清空嵌入库后重试。")
+            sys.exit(1)
+        if "不存在" in str(e):
+            logger.error("如果你是第一次导入知识，请忽略此错误")
     logger.info("Embedding库加载完成")
     # 初始化KG
     kg_manager = KGManager()

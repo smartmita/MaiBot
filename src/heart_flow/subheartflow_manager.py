@@ -83,6 +83,17 @@ class SubHeartflowManager:
             request_type="subheartflow_state_eval",  # 保留特定的请求类型
         )
 
+    async def force_change_state(self, subflow_id: Any, target_state: ChatState) -> bool:
+        """强制改变指定子心流的状态"""
+        async with self._lock:
+            subflow = self.subheartflows.get(subflow_id)
+            if not subflow:
+                logger.warning(f"[强制状态转换]尝试转换不存在的子心流{subflow_id} 到 {target_state.value}")
+                return False
+            await subflow.change_chat_state(target_state)
+            logger.info(f"[强制状态转换]子心流 {subflow_id} 已转换到 {target_state.value}")
+            return True
+
     def get_all_subheartflows(self) -> List["SubHeartflow"]:
         """获取所有当前管理的 SubHeartflow 实例列表 (快照)。"""
         return list(self.subheartflows.values())
@@ -92,7 +103,7 @@ class SubHeartflowManager:
 
         Args:
             subheartflow_id: 子心流唯一标识符
-            # mai_states 参数已被移除，使用 self.mai_state_info
+            mai_states 参数已被移除，使用 self.mai_state_info
 
         Returns:
             成功返回SubHeartflow实例，失败返回None
@@ -165,7 +176,7 @@ class SubHeartflowManager:
 
     def get_inactive_subheartflows(self, max_age_seconds=INACTIVE_THRESHOLD_SECONDS):
         """识别并返回需要清理的不活跃(处于ABSENT状态超过一小时)子心流(id, 原因)"""
-        current_time = time.time()
+        _current_time = time.time()
         flows_to_stop = []
 
         for subheartflow_id, subheartflow in list(self.subheartflows.items()):
@@ -173,9 +184,8 @@ class SubHeartflowManager:
             if state != ChatState.ABSENT:
                 continue
             subheartflow.update_last_chat_state_time()
-            absent_last_time = subheartflow.chat_state_last_time
-            if max_age_seconds and (current_time - absent_last_time) > max_age_seconds:
-                flows_to_stop.append(subheartflow_id)
+            _absent_last_time = subheartflow.chat_state_last_time
+            flows_to_stop.append(subheartflow_id)
 
         return flows_to_stop
 
@@ -662,12 +672,12 @@ class SubHeartflowManager:
         """处理来自 HeartFChatting 的连续无回复信号 (通过 partial 绑定 ID)"""
         # 注意：这里不需要再获取锁，因为 sbhf_focus_into_absent 内部会处理锁
         logger.debug(f"[管理器 HFC 处理器] 接收到来自 {subheartflow_id} 的 HFC 无回复信号")
-        await self.sbhf_focus_into_absent(subheartflow_id)
+        await self.sbhf_focus_into_absent_or_chat(subheartflow_id)
 
     # --- 结束新增 --- #
 
     # --- 新增：处理来自 HeartFChatting 的状态转换请求 --- #
-    async def sbhf_focus_into_absent(self, subflow_id: Any):
+    async def sbhf_focus_into_absent_or_chat(self, subflow_id: Any):
         """
         接收来自 HeartFChatting 的请求，将特定子心流的状态转换为 ABSENT 或 CHAT。
         通常在连续多次 "no_reply" 后被调用。
@@ -719,6 +729,8 @@ class SubHeartflowManager:
                     f"[状态转换请求] 接收到请求，将 {stream_name} (当前: {current_state.value}) 尝试转换为 {target_state.value} ({log_reason})"
                 )
                 try:
+                    # 从HFC到CHAT时，清空兴趣字典
+                    subflow.clear_interest_dict()
                     await subflow.change_chat_state(target_state)
                     final_state = subflow.chat_state.chat_status
                     if final_state == target_state:
@@ -842,3 +854,52 @@ class SubHeartflowManager:
     # --- 结束新增 --- #
 
     # --- 结束新增：处理来自 HeartFChatting 的状态转换请求 --- #
+
+    # 临时函数，用于GUI切换，有api后删除
+    # async def detect_command_from_gui(self):
+    #     """检测来自GUI的命令"""
+    #     command_file = Path("temp_command/gui_command.json")
+    #     if not command_file.exists():
+    #         return
+
+    #     try:
+    #         # 读取并解析命令文件
+    #         command_data = json.loads(command_file.read_text())
+    #         subflow_id = command_data.get("subflow_id")
+    #         target_state = command_data.get("target_state")
+
+    #         if not subflow_id or not target_state:
+    #             logger.warning("GUI命令文件格式不正确，缺少必要字段")
+    #             return
+
+    #         # 尝试转换为ChatState枚举
+    #         try:
+    #             target_state_enum = ChatState[target_state.upper()]
+    #         except KeyError:
+    #             logger.warning(f"无效的目标状态: {target_state}")
+    #             command_file.unlink()
+    #             return
+
+    #         # 执行状态转换
+    #         await self.force_change_by_gui(subflow_id, target_state_enum)
+
+    #         # 转换成功后删除文件
+    #         command_file.unlink()
+    #         logger.debug(f"已处理GUI命令并删除命令文件: {command_file}")
+
+    #     except json.JSONDecodeError:
+    #         logger.warning("GUI命令文件不是有效的JSON格式")
+    #     except Exception as e:
+    #         logger.error(f"处理GUI命令时发生错误: {e}", exc_info=True)
+
+    # async def force_change_by_gui(self, subflow_id: Any, target_state: ChatState):
+    #     """强制改变指定子心流的状态"""
+    #     async with self._lock:
+    #         subflow = self.subheartflows.get(subflow_id)
+    #         if not subflow:
+    #             logger.warning(f"[强制状态转换] 尝试转换不存在的子心流 {subflow_id} 到 {target_state.value}")
+    #             return
+    #         await subflow.change_chat_state(target_state)
+    #         logger.info(f"[强制状态转换] 成功将 {subflow_id} 的状态转换为 {target_state.value}")
+
+    # --- 结束新增 --- #
