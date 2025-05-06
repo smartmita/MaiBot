@@ -961,6 +961,8 @@ class Conversation:
                     # retry_count for checker starts from 0
                     current_retry_for_checker = reply_attempt_count - 1
 
+                    
+
 
                     current_time_value_for_check = "获取时间失败"
                     if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
@@ -968,19 +970,26 @@ class Conversation:
 
 
                     logger.debug(f"{log_prefix} 调用 ReplyChecker 检查...")
-                    # 调用 ReplyChecker 的 check 方法
-                    is_suitable, check_reason, need_replan_from_checker = await self.reply_checker.check(
-                        reply=generated_content,
-                        goal=current_goal_str,
-                        chat_history=chat_history_for_check,  # 传递列表形式的历史记录
-                        chat_history_text=chat_history_text_for_check,  # 传递文本形式的历史记录
-                        current_time_str=current_time_value_for_check, # 新增：传递时间字符串
-                        retry_count=current_retry_for_checker,
-                    )
-                    logger.info(
-                        f"{log_prefix} ReplyChecker 结果: 合适={is_suitable}, 原因='{check_reason}', 需重规划={need_replan_from_checker}"
-                    )
-
+                    # --- 根据配置决定是否执行检查 ---
+                    if global_config.enable_pfc_reply_checker: # <--- 使用配置项
+                        logger.debug(f"{log_prefix} 调用 ReplyChecker 检查 (配置已启用)...")
+                        is_suitable, check_reason, need_replan_from_checker = await self.reply_checker.check(
+                            reply=generated_content,
+                            goal=current_goal_str,
+                            chat_history=chat_history_for_check,
+                            chat_history_text=chat_history_text_for_check,
+                            current_time_str=current_time_value_for_check,
+                            retry_count=current_retry_for_checker,
+                        )
+                        logger.info(
+                            f"{log_prefix} ReplyChecker 结果: 合适={is_suitable}, 原因='{check_reason}', 需重规划={need_replan_from_checker}"
+                        )
+                    else:
+                        # 如果配置为关闭，则默认通过检查
+                        is_suitable = True
+                        check_reason = "ReplyChecker 已通过配置关闭"
+                        need_replan_from_checker = False
+                        logger.info(f"[配置关闭] ReplyChecker 已跳过，默认回复为合适。")
                     # 如果不合适，记录原因并准备下一次尝试（如果还有次数）
                     if not is_suitable:
                         # 记录拒绝原因和内容，供下次生成时参考
