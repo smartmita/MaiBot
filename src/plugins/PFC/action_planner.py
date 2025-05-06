@@ -43,6 +43,8 @@ PROMPT_INITIAL_REPLY = """
 【你的回忆】
 {retrieved_memory_str}
 
+{spam_warning_info}
+
 ------
 可选行动类型以及解释：
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
@@ -82,13 +84,16 @@ PROMPT_FOLLOW_UP = """
 {chat_history_text}
 【你的回忆】
 {retrieved_memory_str}
+
+{spam_warning_info}
+
 ------
 可选行动类型以及解释：
-wait: 暂时不说话，留给对方交互空间，等待对方回复（尤其是在你刚发言后、或上次发言因重复、发言过多被拒时、或不确定做什么时，这是不错的选择）。
+wait: 暂时不说话，留给对方交互空间，等待对方回复。
 listening: 倾听对方发言（虽然你刚发过言，但如果对方立刻回复且明显话没说完，可以选择这个）
-send_new_message: 发送一条新消息继续对话，允许适当的追问、补充、深入话题，或开启相关新话题。**但是避免在因重复被拒后立即使用，也不要在对方没有回复的情况下过多的“消息轰炸”或重复发言**
+send_new_message: 发送一条新消息继续对话，允许适当的追问、补充、深入话题，或开启相关新话题（但是注意看对话记录，如果对方已经没有回复你，wait或end_conversation可能更合适）。
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
-end_conversation: 结束对话，对方长时间没回复，繁忙，或者当你觉得对话告一段落时可以选择
+end_conversation: 安全和平的结束对话，对方长时间没回复、繁忙、已经不再回复你消息、明显暗示或表达想结束聊天时，可以果断选择
 block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当对话让你感到十分不适，或你遭到各类骚扰时选择
 
 请以JSON格式输出你的决策：
@@ -182,7 +187,7 @@ class ActionPlanner:
             sender_name_str = getattr(observation_info, 'sender_name', '对方') # 从 observation_info 获取
             if not sender_name_str: sender_name_str = '对方' # 再次确保有默认值
 
-            relationship_text_str = getattr(conversation_info, 'relationship_text', '我们还不熟悉。')
+            relationship_text_str = getattr(conversation_info, 'relationship_text', '你们还不熟悉。')
             current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
 
 
@@ -213,10 +218,13 @@ class ActionPlanner:
             if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
 
+            spam_warning_message = "" # 初始化为空字符串
             if conversation_info.my_message_count > 5:
-                current_time_value += f"\n你已连续发送{str(conversation_info.my_message_count)}条消息，请注意不要连续发送大量消息，以免刷屏对造成对方困扰。"
+                spam_warning_message = f"⚠️【刷屏警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请注意不要再选择send_new_message！以免刷屏对造成对方困扰！**"
             elif conversation_info.my_message_count > 2:
-                current_time_value += f"\n你已连续发送{str(conversation_info.my_message_count)}条消息，如果没有必要请不要连续发送大量消息，以免刷屏给造成对方困扰。"
+                spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免选择send_new_message，以免给对方造成困扰。**"
+            if spam_warning_message: # 仅当有警告时才添加换行符
+                spam_warning_message = f"\n{spam_warning_message}\n"
 
             prompt = prompt_template.format(
                 persona_text=persona_text,
@@ -229,6 +237,7 @@ class ActionPlanner:
                 retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                 retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
                 current_time_str=current_time_value, # 新增：传入当前时间字符串
+                spam_warning_info=spam_warning_message,
                 ### 标记新增/修改区域 开始 ###
                 sender_name=sender_name_str,
                 relationship_text=relationship_text_str,
