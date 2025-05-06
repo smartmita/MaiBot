@@ -197,8 +197,10 @@ class ActionPlanner:
             if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
 
-            if conversation_info.my_message_count > 2:
-                current_time_value += f"\n你已连续发送{str(conversation_info.my_message_count)}条消息，如果没有必要请不要连续发送大量消息，以免形成刷屏造成对方困扰。"
+            if conversation_info.my_message_count > 5:
+                current_time_value += f"\n你已连续发送{str(conversation_info.my_message_count)}条消息，请注意不要连续发送大量消息，以免刷屏对造成对方困扰。"
+            elif conversation_info.my_message_count > 2:
+                current_time_value += f"\n你已连续发送{str(conversation_info.my_message_count)}条消息，如果没有必要请不要连续发送大量消息，以免刷屏给造成对方困扰。"
 
             prompt = prompt_template.format(
                 persona_text=persona_text,
