@@ -668,8 +668,12 @@ class BotConfig:
         def idle_conversation(parent: dict):
             idle_conversation_config = parent["idle_conversation"]
             if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
-                config.enable_idle_conversation = idle_conversation_config.get("enable_idle_conversation", config.enable_idle_conversation)
-                config.idle_check_interval = idle_conversation_config.get("idle_check_interval", config.idle_check_interval)
+                config.enable_idle_conversation = idle_conversation_config.get(
+                    "enable_idle_conversation", config.enable_idle_conversation
+                )
+                config.idle_check_interval = idle_conversation_config.get(
+                    "idle_check_interval", config.idle_check_interval
+                )
                 config.min_idle_time = idle_conversation_config.get("min_idle_time", config.min_idle_time)
                 config.max_idle_time = idle_conversation_config.get("max_idle_time", config.max_idle_time)
 

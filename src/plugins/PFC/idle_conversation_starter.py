@@ -99,7 +99,8 @@ class IdleConversationStarter:
             # 重新随机化下一次触发的时间阈值
             self.actual_idle_threshold = random.randint(global_config.min_idle_time, global_config.max_idle_time)
             logger.debug(
-                f"[私聊][{self.private_name}]更新最后消息时间: {self.last_message_time}，新阈值: {self.actual_idle_threshold}秒")
+                f"[私聊][{self.private_name}]更新最后消息时间: {self.last_message_time}，新阈值: {self.actual_idle_threshold}秒"
+            )
 
     def reload_config(self) -> None:
         """重新加载配置
@@ -108,13 +109,15 @@ class IdleConversationStarter:
         """
         try:
             logger.debug(
-                f"[私聊][{self.private_name}]重新加载主动对话配置: 启用={global_config.enable_idle_conversation}, 检查间隔={global_config.idle_check_interval}秒, 最短间隔={global_config.min_idle_time}秒, 最长间隔={global_config.max_idle_time}秒")
+                f"[私聊][{self.private_name}]重新加载主动对话配置: 启用={global_config.enable_idle_conversation}, 检查间隔={global_config.idle_check_interval}秒, 最短间隔={global_config.min_idle_time}秒, 最长间隔={global_config.max_idle_time}秒"
+            )
 
             # 重新计算实际阈值
             async def update_threshold():
                 async with self._lock:
-                    self.actual_idle_threshold = random.randint(global_config.min_idle_time,
-                                                                global_config.max_idle_time)
+                    self.actual_idle_threshold = random.randint(
+                        global_config.min_idle_time, global_config.max_idle_time
+                    )
                     logger.debug(f"[私聊][{self.private_name}]更新空闲检测阈值为: {self.actual_idle_threshold}秒")
 
             # 创建一个任务来异步更新阈值
@@ -202,7 +205,7 @@ class IdleConversationStarter:
             try:
                 content, _ = await asyncio.wait_for(
                     self.llm.generate_response_async(prompt),
-                    timeout=30  # 30秒超时
+                    timeout=30,  # 30秒超时
                 )
             except asyncio.TimeoutError:
                 logger.error(f"[私聊][{self.private_name}]生成主动对话内容超时")
@@ -213,7 +216,7 @@ class IdleConversationStarter:
 
             # 清理结果
             content = content.strip()
-            content = content.strip('"\'')
+            content = content.strip("\"'")
 
             if not content:
                 logger.error(f"[私聊][{self.private_name}]生成的主动对话内容为空")
@@ -254,17 +257,13 @@ class IdleConversationStarter:
 
             # 发送消息
             try:
-                await self.message_sender.send_message(
-                    chat_stream=chat_stream,
-                    content=content,
-                    reply_to_message=None
-                )
+                await self.message_sender.send_message(chat_stream=chat_stream, content=content, reply_to_message=None)
 
                 # 更新空闲会话启动器的最后消息时间
                 await self.update_last_message_time()
 
                 # 如果新对话实例有一个聊天观察者，请触发更新
-                if new_conversation and hasattr(new_conversation, 'chat_observer'):
+                if new_conversation and hasattr(new_conversation, "chat_observer"):
                     logger.info(f"[私聊][{self.private_name}]触发聊天观察者更新")
                     try:
                         new_conversation.chat_observer.trigger_update()
@@ -279,7 +278,7 @@ class IdleConversationStarter:
             # 顶级异常处理，确保任何未捕获的异常都不会导致整个进程崩溃
             logger.error(f"[私聊][{self.private_name}]主动发起对话过程中发生未预期的错误: {str(e)}")
 
-    async def _get_chat_stream(self, conversation: Optional['Conversation'] = None) -> Optional[ChatStream]:
+    async def _get_chat_stream(self, conversation: Optional["Conversation"] = None) -> Optional[ChatStream]:
         """获取可用的聊天流
 
         尝试多种方式获取聊天流：
@@ -296,7 +295,7 @@ class IdleConversationStarter:
         chat_stream = None
 
         # 1. 尝试从对话实例获取
-        if conversation and hasattr(conversation, 'should_continue'):
+        if conversation and hasattr(conversation, "should_continue"):
             # 等待一小段时间，确保初始化完成
             retry_count = 0
             max_retries = 10
@@ -309,12 +308,13 @@ class IdleConversationStarter:
                 logger.warning(f"[私聊][{self.private_name}]新对话实例初始化可能未完成，但仍将尝试获取聊天流")
 
             # 尝试使用对话实例的聊天流
-            if hasattr(conversation, 'chat_stream') and conversation.chat_stream:
+            if hasattr(conversation, "chat_stream") and conversation.chat_stream:
                 logger.info(f"[私聊][{self.private_name}]使用新对话实例的聊天流")
                 return conversation.chat_stream
 
         # 2. 尝试从聊天管理器获取
         from src.plugins.chat.chat_stream import chat_manager
+
         try:
             logger.info(f"[私聊][{self.private_name}]尝试从chat_manager获取聊天流")
             chat_stream = chat_manager.get_stream(self.stream_id)
@@ -327,13 +327,9 @@ class IdleConversationStarter:
         try:
             logger.warning(f"[私聊][{self.private_name}]无法获取现有聊天流，创建新的聊天流")
             # 创建用户信息对象
-            user_info = UserInfo(
-                user_id=global_config.BOT_QQ,
-                user_nickname=global_config.BOT_NICKNAME,
-                platform="qq"
-            )
+            user_info = UserInfo(user_id=global_config.BOT_QQ, user_nickname=global_config.BOT_NICKNAME, platform="qq")
             # 创建聊天流
             return ChatStream(self.stream_id, "qq", user_info)
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]创建新聊天流失败: {str(e)}")
-            return None 
+            return None

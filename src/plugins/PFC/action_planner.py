@@ -138,7 +138,6 @@ class ActionPlanner:
         # 获取 ChatObserver 实例 (单例模式)
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
 
-
     async def plan(
         self,
         observation_info: ObservationInfo,
@@ -242,7 +241,7 @@ class ActionPlanner:
             except Exception as end_dec_err:
                 logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
                 logger.warning(f"[私聊][{self.private_name}] 结束决策出错，将按原计划执行 end_conversation")
-                final_action = "end_conversation" # 保持原计划
+                final_action = "end_conversation"  # 保持原计划
                 final_reason = initial_reason
 
         # --- [移除] 不再需要在这里检查 wait 动作的约束 ---
@@ -253,25 +252,30 @@ class ActionPlanner:
 
         # --- 5. 验证最终行动类型 ---
         valid_actions = [
-            "direct_reply", "send_new_message", "wait", "listening",
-            "rethink_goal", "end_conversation", "block_and_ignore", "say_goodbye"
+            "direct_reply",
+            "send_new_message",
+            "wait",
+            "listening",
+            "rethink_goal",
+            "end_conversation",
+            "block_and_ignore",
+            "say_goodbye",
         ]
         if final_action not in valid_actions:
             logger.warning(f"[私聊][{self.private_name}] LLM 返回了未知的行动类型: '{final_action}'，强制改为 wait")
             final_reason = f"(原始行动'{final_action}'无效，已强制改为wait) {final_reason}"
-            final_action = "wait" # 遇到无效动作，默认等待
+            final_action = "wait"  # 遇到无效动作，默认等待
 
         plan_duration = time.time() - plan_start_time
         logger.success(f"[私聊][{self.private_name}] 最终规划行动: {final_action} (总耗时: {plan_duration:.3f} 秒)")
         logger.info(f"[私聊][{self.private_name}] 行动原因: {final_reason}")
         return final_action, final_reason
 
-
     # --- Helper methods for preparing prompt inputs  ---
 
     def _get_bot_last_speak_time_info(self, observation_info: ObservationInfo) -> str:
         """获取机器人上次发言时间提示"""
-        
+
         time_info = ""
         try:
             if not observation_info or not observation_info.bot_id:
@@ -297,7 +301,7 @@ class ActionPlanner:
 
     def _get_timeout_context(self, conversation_info: ConversationInfo) -> str:
         """获取超时提示信息"""
-        
+
         timeout_context = ""
         try:
             if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
@@ -307,8 +311,12 @@ class ActionPlanner:
                     last_goal_text = last_goal_item.get("goal", "")
                 elif isinstance(last_goal_item, str):
                     last_goal_text = last_goal_item
-                if isinstance(last_goal_text, str) and "分钟，" in last_goal_text and "思考接下来要做什么" in last_goal_text:
-                    wait_time_str = last_goal_text.split("分钟，")[0].replace("你等待了","").strip()
+                if (
+                    isinstance(last_goal_text, str)
+                    and "分钟，" in last_goal_text
+                    and "思考接下来要做什么" in last_goal_text
+                ):
+                    wait_time_str = last_goal_text.split("分钟，")[0].replace("你等待了", "").strip()
                     timeout_context = f"重要提示：对方已经长时间（约 {wait_time_str} 分钟）没有回复你的消息了，请基于此情况规划下一步。\n"
                     logger.debug(f"[私聊][{self.private_name}] 检测到超时目标: {last_goal_text}")
         except AttributeError as e:
@@ -319,7 +327,7 @@ class ActionPlanner:
 
     def _build_goals_string(self, conversation_info: ConversationInfo) -> str:
         """构建对话目标字符串"""
-        
+
         goals_str = ""
         try:
             if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
@@ -349,25 +357,37 @@ class ActionPlanner:
 
     async def _build_chat_history_text(self, observation_info: ObservationInfo) -> str:
         """构建聊天历史记录文本 (包含未处理消息)"""
-        
+
         chat_history_text = ""
         try:
             if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
                 chat_history_text = observation_info.chat_history_str
             elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
                 history_slice = observation_info.chat_history[-20:]
-                chat_history_text = await build_readable_messages(history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
+                chat_history_text = await build_readable_messages(
+                    history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
+                )
             else:
                 chat_history_text = "还没有聊天记录。\n"
-            unread_count = getattr(observation_info, 'new_messages_count', 0)
-            unread_messages = getattr(observation_info, 'unprocessed_messages', [])
+            unread_count = getattr(observation_info, "new_messages_count", 0)
+            unread_messages = getattr(observation_info, "unprocessed_messages", [])
             if unread_count > 0 and unread_messages:
                 bot_qq_str = str(global_config.BOT_QQ)
-                other_unread_messages = [msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str]
+                other_unread_messages = [
+                    msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str
+                ]
                 other_unread_count = len(other_unread_messages)
                 if other_unread_count > 0:
-                    new_messages_str = await build_readable_messages(other_unread_messages, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
-                    chat_history_text += f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
+                    new_messages_str = await build_readable_messages(
+                        other_unread_messages,
+                        replace_bot_name=True,
+                        merge_messages=False,
+                        timestamp_mode="relative",
+                        read_mark=0.0,
+                    )
+                    chat_history_text += (
+                        f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
+                    )
                     logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
         except AttributeError as e:
             logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}")
@@ -377,10 +397,9 @@ class ActionPlanner:
             chat_history_text = "[处理聊天记录时出错]\n"
         return chat_history_text
 
-
     def _build_action_history_context(self, conversation_info: ConversationInfo) -> Tuple[str, str]:
         """构建行动历史概要和上一次行动详细情况"""
-        
+
         action_history_summary = "你最近执行的行动历史：\n"
         last_action_context = "关于你【上一次尝试】的行动：\n"
         action_history_list: List[Dict[str, Any]] = []
@@ -437,7 +456,14 @@ class ActionPlanner:
         end_content, _ = await self.llm.generate_response_async(end_decision_prompt)
         llm_duration = time.time() - llm_start_time
         logger.debug(f"[私聊][{self.private_name}] LLM (结束决策) 耗时: {llm_duration:.3f} 秒, 原始返回: {end_content}")
-        end_success, end_result = get_items_from_json(end_content, self.private_name, "say_bye", "reason", default_values={"say_bye": "no", "reason": "结束决策LLM返回格式错误，默认不告别"}, required_types={"say_bye": str, "reason": str})
+        end_success, end_result = get_items_from_json(
+            end_content,
+            self.private_name,
+            "say_bye",
+            "reason",
+            default_values={"say_bye": "no", "reason": "结束决策LLM返回格式错误，默认不告别"},
+            required_types={"say_bye": str, "reason": str},
+        )
         say_bye_decision = end_result.get("say_bye", "no").lower()
         end_decision_reason = end_result.get("reason", "未提供原因")
         if end_success and say_bye_decision == "yes":
