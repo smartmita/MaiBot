@@ -276,11 +276,13 @@ class ActionPlanner:
         
         time_info = ""
         try:
-            if not observation_info or not observation_info.bot_id: return ""
+            if not observation_info or not observation_info.bot_id:
+                return ""
             bot_id_str = str(observation_info.bot_id)
             if hasattr(observation_info, "chat_history") and observation_info.chat_history:
                 for msg in reversed(observation_info.chat_history):
-                    if not isinstance(msg, dict): continue
+                    if not isinstance(msg, dict):
+                        continue
                     sender_info = msg.get("user_info", {})
                     sender_id = str(sender_info.get("user_id")) if isinstance(sender_info, dict) else None
                     msg_time = msg.get("time")
@@ -289,8 +291,10 @@ class ActionPlanner:
                         if time_diff < 60.0:
                             time_info = f"提示：你上一条成功发送的消息是在 {time_diff:.1f} 秒前。\n"
                         break
-        except AttributeError as e: logger.warning(f"[私聊][{self.private_name}] 获取 Bot 上次发言时间时属性错误: {e}")
-        except Exception as e: logger.warning(f"[私聊][{self.private_name}] 获取 Bot 上次发言时间时出错: {e}")
+        except AttributeError as e:
+            logger.warning(f"[私聊][{self.private_name}] 获取 Bot 上次发言时间时属性错误: {e}")
+        except Exception as e:
+            logger.warning(f"[私聊][{self.private_name}] 获取 Bot 上次发言时间时出错: {e}")
         return time_info
 
     def _get_timeout_context(self, conversation_info: ConversationInfo) -> str:
@@ -301,14 +305,18 @@ class ActionPlanner:
             if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
                 last_goal_item = conversation_info.goal_list[-1]
                 last_goal_text = ""
-                if isinstance(last_goal_item, dict): last_goal_text = last_goal_item.get("goal", "")
-                elif isinstance(last_goal_item, str): last_goal_text = last_goal_item
+                if isinstance(last_goal_item, dict):
+                    last_goal_text = last_goal_item.get("goal", "")
+                elif isinstance(last_goal_item, str):
+                    last_goal_text = last_goal_item
                 if isinstance(last_goal_text, str) and "分钟，" in last_goal_text and "思考接下来要做什么" in last_goal_text:
                     wait_time_str = last_goal_text.split("分钟，")[0].replace("你等待了","").strip()
                     timeout_context = f"重要提示：对方已经长时间（约 {wait_time_str} 分钟）没有回复你的消息了，请基于此情况规划下一步。\n"
                     logger.debug(f"[私聊][{self.private_name}] 检测到超时目标: {last_goal_text}")
-        except AttributeError as e: logger.warning(f"[私聊][{self.private_name}] 检查超时目标时属性错误: {e}")
-        except Exception as e: logger.warning(f"[私聊][{self.private_name}] 检查超时目标时出错: {e}")
+        except AttributeError as e:
+            logger.warning(f"[私聊][{self.private_name}] 检查超时目标时属性错误: {e}")
+        except Exception as e:
+            logger.warning(f"[私聊][{self.private_name}] 检查超时目标时出错: {e}")
         return timeout_context
 
     def _build_goals_string(self, conversation_info: ConversationInfo) -> str:
@@ -319,9 +327,11 @@ class ActionPlanner:
             if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
                 recent_goals = conversation_info.goal_list[-3:]
                 for goal_item in recent_goals:
-                    goal = "目标内容缺失"; reasoning = "没有明确原因"
+                    goal = "目标内容缺失"
+                    reasoning = "没有明确原因"
                     if isinstance(goal_item, dict):
-                        goal = goal_item.get("goal", goal); reasoning = goal_item.get("reasoning", reasoning)
+                        goal = goal_item.get("goal", goal)
+                        reasoning = goal_item.get("reasoning", reasoning)
                     elif isinstance(goal_item, str): goal = goal_item
                     goal = str(goal) if goal is not None else "目标内容缺失"
                     reasoning = str(reasoning) if reasoning is not None else "没有明确原因"
@@ -339,8 +349,8 @@ class ActionPlanner:
         try:
             if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str: chat_history_text = observation_info.chat_history_str
             elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
-                 history_slice = observation_info.chat_history[-20:]
-                 chat_history_text = await build_readable_messages(history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
+                history_slice = observation_info.chat_history[-20:]
+                chat_history_text = await build_readable_messages(history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0)
             else: chat_history_text = "还没有聊天记录。\n"
             unread_count = getattr(observation_info, 'new_messages_count', 0)
             unread_messages = getattr(observation_info, 'unprocessed_messages', [])

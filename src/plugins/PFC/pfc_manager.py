@@ -36,11 +36,11 @@ class PFCManager:
             await asyncio.sleep(0.5) # 短暂等待，让初始化有机会完成
             # 再次检查实例是否存在
             if stream_id in self._instances and self._instances[stream_id]._initialized:
-                 logger.debug(f"[私聊][{private_name}] 初始化已完成，返回现有实例: {stream_id}")
-                 return self._instances[stream_id]
+                logger.debug(f"[私聊][{private_name}] 初始化已完成，返回现有实例: {stream_id}")
+                return self._instances[stream_id]
             else:
-                 logger.warning(f"[私聊][{private_name}] 等待后实例仍未初始化完成或不存在。")
-                 return None # 避免返回未完成的实例
+                logger.warning(f"[私聊][{private_name}] 等待后实例仍未初始化完成或不存在。")
+                return None # 避免返回未完成的实例
 
         # 检查是否已有活动实例
         if stream_id in self._instances:
@@ -61,8 +61,10 @@ class PFCManager:
                 logger.warning(f"[私聊][{private_name}] 发现无效或已停止的旧实例，清理并重新创建: {stream_id}")
                 await self._cleanup_conversation(instance)
                 # 从字典中移除，确保下面能创建新的
-                if stream_id in self._instances: del self._instances[stream_id]
-                if stream_id in self._initializing: del self._initializing[stream_id]
+                if stream_id in self._instances:
+                    del self._instances[stream_id]
+                if stream_id in self._initializing:
+                    del self._initializing[stream_id]
 
 
         # --- 创建并初始化新实例 ---
@@ -88,7 +90,8 @@ class PFCManager:
                 logger.error(f"[私聊][{private_name}] 初始化未成功完成，无法启动实例 {stream_id}。")
                 # 清理可能部分创建的实例
                 await self._cleanup_conversation(conversation_instance)
-                if stream_id in self._instances: del self._instances[stream_id]
+                if stream_id in self._instances:
+                    del self._instances[stream_id]
                 conversation_instance = None # 返回 None 表示失败
 
         except Exception as e:
@@ -97,13 +100,14 @@ class PFCManager:
             # 确保清理
             if conversation_instance:
                 await self._cleanup_conversation(conversation_instance)
-            if stream_id in self._instances: del self._instances[stream_id]
+            if stream_id in self._instances:
+                del self._instances[stream_id]
             conversation_instance = None # 返回 None
 
         finally:
             # 确保初始化标记被清除
-             if stream_id in self._initializing:
-                 self._initializing[stream_id] = False
+            if stream_id in self._initializing:
+                self._initializing[stream_id] = False
 
         return conversation_instance
 
@@ -116,9 +120,9 @@ class PFCManager:
             await conversation._initialize() # 调用实例自身的初始化方法
             # 注意：初始化成功与否由 conversation._initialized 和 conversation.should_continue 标志决定
             if conversation._initialized:
-                 logger.info(f"[私聊][{private_name}] conversation._initialize() 调用完成，实例标记为已初始化: {stream_id}")
+                logger.info(f"[私聊][{private_name}] conversation._initialize() 调用完成，实例标记为已初始化: {stream_id}")
             else:
-                 logger.warning(f"[私聊][{private_name}] conversation._initialize() 调用完成，但实例未成功标记为已初始化: {stream_id}")
+                logger.warning(f"[私聊][{private_name}] conversation._initialize() 调用完成，但实例未成功标记为已初始化: {stream_id}")
 
         except Exception as e:
             # _initialize 内部应该处理自己的异常，但这里也捕获以防万一
@@ -131,7 +135,8 @@ class PFCManager:
 
     async def _cleanup_conversation(self, conversation: Conversation):
         """清理会话实例的资源"""
-        if not conversation: return
+        if not conversation:
+            return
         stream_id = conversation.stream_id
         private_name = conversation.private_name
         logger.info(f"[私聊][{private_name}] 开始清理会话实例资源: {stream_id}")
@@ -140,13 +145,13 @@ class PFCManager:
             if hasattr(conversation, 'stop') and callable(conversation.stop):
                 await conversation.stop() # stop 方法应处理内部组件的停止
             else:
-                 logger.warning(f"[私聊][{private_name}] Conversation 对象缺少 stop 方法，可能无法完全清理资源。")
-                 # 尝试手动停止已知组件 (作为后备)
-                 if hasattr(conversation, 'idle_conversation_starter') and conversation.idle_conversation_starter:
-                     conversation.idle_conversation_starter.stop()
-                 if hasattr(conversation, 'observation_info') and conversation.observation_info:
-                     conversation.observation_info.unbind_from_chat_observer()
-                 # ChatObserver 是单例，不在此处停止
+                logger.warning(f"[私聊][{private_name}] Conversation 对象缺少 stop 方法，可能无法完全清理资源。")
+                # 尝试手动停止已知组件 (作为后备)
+                if hasattr(conversation, 'idle_conversation_starter') and conversation.idle_conversation_starter:
+                    conversation.idle_conversation_starter.stop()
+                if hasattr(conversation, 'observation_info') and conversation.observation_info:
+                    conversation.observation_info.unbind_from_chat_observer()
+                # ChatObserver 是单例，不在此处停止
 
             logger.info(f"[私聊][{private_name}] 会话实例 {stream_id} 资源已清理")
         except Exception as e:
@@ -157,12 +162,12 @@ class PFCManager:
         """获取已存在的会话实例 (只读)"""
         instance = self._instances.get(stream_id)
         if instance and instance._initialized and instance.should_continue:
-             # 检查忽略状态
-             if (hasattr(instance, "ignore_until_timestamp") and
-                 instance.ignore_until_timestamp and
-                 time.time() < instance.ignore_until_timestamp):
-                 return None # 忽略期间不返回
-             return instance
+            # 检查忽略状态
+            if (hasattr(instance, "ignore_until_timestamp") and
+                instance.ignore_until_timestamp and
+                time.time() < instance.ignore_until_timestamp):
+                return None # 忽略期间不返回
+            return instance
         return None # 不存在或无效则返回 None
 
     async def remove_conversation(self, stream_id: str):
@@ -173,7 +178,8 @@ class PFCManager:
             try:
                 # 先从字典中移除引用，防止新的请求获取到正在清理的实例
                 del self._instances[stream_id]
-                if stream_id in self._initializing: del self._initializing[stream_id]
+                if stream_id in self._initializing:
+                    del self._initializing[stream_id]
                 # 清理资源
                 await self._cleanup_conversation(instance_to_remove)
                 logger.info(f"[管理器] 会话实例 {stream_id} 已成功移除并清理")
