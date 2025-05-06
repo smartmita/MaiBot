@@ -337,11 +337,14 @@ class ActionPlanner:
                     goals_str += f"- 目标：{goal}\n  原因：{reasoning}\n"
                 if not goals_str:
                     goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
-            else: goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
+            else:
+                goals_str = "- 目前没有明确对话目标，请考虑设定一个。\n"
         except AttributeError as e:
-            logger.warning(f"[私聊][{self.private_name}] 构建对话目标字符串时属性错误: {e}"); goals_str = "- 获取对话目标时出错。\n"
+            logger.warning(f"[私聊][{self.private_name}] 构建对话目标字符串时属性错误: {e}")
+            goals_str = "- 获取对话目标时出错。\n"
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}] 构建对话目标字符串时出错: {e}"); goals_str = "- 构建对话目标时出错。\n"
+            logger.error(f"[私聊][{self.private_name}] 构建对话目标字符串时出错: {e}")
+            goals_str = "- 构建对话目标时出错。\n"
         return goals_str
 
     async def _build_chat_history_text(self, observation_info: ObservationInfo) -> str:
@@ -367,9 +370,11 @@ class ActionPlanner:
                     chat_history_text += f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
                     logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
         except AttributeError as e:
-            logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}"); chat_history_text = "[获取聊天记录时出错]\n"
+            logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}")
+            chat_history_text = "[获取聊天记录时出错]\n"
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}] 处理聊天记录时发生未知错误: {e}"); chat_history_text = "[处理聊天记录时出错]\n"
+            logger.error(f"[私聊][{self.private_name}] 处理聊天记录时发生未知错误: {e}")
+            chat_history_text = "[处理聊天记录时出错]\n"
         return chat_history_text
 
 
@@ -387,13 +392,17 @@ class ActionPlanner:
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}] 访问行动历史时出错: {e}")
         if not action_history_list:
-            action_history_summary += "- 还没有执行过行动。\n"; last_action_context += "- 这是你规划的第一个行动。\n"
+            action_history_summary += "- 还没有执行过行动。\n"
+            last_action_context += "- 这是你规划的第一个行动。\n"
         else:
             for i, action_data in enumerate(action_history_list):
                 if not isinstance(action_data, dict):
-                    logger.warning(f"[私聊][{self.private_name}] 行动历史记录格式错误，跳过: {action_data}"); continue
-                action_type = action_data.get("action", "未知动作"); plan_reason = action_data.get("plan_reason", "未知规划原因")
-                status = action_data.get("status", "未知状态"); final_reason = action_data.get("final_reason", "")
+                    logger.warning(f"[私聊][{self.private_name}] 行动历史记录格式错误，跳过: {action_data}")
+                    continue
+                action_type = action_data.get("action", "未知动作")
+                plan_reason = action_data.get("plan_reason", "未知规划原因")
+                status = action_data.get("status", "未知状态")
+                final_reason = action_data.get("final_reason", "")
                 action_time = action_data.get("time", "未知时间")
                 reason_text = f", 最终原因: “{final_reason}”" if final_reason else ""
                 summary_line = f"- 时间:{action_time}, 尝试:'{action_type}', 状态:{status}{reason_text}"
@@ -401,7 +410,8 @@ class ActionPlanner:
                 if i == len(action_history_list) - 1:
                     last_action_context += f"- 上次【规划】的行动是: '{action_type}'\n"
                     last_action_context += f"- 当时规划的【原因】是: {plan_reason}\n"
-                    if status == "done": last_action_context += "- 该行动已【成功执行】。\n"
+                    if status == "done":
+                        last_action_context += "- 该行动已【成功执行】。\n"
                     elif status == "recall" or status == "error" or status.startswith("cancelled"):
                         last_action_context += "- 但该行动最终【未能成功执行/被取消/出错】。\n"
                         if final_reason:
