@@ -412,7 +412,7 @@ class BotConfig:
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
         def group_nickname(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.6.3"):
                 group_nickname_config = parent.get("group_nickname", {})
                 config.enable_nickname_mapping = group_nickname_config.get(
                     "enable_nickname_mapping", config.enable_nickname_mapping
@@ -724,7 +724,7 @@ class BotConfig:
             "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
-            "group_nickname": {"func": group_nickname, "support": ">=0.6.3", "necessary": False},
+            "group_nickname": {"func": group_nickname, "support": ">=1.6.3", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象
