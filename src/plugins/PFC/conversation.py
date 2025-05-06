@@ -16,6 +16,7 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
 from ..chat.chat_stream import ChatStream
+from .idle_conversation_starter import IdleConversationStarter
 from maim_message import UserInfo
 from src.plugins.chat.chat_stream import chat_manager
 from .pfc_KnowledgeFetcher import KnowledgeFetcher
@@ -51,6 +52,7 @@ class Conversation:
             self.waiter = Waiter(self.stream_id, self.private_name)
             self.direct_sender = DirectMessageSender(self.private_name)
             self.chat_stream = chat_manager.get_stream(self.stream_id)
+            self.idle_conversation_starter = IdleConversationStarter(self.stream_id, self.private_name)
             self.stop_action_planner = False
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]初始化对话实例：注册运行组件失败: {e}")
@@ -96,6 +98,7 @@ class Conversation:
                 # --- 注意: 下面两行保持不变，但其健壮性依赖于 ChatObserver 的实现 ---
                 self.chat_observer.last_message_time = self.observation_info.last_message_time
                 self.chat_observer.last_message_read = last_msg
+                await self.idle_conversation_starter.update_last_message_time(self.observation_info.last_message_time)
             else:
                 logger.info(f"[私聊][{self.private_name}]没有找到初始聊天记录。")
 
@@ -104,7 +107,10 @@ class Conversation:
 
         self.should_continue = True
         asyncio.create_task(self.start())
-
+        # 启动空闲对话检测器
+        self.idle_conversation_starter.start()
+        logger.info(f"[私聊][{self.private_name}]空闲对话检测器已启动")
+        asyncio.create_task(self.start())
     async def start(self):
         """开始对话流程 (保持不变)"""
         try:
@@ -119,6 +125,10 @@ class Conversation:
         while self.should_continue:
             # 忽略逻辑 (保持不变)
             if self.ignore_until_timestamp and time.time() < self.ignore_until_timestamp:
+                # 暂停空闲对话检测器，避免在忽略期间触发
+                if hasattr(self, 'idle_conversation_starter') and self.idle_conversation_starter._running:
+                    self.idle_conversation_starter.stop()
+                    logger.debug(f"[私聊][{self.private_name}]对话被暂时忽略，暂停空闲对话检测")
                 await asyncio.sleep(30)
                 continue
             elif self.ignore_until_timestamp and time.time() >= self.ignore_until_timestamp:
@@ -126,6 +136,11 @@ class Conversation:
                 self.ignore_until_timestamp = None
                 self.should_continue = False
                 continue
+            else:
+                # 确保空闲对话检测器在正常对话时是启动的
+                if hasattr(self, 'idle_conversation_starter') and not self.idle_conversation_starter._running:
+                    self.idle_conversation_starter.start()
+                    logger.debug(f"[私聊][{self.private_name}]恢复空闲对话检测")
 
             try:
                 # --- [修改点 1] 在规划前记录未处理消息的 ID 集合 ---
@@ -336,6 +351,7 @@ class Conversation:
                 # 确认发送
                 self.generated_reply = final_reply_to_send
                 send_success = await self._send_reply() # 调用发送函数
+                await self.idle_conversation_starter.update_last_message_time()
 
                 if send_success:
                     action_successful = True
@@ -366,7 +382,6 @@ class Conversation:
                        await observation_info.clear_processed_messages(message_ids_to_clear)
                     else:
                        logger.debug(f"[私聊][{self.private_name}]没有需要清理的发送前消息。")
-
 
                     # 根据发送期间是否有新消息，决定下次规划用哪个 prompt
                     if new_messages_during_sending_count > 0:
@@ -553,7 +568,6 @@ class Conversation:
             conversation_info.last_reply_rejection_reason = None
             conversation_info.last_rejected_reply_content = None
 
-
         # --- 更新 Action History 状态 (保持不变) ---
         if action_successful:
             conversation_info.done_action[action_index].update(
@@ -565,7 +579,6 @@ class Conversation:
             logger.debug(f"[私聊][{self.private_name}]动作 '{action}' 标记为 'done'")
         else:
             logger.debug(f"[私聊][{self.private_name}]动作 '{action}' 标记为 'recall' 或失败")
-
 
     async def _send_reply(self) -> bool:
         """发送回复，并返回是否发送成功 (保持不变)"""
@@ -603,5 +616,11 @@ class Conversation:
             await self.direct_sender.send_message(
                 chat_stream=self.chat_stream, content="TODO:超时消息", reply_to_message=latest_message
             )
+            # 停止空闲对话检测器
+            if hasattr(self, 'idle_conversation_starter'):
+                self.idle_conversation_starter.stop()
+
+            if hasattr(self, 'chat_observer'):
+                self.chat_observer.stop()
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]发送超时消息失败: {str(e)}")
