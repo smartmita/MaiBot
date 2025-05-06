@@ -1,0 +1,219 @@
+from typing import List, Dict, Any, Optional
+from src.common.logger_manager import get_logger
+from src.plugins.models.utils_model import LLMRequest
+from src.plugins.person_info.person_info import person_info_manager
+from src.plugins.person_info.relationship_manager import relationship_manager # 主要用其 ensure_float 和 build_relationship_info
+from src.plugins.utils.chat_message_builder import build_readable_messages
+
+# 从PFC内部导入必要的类 (根据你的项目结构调整，当前假设与PFC核心文件同级或有正确路径)
+try:
+    from .observation_info import ObservationInfo
+    from .conversation_info import ConversationInfo
+    from .pfc_utils import get_items_from_json
+except ImportError: # 如果直接从 plugins/PFC 目录运行，上面的相对导入会失败，尝试绝对导入
+    from observation_info import ObservationInfo
+    from conversation_info import ConversationInfo
+    from pfc_utils import get_items_from_json
+
+
+from ...config.config import global_config # 导入全局配置 (向上两级到 src/, 再到 config)
+
+
+logger = get_logger("pfc_relationship_updater")
+
+class PfcRelationshipUpdater:
+    def __init__(self, private_name: str, bot_name: str):
+        """
+        初始化关系更新器。
+
+        Args:
+            private_name (str): 当前私聊对象的名称 (用于日志)。
+            bot_name (str): 机器人自己的名称。
+        """
+        self.private_name = private_name
+        self.bot_name = bot_name
+        self.person_info_mng = person_info_manager
+        self.relationship_mng = relationship_manager # 复用其实例方法
+
+        # LLM 实例 (为关系评估创建一个新的)
+        # 尝试读取 llm_PFC_relationship_eval 配置，如果不存在则回退
+        llm_config_rel_eval = getattr(global_config, 'llm_PFC_relationship_eval', None)
+        if llm_config_rel_eval and isinstance(llm_config_rel_eval, dict):
+            logger.info(f"[私聊][{self.private_name}] 使用 llm_PFC_relationship_eval 配置初始化关系评估LLM。")
+            self.llm = LLMRequest(
+                model=llm_config_rel_eval,
+                temperature=llm_config_rel_eval.get("temp", 0.5), # 判断任务通常用较低温度
+                max_tokens=llm_config_rel_eval.get("max_tokens", 512),
+                request_type="pfc_relationship_evaluation"
+            )
+        else:
+            logger.warning(f"[私聊][{self.private_name}] 未找到 llm_PFC_relationship_eval 配置或配置无效，将回退使用 llm_PFC_action_planner 的配置。")
+            llm_config_action_planner = getattr(global_config, 'llm_PFC_action_planner', None)
+            if llm_config_action_planner and isinstance(llm_config_action_planner, dict):
+                self.llm = LLMRequest(
+                    model=llm_config_action_planner, # 使用 action_planner 的模型配置
+                    temperature=llm_config_action_planner.get("temp", 0.5), # 但温度可以尝试低一些
+                    max_tokens=llm_config_action_planner.get("max_tokens", 512),
+                    request_type="pfc_relationship_evaluation_fallback"
+                )
+            else: # 极端情况，连 action_planner 的配置都没有
+                logger.error(f"[私聊][{self.private_name}] 无法找到任何有效的LLM配置用于关系评估！关系更新功能将受限。")
+                self.llm = None # LLM 未初始化
+
+        # 从 global_config 读取参数，若无则使用默认值
+        self.REL_INCREMENTAL_INTERVAL = getattr(global_config, 'pfc_relationship_incremental_interval', 10)
+        self.REL_INCREMENTAL_MSG_COUNT = getattr(global_config, 'pfc_relationship_incremental_msg_count', 10)
+        self.REL_INCREMENTAL_DEFAULT_CHANGE = getattr(global_config, 'pfc_relationship_incremental_default_change', 1.0)
+        self.REL_INCREMENTAL_MAX_CHANGE = getattr(global_config, 'pfc_relationship_incremental_max_change', 5.0)
+
+        self.REL_FINAL_MSG_COUNT = getattr(global_config, 'pfc_relationship_final_msg_count', 30)
+        self.REL_FINAL_DEFAULT_CHANGE = getattr(global_config, 'pfc_relationship_final_default_change', 5.0)
+        self.REL_FINAL_MAX_CHANGE = getattr(global_config, 'pfc_relationship_final_max_change', 50.0)
+
+    async def update_relationship_incremental(
+        self,
+        conversation_info: ConversationInfo,
+        observation_info: ObservationInfo,
+        chat_observer_for_history # ChatObserver 实例
+    ) -> None:
+        if not self.llm:
+            logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行增量关系更新。")
+            return
+        if not conversation_info or not conversation_info.person_id or not observation_info:
+            logger.debug(f"[私聊][{self.private_name}] 增量关系更新：缺少必要信息。")
+            return
+
+        if not (conversation_info.current_instance_message_count % self.REL_INCREMENTAL_INTERVAL == 0 \
+                and conversation_info.current_instance_message_count > 0):
+            return
+
+        logger.info(f"[私聊][{self.private_name}] 达到增量关系更新阈值 ({conversation_info.current_instance_message_count}条消息)，开始评估...")
+
+        messages_for_eval: List[Dict[str, Any]] = []
+        if chat_observer_for_history:
+            messages_for_eval = chat_observer_for_history.get_cached_messages(limit=self.REL_INCREMENTAL_MSG_COUNT)
+        elif observation_info.chat_history:
+            messages_for_eval = observation_info.chat_history[-self.REL_INCREMENTAL_MSG_COUNT:]
+        
+        if not messages_for_eval:
+            logger.warning(f"[私聊][{self.private_name}] 增量关系更新：没有足够的消息进行评估。")
+            return
+
+        readable_history_for_llm = await build_readable_messages(
+            messages_for_eval, replace_bot_name=True, merge_messages=False, timestamp_mode="relative"
+        )
+
+        current_relationship_value = await self.person_info_mng.get_value(conversation_info.person_id, "relationship_value")
+        current_relationship_value = self.relationship_mng.ensure_float(current_relationship_value, conversation_info.person_id)
+
+        sender_name_for_prompt = getattr(observation_info, 'sender_name', '对方')
+        if not sender_name_for_prompt: sender_name_for_prompt = '对方'
+        
+        relationship_prompt = f"""你是{self.bot_name}。你正在与{sender_name_for_prompt}私聊。
+你们当前的关系值大约是 {current_relationship_value:.0f} (范围通常在-1000到1000，越高越代表关系越好)。
+以下是你们最近的对话内容：
+---
+{readable_history_for_llm}
+---
+请基于以上对话，判断你与{sender_name_for_prompt}的关系值应该如何“谨慎地”调整。
+请输出一个JSON对象，包含一个 "adjustment" 字段，其值为一个介于 -{self.REL_INCREMENTAL_MAX_CHANGE} 和 +{self.REL_INCREMENTAL_MAX_CHANGE} 之间的整数，代表关系值的变化。
+例如：{{ "adjustment": 3 }}。如果对话内容不明确或难以判断，请倾向于输出较小的调整值（如0, 1, -1）。"""
+
+        adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
+        try:
+            logger.debug(f"[私聊][{self.private_name}] 增量关系评估Prompt:\n{relationship_prompt}")
+            content, _ = await self.llm.generate_response_async(relationship_prompt)
+            logger.debug(f"[私聊][{self.private_name}] 增量关系评估LLM原始返回: {content}")
+
+            success, result = get_items_from_json(
+                content, self.private_name, "adjustment",
+                default_values={"adjustment": self.REL_INCREMENTAL_DEFAULT_CHANGE},
+                required_types={"adjustment": (int, float)}
+            )
+            raw_adjustment = result.get("adjustment", self.REL_INCREMENTAL_DEFAULT_CHANGE)
+            if not isinstance(raw_adjustment, (int, float)):
+                adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
+            else:
+                adjustment_val = float(raw_adjustment)
+            adjustment_val = max(-self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, adjustment_val))
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}] 增量关系评估LLM调用或解析失败: {e}")
+
+        new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
+        await self.person_info_mng.update_one_field(conversation_info.person_id, "relationship_value", new_relationship_value)
+        logger.info(f"[私聊][{self.private_name}] 增量关系值更新：与【{sender_name_for_prompt}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，变为 {new_relationship_value:.2f}")
+
+        if conversation_info.person_id:
+            conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
+
+    async def update_relationship_final(
+        self,
+        conversation_info: ConversationInfo,
+        observation_info: ObservationInfo,
+        chat_observer_for_history
+    ) -> None:
+        if not self.llm:
+            logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行最终关系更新。")
+            return
+        if not conversation_info or not conversation_info.person_id or not observation_info:
+            logger.debug(f"[私聊][{self.private_name}] 最终关系更新：缺少必要信息。")
+            return
+        
+        logger.info(f"[私聊][{self.private_name}] 私聊结束，开始最终关系评估...")
+
+        messages_for_eval: List[Dict[str, Any]] = []
+        if chat_observer_for_history:
+            messages_for_eval = chat_observer_for_history.get_cached_messages(limit=self.REL_FINAL_MSG_COUNT)
+        elif observation_info.chat_history:
+            messages_for_eval = observation_info.chat_history[-self.REL_FINAL_MSG_COUNT:]
+
+        if not messages_for_eval:
+            logger.warning(f"[私聊][{self.private_name}] 最终关系更新：没有足够的消息进行评估。")
+            return
+
+        readable_history_for_llm = await build_readable_messages(
+            messages_for_eval, replace_bot_name=True, merge_messages=False, timestamp_mode="relative"
+        )
+
+        current_relationship_value = await self.person_info_mng.get_value(conversation_info.person_id, "relationship_value")
+        current_relationship_value = self.relationship_mng.ensure_float(current_relationship_value, conversation_info.person_id)
+
+        sender_name_for_prompt = getattr(observation_info, 'sender_name', '对方')
+        if not sender_name_for_prompt: sender_name_for_prompt = '对方'
+
+        relationship_prompt = f"""你是{self.bot_name}。你与{sender_name_for_prompt}的私聊刚刚结束。
+你们当前的关系值大约是 {current_relationship_value:.0f} (范围通常在-1000到1000，越高越好)。
+以下是你们本次私聊最后部分的对话内容：
+---
+{readable_history_for_llm}
+---
+请基于以上对话的整体情况，判断你与【{sender_name_for_prompt}】的关系值应该如何进行一次总结性的调整。
+请输出一个JSON对象，包含一个 "final_adjustment" 字段，其值为一个整数，代表关系值的变化量（例如，可以是 -{self.REL_FINAL_MAX_CHANGE} 到 +{self.REL_FINAL_MAX_CHANGE} 之间的一个值）。
+请大胆评估，但也要合理。"""
+
+        adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
+        try:
+            logger.debug(f"[私聊][{self.private_name}] 最终关系评估Prompt:\n{relationship_prompt}")
+            content, _ = await self.llm.generate_response_async(relationship_prompt)
+            logger.debug(f"[私聊][{self.private_name}] 最终关系评估LLM原始返回: {content}")
+
+            success, result = get_items_from_json(
+                content, self.private_name, "final_adjustment",
+                default_values={"final_adjustment": self.REL_FINAL_DEFAULT_CHANGE},
+                required_types={"final_adjustment": (int, float)}
+            )
+            raw_adjustment = result.get("final_adjustment", self.REL_FINAL_DEFAULT_CHANGE)
+            if not isinstance(raw_adjustment, (int, float)):
+                adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
+            else:
+                adjustment_val = float(raw_adjustment)
+            adjustment_val = max(-self.REL_FINAL_MAX_CHANGE, min(self.REL_FINAL_MAX_CHANGE, adjustment_val))
+        except Exception as e:
+            logger.error(f"[私聊][{self.private_name}] 最终关系评估LLM调用或解析失败: {e}")
+
+        new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
+        await self.person_info_mng.update_one_field(conversation_info.person_id, "relationship_value", new_relationship_value)
+        logger.info(f"[私聊][{self.private_name}] 最终关系值更新：与【{sender_name_for_prompt}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，最终为 {new_relationship_value:.2f}")
+        
+        if conversation_info.person_id: # 虽然通常结束了，但更新一下无妨
+             conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)

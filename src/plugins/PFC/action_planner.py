@@ -22,7 +22,11 @@ logger = get_logger("pfc_action_planner")
 # Prompt(1): 首次回复或非连续回复时的决策 Prompt
 PROMPT_INITIAL_REPLY = """
 当前时间：{current_time_str}
-{persona_text}。现在你在参与一场QQ私聊，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以回复，可以倾听，可以调取知识，甚至可以屏蔽对方：
+{persona_text}
+现在你正在和{sender_name}在QQ上私聊
+你和对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+请根据以下【所有信息】审慎且灵活的决策下一步行动，可以回复，可以倾听，可以调取知识，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -58,7 +62,11 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 # Prompt(2): 上一次成功回复后，决定继续发言时的决策 Prompt
 PROMPT_FOLLOW_UP = """
 当前时间：{current_time_str}
-{persona_text}。现在你在参与一场QQ私聊，刚刚你已经回复了对方，请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
+{persona_text}
+现在你正在和{sender_name}在QQ上私聊，**并且刚刚你已经回复了对方**
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -170,6 +178,14 @@ class ActionPlanner:
             timeout_context = self._get_timeout_context(conversation_info)
             goals_str = self._build_goals_string(conversation_info)
             chat_history_text = await self._build_chat_history_text(observation_info)
+            # 获取 sender_name, relationship_text, current_emotion_text
+            sender_name_str = getattr(observation_info, 'sender_name', '对方') # 从 observation_info 获取
+            if not sender_name_str: sender_name_str = '对方' # 再次确保有默认值
+
+            relationship_text_str = getattr(conversation_info, 'relationship_text', '我们还不熟悉。')
+            current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
+
+
             persona_text = f"你的名字是{self.name}，{self.personality_info}。"
             action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
             retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
@@ -212,7 +228,11 @@ class ActionPlanner:
                 chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
                 retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                 retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                current_time_str=current_time_value # 新增：传入当前时间字符串
+                current_time_str=current_time_value, # 新增：传入当前时间字符串
+                ### 标记新增/修改区域 开始 ###
+                sender_name=sender_name_str,
+                relationship_text=relationship_text_str,
+                current_emotion_text=current_emotion_text_str
             )
             logger.debug(f"[私聊][{self.private_name}] 发送到LLM的最终提示词:\n------\n{prompt}\n------")
         except KeyError as fmt_key_err:

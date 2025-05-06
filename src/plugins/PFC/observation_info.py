@@ -123,6 +123,12 @@ class ObservationInfo:
         """初始化 ObservationInfo"""
         self.private_name: str = private_name
 
+        # 新增：发信人信息
+        self.sender_name: Optional[str] = None
+        self.sender_user_id: Optional[str] = None # 存储为字符串
+        self.sender_platform: Optional[str] = None
+
+
         # 聊天记录相关
         self.chat_history: List[Dict[str, Any]] = []  # 存储已处理的消息历史
         self.chat_history_str: str = "还没有聊天记录。"  # 用于生成 Prompt 的历史记录字符串
@@ -230,13 +236,37 @@ class ObservationInfo:
         if not message_time or not message_id:
             logger.warning(f"[私聊][{self.private_name}] 收到的消息缺少 time 或 message_id: {message}")
             return
+        
+        # --- 新增/修改：提取并存储发信人详细信息 ---
+        current_message_sender_id: Optional[str] = None
+        if user_info:
+            try:
+                self.sender_user_id = str(user_info.user_id) # 确保是字符串
+                self.sender_name = user_info.user_nickname # 或者 user_info.card 如果私聊时card更准
+                self.sender_platform = user_info.platform
+                current_message_sender_id = self.sender_user_id # 用于后续逻辑
+                logger.debug(f"[私聊][{self.private_name}] 更新发信人信息: ID={self.sender_user_id}, Name={self.sender_name}, Platform={self.sender_platform}")
+            except AttributeError as e:
+                logger.error(f"[私聊][{self.private_name}] 从 UserInfo 对象提取信息时出错: {e}, UserInfo: {user_info}")
+                # 如果提取失败，将这些新字段设为 None，避免使用旧数据
+                self.sender_user_id = None
+                self.sender_name = None
+                self.sender_platform = None
+        else:
+            logger.warning(f"[私聊][{self.private_name}] 处理消息更新时缺少有效的 UserInfo, message_id: {message_id}")
+            # 如果没有 UserInfo，也将这些新字段设为 None
+            self.sender_user_id = None
+            self.sender_name = None
+            self.sender_platform = None
+        # --- 新增/修改结束 ---
+
 
         # 更新最后消息时间（所有消息）
         if message_time > (self.last_message_time or 0):
             self.last_message_time = message_time
             self.last_message_id = message_id
             self.last_message_content = processed_text
-            self.last_message_sender = sender_id_str
+            self.last_message_sender = current_message_sender_id # 使用新获取的 current_message_sender_id
 
         # 更新说话者特定时间
         if sender_id_str:

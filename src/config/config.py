@@ -493,6 +493,7 @@ class BotConfig:
                 "llm_PFC_action_planner",
                 "llm_PFC_chat",
                 "llm_PFC_reply_checker",
+                "llm_PFC_relationship_eval",
             ]
 
             for item in config_list:

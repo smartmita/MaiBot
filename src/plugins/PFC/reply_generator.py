@@ -23,7 +23,11 @@ logger = get_logger("reply_generator")
 # Prompt for direct_reply (首次回复)
 PROMPT_DIRECT_REPLY = """
 当前时间：{current_time_str}
-{persona_text}。现在你在参与一场QQ私聊，请根据以下信息生成一条回复：
+{persona_text}。
+你正在和{sender_name}在QQ上私聊。
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+请根据以下信息生成一条回复：
 
 当前对话目标：{goals_str}
 
@@ -56,7 +60,11 @@ PROMPT_DIRECT_REPLY = """
 # Prompt for send_new_message (追问/补充)
 PROMPT_SEND_NEW_MESSAGE = """
 当前时间：{current_time_str}
-{persona_text}。现在你在参与一场QQ私聊，**刚刚你已经发送了一条或多条消息**，现在请根据以下信息再发一条新消息：
+{persona_text}。
+你正在和{sender_name}在QQ上私聊，**并且刚刚你已经发送了一条或多条消息**
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+现在请根据以下信息再发一条新消息：
 
 当前对话目标：{goals_str}
 
@@ -88,7 +96,11 @@ PROMPT_SEND_NEW_MESSAGE = """
 # Prompt for say_goodbye (告别语生成)
 PROMPT_FAREWELL = """
 当前时间：{current_time_str}
-{persona_text}。你在参与一场 QQ 私聊，现在对话似乎已经结束，你决定再发一条最后的消息来圆满结束。
+{persona_text}。
+你正在和{sender_name}私聊，在QQ上私聊，现在你们的对话似乎已经结束。
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+现在你决定再发一条最后的消息来圆满结束。
 
 最近的聊天记录：
 {chat_history_text}
@@ -179,6 +191,14 @@ class ReplyGenerator:
             chat_history_text += (
                 f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
             )
+
+        # 获取 sender_name, relationship_text, current_emotion_text
+        sender_name_str = getattr(observation_info, 'sender_name', '对方')
+        if not sender_name_str: sender_name_str = '对方'
+
+        relationship_text_str = getattr(conversation_info, 'relationship_text', '你们还不熟悉。')
+        current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
+  
         # 构建 Persona 文本 (persona_text)
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
         retrieval_context = chat_history_text  # 使用前面构建好的 chat_history_text
@@ -231,7 +251,10 @@ class ReplyGenerator:
                  prompt = prompt_template.format(
                     persona_text=persona_text,
                     chat_history_text=chat_history_text,
-                    current_time_str=current_time_value # 添加时间
+                    current_time_str=current_time_value, # 添加时间
+                    sender_name=sender_name_str,
+                    relationship_text=relationship_text_str,
+                    current_emotion_text=current_emotion_text_str
                  )
 
             else:
@@ -242,7 +265,10 @@ class ReplyGenerator:
                     retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                     retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
                     last_rejection_info=last_rejection_info_str,  # <--- 新增传递上次拒绝原因
-                    current_time_str=current_time_value # 新增：传入当前时间字符串
+                    current_time_str=current_time_value, # 新增：传入当前时间字符串
+                    sender_name=sender_name_str,
+                    relationship_text=relationship_text_str,
+                    current_emotion_text=current_emotion_text_str
                 )
         except KeyError as e:
             logger.error(

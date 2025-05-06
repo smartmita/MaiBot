@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.3"
+version = "1.6.4"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -296,6 +296,15 @@ name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 pri_in = 2
 pri_out = 8
+
+# PFC 关系评估LLM
+[model.llm_PFC_relationship_eval]
+name = "Pro/deepseek-ai/DeepSeek-V3" # 或者其他你认为适合判断任务的模型
+provider = "SILICONFLOW"
+temp = 0.4 # 判断任务建议温度稍低
+max_tokens = 512 # 根据Prompt长度和期望输出来调整
+pri_in = 2 # 价格信息（可选）
+pri_out = 8 # 价格信息（可选）
 
 #以下模型暂时没有使用！！
 #以下模型暂时没有使用！！
