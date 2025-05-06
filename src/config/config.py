@@ -275,7 +275,7 @@ class BotConfig:
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
 
     # idle_conversation
-    enable_idle_conversation: bool = True  # 是否启用 pfc 主动发言（未完善）
+    enable_idle_conversation: bool = False  # 是否启用 pfc 主动发言（未完善）
     idle_check_interval: int = 10  # 检查间隔，10分钟检查一次
     min_idle_time: int = 7200  # 最短无活动时间，2小时 (7200秒)
     max_idle_time: int = 18000  # 最长无活动时间，5小时 (18000秒)
@@ -667,7 +667,7 @@ class BotConfig:
 
         def idle_conversation(parent: dict):
             idle_conversation_config = parent["idle_conversation"]
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.6.3"):
                 config.enable_idle_conversation = idle_conversation_config.get(
                     "enable_idle_conversation", config.enable_idle_conversation
                 )
@@ -710,7 +710,7 @@ class BotConfig:
             "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
-            "idle_conversation": {"func": idle_conversation, "support": ">=1.6.2", "necessary": False},
+            "idle_conversation": {"func": idle_conversation, "support": ">=1.6.3", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象
