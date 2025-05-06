@@ -53,8 +53,8 @@ class IdleConversationStarter:
         # 从配置文件读取配置参数，或使用默认值
         self.enabled: bool = getattr(global_config, 'idle_conversation', {}).get('enable_idle_conversation', True)
         self.idle_check_interval: int = getattr(global_config, 'idle_conversation', {}).get('idle_check_interval', 10)
-        self.min_idle_time: int = getattr(global_config, 'idle_conversation', {}).get('min_idle_time', 60)
-        self.max_idle_time: int = getattr(global_config, 'idle_conversation', {}).get('max_idle_time', 120)
+        self.min_idle_time: int = getattr(global_config, 'idle_conversation', {}).get('min_idle_time', 7200)
+        self.max_idle_time: int = getattr(global_config, 'idle_conversation', {}).get('max_idle_time', 18000)
         
         # 计算实际触发阈值（在min和max之间随机）
         self.actual_idle_threshold: int = random.randint(self.min_idle_time, self.max_idle_time)
