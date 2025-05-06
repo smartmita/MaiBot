@@ -1,4 +1,4 @@
-from typing import List, Tuple, TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Optional
 import asyncio
 import time
 import random
@@ -13,10 +13,9 @@ from src.individuality.individuality import Individuality
 from src.plugins.utils.chat_message_builder import build_readable_messages
 
 if TYPE_CHECKING:
-    from ..chat.message import Message
     from .conversation import Conversation
 
-logger = get_module_logger("pfc")
+logger = get_module_logger("pfc_idle")
 
 
 class IdleConversationStarter:
@@ -224,7 +223,6 @@ class IdleConversationStarter:
             logger.debug(f"[私聊][{self.private_name}]成功生成主动对话内容: {content}，准备发送")
 
             from .pfc_manager import PFCManager
-            from src.plugins.chat.chat_stream import chat_manager
 
             # 获取当前实例
             pfc_manager = PFCManager.get_instance()
