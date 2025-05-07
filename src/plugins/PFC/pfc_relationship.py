@@ -98,16 +98,13 @@ class PfcRelationshipUpdater:
         current_relationship_value = await self.person_info_mng.get_value(conversation_info.person_id, "relationship_value")
         current_relationship_value = self.relationship_mng.ensure_float(current_relationship_value, conversation_info.person_id)
 
-        sender_name_for_prompt = getattr(observation_info, 'sender_name', '对方')
-        if not sender_name_for_prompt: sender_name_for_prompt = '对方'
-        
-        relationship_prompt = f"""你是{self.bot_name}。你正在与{sender_name_for_prompt}私聊。
+        relationship_prompt = f"""你是{self.bot_name}。你正在与{self.private_name}私聊。
 你们当前的关系值大约是 {current_relationship_value:.0f} (范围通常在-1000到1000，越高越代表关系越好)。
 以下是你们最近的对话内容：
 ---
 {readable_history_for_llm}
 ---
-请基于以上对话，判断你与{sender_name_for_prompt}的关系值应该如何“谨慎地”调整。
+请基于以上对话，判断你与{self.private_name}的关系值应该如何“谨慎地”调整。
 请输出一个JSON对象，包含一个 "adjustment" 字段，其值为一个介于 -{self.REL_INCREMENTAL_MAX_CHANGE} 和 +{self.REL_INCREMENTAL_MAX_CHANGE} 之间的整数，代表关系值的变化。
 例如：{{ "adjustment": 3 }}。如果对话内容不明确或难以判断，请倾向于输出较小的调整值（如0, 1, -1）。"""
 
@@ -133,7 +130,7 @@ class PfcRelationshipUpdater:
 
         new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
         await self.person_info_mng.update_one_field(conversation_info.person_id, "relationship_value", new_relationship_value)
-        logger.info(f"[私聊][{self.private_name}] 增量关系值更新：与【{sender_name_for_prompt}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，变为 {new_relationship_value:.2f}")
+        logger.info(f"[私聊][{self.private_name}] 增量关系值更新：与【{self.private_name}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，变为 {new_relationship_value:.2f}")
 
         if conversation_info.person_id:
             conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
@@ -170,16 +167,13 @@ class PfcRelationshipUpdater:
         current_relationship_value = await self.person_info_mng.get_value(conversation_info.person_id, "relationship_value")
         current_relationship_value = self.relationship_mng.ensure_float(current_relationship_value, conversation_info.person_id)
 
-        sender_name_for_prompt = getattr(observation_info, 'sender_name', '对方')
-        if not sender_name_for_prompt: sender_name_for_prompt = '对方'
-
-        relationship_prompt = f"""你是{self.bot_name}。你与{sender_name_for_prompt}的私聊刚刚结束。
+        relationship_prompt = f"""你是{self.bot_name}。你与{self.private_name}的私聊刚刚结束。
 你们当前的关系值大约是 {current_relationship_value:.0f} (范围通常在-1000到1000，越高越好)。
 以下是你们本次私聊最后部分的对话内容：
 ---
 {readable_history_for_llm}
 ---
-请基于以上对话的整体情况，判断你与【{sender_name_for_prompt}】的关系值应该如何进行一次总结性的调整。
+请基于以上对话的整体情况，判断你与【{self.private_name}】的关系值应该如何进行一次总结性的调整。
 请输出一个JSON对象，包含一个 "final_adjustment" 字段，其值为一个整数，代表关系值的变化量（例如，可以是 -{self.REL_FINAL_MAX_CHANGE} 到 +{self.REL_FINAL_MAX_CHANGE} 之间的一个值）。
 请大胆评估，但也要合理。"""
 
@@ -205,7 +199,7 @@ class PfcRelationshipUpdater:
 
         new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
         await self.person_info_mng.update_one_field(conversation_info.person_id, "relationship_value", new_relationship_value)
-        logger.info(f"[私聊][{self.private_name}] 最终关系值更新：与【{sender_name_for_prompt}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，最终为 {new_relationship_value:.2f}")
+        logger.info(f"[私聊][{self.private_name}] 最终关系值更新：与【{self.private_name}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，最终为 {new_relationship_value:.2f}")
         
         if conversation_info.person_id: # 虽然通常结束了，但更新一下无妨
              conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
