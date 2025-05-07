@@ -215,19 +215,31 @@ class ReplyGenerator:
         last_content = getattr(conversation_info, "last_rejected_reply_content", None)
 
         if last_reason and last_content:
-            last_rejection_info_str = (
-                f"\n------\n"
-                f"【重要提示：你上一次尝试回复时失败了，以下是详细信息】\n"
-                f"上次试图发送的消息内容： “{last_content}”\n"
-                f"失败原因： “{last_reason}”\n"
-                f"请根据【消息内容】和【失败原因】调整你的新回复，避免重复之前的错误。\n"
-                f"------\n"
-            )
-            logger.info(
-                f"[私聊][{self.private_name}]检测到上次回复失败信息，将加入 Prompt:\n"
-                f"  内容: {last_content}\n"
-                f"  原因: {last_reason}"
-            )
+            if last_reason == "机器人尝试发送重复消息":  # 这是我们从 ReplyChecker 设置的特定原因
+                last_rejection_info_str = (
+                    f"\n------\n"
+                    f"【重要提示：你上一次尝试发送的消息 “{last_content}” 与你更早之前发送过的某条消息完全相同。这属于复读行为，请避免。】\n"
+                    f"请根据此提示调整你的新回复，确保内容新颖，不要重复你已经说过的话。\n"
+                    f"------\n"
+                )
+                logger.info(
+                    f"[私聊][{self.private_name}] (ReplyGenerator) 检测到自身复读，将加入特定警告到 Prompt:\n"
+                    f"  内容: {last_content}"
+                )
+            else:  # 其他类型的拒绝原因，保持原有格式
+                last_rejection_info_str = (
+                    f"\n------\n"
+                    f"【重要提示：你上一次尝试回复时失败了，以下是详细信息】\n"
+                    f"上次试图发送的消息内容： “{last_content}”\n"
+                    f"失败原因： “{last_reason}”\n"
+                    f"请根据【消息内容】和【失败原因】调整你的新回复，避免重复之前的错误。\n"
+                    f"------\n"
+                )
+                logger.info(
+                    f"[私聊][{self.private_name}] (ReplyGenerator) 检测到上次回复失败信息，将加入 Prompt:\n"
+                    f"  内容: {last_content}\n"
+                    f"  原因: {last_reason}"
+                )
         
         # 新增：构建刷屏警告信息 for PROMPT_SEND_NEW_MESSAGE
         spam_warning_message = ""
@@ -324,12 +336,4 @@ class ReplyGenerator:
             else:
                 return "抱歉，我现在有点混乱，让我重新思考一下..."
 
-    # check_reply 方法保持不变
-    async def check_reply(
-        self, reply: str, goal: str, chat_history: List[Dict[str, Any]], chat_history_str: str, current_time_str: str, retry_count: int = 0
-    ) -> Tuple[bool, str, bool]:
-        """检查回复是否合适
-        (此方法逻辑保持不变, 但注意 current_time_str 参数的传递)
-        """
-        # 确保 current_time_str 被正确传递给 reply_checker.check
-        return await self.reply_checker.check(reply, goal, chat_history, chat_history_str, current_time_str, retry_count)
+   # check_reply 方法在 ReplyGenerator 中不再需要

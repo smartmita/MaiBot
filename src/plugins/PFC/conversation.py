@@ -842,21 +842,19 @@ class Conversation:
         action_successful: bool = False  # 标记动作是否成功执行
         final_status: str = "recall"  # 动作最终状态，默认为 recall (表示未成功或需重试)
         final_reason: str = "动作未成功执行"  # 动作最终原因
-        need_replan_from_checker: bool = False  # 标记是否由 ReplyChecker 要求重新规划
+        # need_replan_from_checker: bool = False # 这个变量在循环内部被赋值
 
         try:
             # --- 根据不同的 action 类型执行相应的逻辑 ---
 
             # 1. 处理需要生成、检查、发送的动作
             if action in ["direct_reply", "send_new_message"]:
-                max_reply_attempts: int = 3  # 最多尝试次数 (可配置)
+                max_reply_attempts: int = global_config.get("pfc_max_reply_attempts", 3)  # 最多尝试次数 (可配置)
                 reply_attempt_count: int = 0
                 is_suitable: bool = False  # 标记回复是否合适
                 generated_content: str = ""  # 存储生成的回复
                 check_reason: str = "未进行检查"  # 存储检查结果原因
-
-                # --- [核心修复] 引入重试循环 ---
-                is_send_decision_from_rg = False # 标记是否由 reply_generator 决定发送
+                need_replan_from_checker: bool = False # 在循环前初始化
                 
                 while reply_attempt_count < max_reply_attempts and not is_suitable and not need_replan_from_checker:
                     reply_attempt_count += 1
@@ -878,12 +876,6 @@ class Conversation:
                     if action == "send_new_message":
                         is_send_decision_from_rg = True # 标记 send_new_message 的决策来自RG
                         try:
-                            # 使用 pfc_utils.py 中的 get_items_from_json 来解析
-                            # 注意：get_items_from_json 目前主要用于提取固定字段的字典。
-                            # reply_generator 返回的是一个顶级JSON对象。
-                            # 我们需要稍微调整用法或增强 get_items_from_json。
-                            # 简单起见，这里我们先直接用 json.loads，后续可以优化。
-                            
                             parsed_json = None
                             try:
                                 parsed_json = json.loads(raw_llm_output)
@@ -923,17 +915,24 @@ class Conversation:
 
                     generated_content_for_check_or_send = text_to_process
 
-                    if not generated_content_for_check_or_send or generated_content_for_check_or_send.startswith("抱歉") or (action == "send_new_message" and generated_content_for_check_or_send == "no"):
-                        logger.warning(f"{log_prefix} 生成内容无效或为错误提示 (或send:no)，将进行下一次尝试 (如果适用)。")
-                        check_reason = "生成内容无效或选择不发送"
+                    if not generated_content_for_check_or_send or \
+                       generated_content_for_check_or_send.startswith("抱歉") or \
+                       generated_content_for_check_or_send.strip() == "" or \
+                       (action == "send_new_message" and generated_content_for_check_or_send == "no" and should_send_reply): # should_send_reply is true here means RG said yes, but txt is "no" or empty
+                        
+                        warning_msg = f"{log_prefix} 生成内容无效或为错误提示"
+                        if action == "send_new_message" and generated_content_for_check_or_send == "no":
+                            warning_msg += " (ReplyGenerator决定发送但文本为'no')"
+                        
+                        logger.warning(warning_msg + "，将进行下一次尝试 (如果适用)。")
+                        check_reason = "生成内容无效或选择不发送" # 统一原因
                         conversation_info.last_reply_rejection_reason = check_reason
                         conversation_info.last_rejected_reply_content = generated_content_for_check_or_send
-                        if action == "direct_reply": # direct_reply 失败时才继续尝试
-                             await asyncio.sleep(0.5)
-                             continue
-                        else: # send_new_message 如果是 no，不应该继续尝试，上面已经break了
-                            pass # 理论上不会到这里如果上面break了
-
+                        
+                        # if reply_attempt_count < max_reply_attempts: # 只有在还有尝试次数时才继续
+                        await asyncio.sleep(0.5) # 暂停一下
+                        continue # 直接进入下一次循环尝试
+        
                     self.state = ConversationState.CHECKING
                     if not self.reply_checker:
                         raise RuntimeError("ReplyChecker 未初始化")
@@ -973,10 +972,30 @@ class Conversation:
                     if not is_suitable:
                         conversation_info.last_reply_rejection_reason = check_reason
                         conversation_info.last_rejected_reply_content = generated_content_for_check_or_send
-                        if not need_replan_from_checker and reply_attempt_count < max_reply_attempts:
+                        
+                        # 如果是我们特定的复读原因，并且 checker 说不需要重新规划 (这是我们的新逻辑)
+                        if check_reason == "机器人尝试发送重复消息" and not need_replan_from_checker:
+                            logger.warning(f"{log_prefix} 回复因自身重复被拒绝: {check_reason}。将使用相同 Prompt 类型重试。")
+                            # 不需要额外操作，循环会自动继续，因为 is_suitable=False 且 need_replan_from_checker=False
+                            if reply_attempt_count < max_reply_attempts: # 还有尝试次数
+                                await asyncio.sleep(0.5) # 暂停一下
+                                continue # 进入下一次重试
+                            else: # 达到最大次数
+                                logger.warning(f"{log_prefix} 即使是复读，也已达到最大尝试次数。")
+                                break # 结束循环，按失败处理
+                        elif not need_replan_from_checker and reply_attempt_count < max_reply_attempts: # 其他不合适原因，但无需重规划，且可重试
                             logger.warning(f"{log_prefix} 回复不合适，原因: {check_reason}。将进行下一次尝试。")
-                            await asyncio.sleep(0.5)
-                        # 如果需要重规划或达到最大次数，循环会在下次判断时自动结束
+                            await asyncio.sleep(0.5) # 暂停一下
+                            continue # 进入下一次重试
+                        else: # 需要重规划，或达到最大次数
+                            logger.warning(f"{log_prefix} 回复不合适且(需要重规划或已达最大次数)。原因: {check_reason}")
+                            break # 结束循环，将在循环外部处理
+                    else: # is_suitable is True
+                        # 找到了合适的回复
+                        conversation_info.last_reply_rejection_reason = None # 清除之前的拒绝原因
+                        conversation_info.last_rejected_reply_content = None
+                        break # 成功，跳出循环
+                        
                 
                 # --- 循环结束后处理 ---
                 if action == "send_new_message" and not should_send_reply and is_send_decision_from_rg:
@@ -1013,17 +1032,11 @@ class Conversation:
 
                     logger.info(f"[私聊][{self.private_name}] 反思后的新规划动作: {new_action}, 原因: {new_reason}")
                     # **暂定方案：**
-                    # _handle_action 在这种情况下返回一个特殊标记。
-                    # 为了不立即修改返回类型，我们暂时在这里记录日志，并在 _plan_and_action_loop 中添加逻辑。
-                    # _handle_action 会将 action_successful 设置为 True，final_status 为 "done_no_reply"。
-                    # _plan_and_action_loop 之后会检查这个状态。
-
-                    # (这里的 final_status, final_reason, action_successful 已在上面设置)
-
+    
                 elif is_suitable: # 适用于 direct_reply 或 send_new_message (RG决定发送且检查通过)
                     logger.info(f"[私聊][{self.private_name}] 动作 '{action}': 找到合适的回复，准备发送。")
-                    conversation_info.last_reply_rejection_reason = None
-                    conversation_info.last_rejected_reply_content = None
+                    # conversation_info.last_reply_rejection_reason = None # 已在循环内清除
+                    # conversation_info.last_rejected_reply_content = None
                     self.generated_reply = generated_content_for_check_or_send
                     timestamp_before_sending = time.time()
                     logger.debug(
@@ -1035,6 +1048,8 @@ class Conversation:
 
                     if send_success:
                         action_successful = True
+                        final_status = "done" # 明确设置 final_status
+                        final_reason = "成功发送"  # 明确设置 final_reason
                         logger.info(f"[私聊][{self.private_name}] 动作 '{action}': 成功发送回复.")
                         if self.idle_conversation_starter:
                             await self.idle_conversation_starter.update_last_message_time(send_end_time)
@@ -1103,6 +1118,7 @@ class Conversation:
                         logger.error(f"[私聊][{self.private_name}] 动作 '{action}': 发送回复失败。")
                         final_status = "recall"
                         final_reason = "发送回复时失败"
+                        action_successful = False # 确保 action_successful 为 False
                         conversation_info.last_successful_reply_action = None
                         conversation_info.my_message_count = 0 # 发送失败，重置计数
 
@@ -1121,6 +1137,7 @@ class Conversation:
                     )
                     final_status = "recall"
                     final_reason = f"尝试{max_reply_attempts}次后失败: {check_reason}"
+                    action_successful = False
                     conversation_info.last_successful_reply_action = None
                     # my_message_count 保持不变
 
@@ -1335,58 +1352,68 @@ class Conversation:
 
             # 2. 更新动作历史记录的最终状态和原因
             # 优化：如果动作成功但状态仍是默认的 recall，则更新为 done
-            if final_status == "recall" and action_successful:
-                final_status = "done"
-                # 根据动作类型设置更具体的成功原因
-                if action == "wait":
-                    # 检查是否是因为超时结束的（需要 waiter 返回值，或者检查 goal_list）
-                    # 这里简化处理，直接使用通用成功原因
-                    timeout_occurred = (
-                        any("分钟，" in g.get("goal", "") for g in conversation_info.goal_list if isinstance(g, dict))
-                        if conversation_info.goal_list
-                        else False
-                    )
-                    final_reason = "等待完成" + (" (超时)" if timeout_occurred else " (收到新消息或中断)")
-                elif action == "listening":
-                    final_reason = "进入倾听状态"
-                elif action in ["rethink_goal", "end_conversation", "block_and_ignore"]:
-                    final_reason = f"成功执行 {action}"
-                elif action in ["direct_reply", "send_new_message", "say_goodbye"]:
-                    # 如果是因为发送成功，设置原因
-                    final_reason = "成功发送"
-                else:
-                    # 其他未知但标记成功的动作
-                    final_reason = "动作成功完成"
+            if action_successful:
+                # 如果动作标记为成功，但 final_status 仍然是初始的 "recall" 或者 "start"
+                # (因为可能在try块中成功执行了但没有显式更新 final_status 为 "done")
+                # 或者是 "done_no_reply" 这种特殊的成功状态
+                if final_status in ["recall", "start"] and action != "send_new_message": # send_new_message + no_reply 是特殊成功
+                    final_status = "done"
+                    if not final_reason or final_reason == "动作未成功执行":
+                        # 为不同类型的成功动作提供更具体的默认成功原因
+                        if action == "wait":
+                            timeout_occurred = (
+                                any("分钟，" in g.get("goal", "") for g in conversation_info.goal_list if isinstance(g, dict))
+                                if conversation_info.goal_list
+                                else False
+                            )
+                            final_reason = "等待完成" + (" (超时)" if timeout_occurred else " (收到新消息或中断)")
+                        elif action == "listening":
+                            final_reason = "进入倾听状态"
+                        elif action in ["rethink_goal", "end_conversation", "block_and_ignore", "say_goodbye"]:
+                            final_reason = f"成功执行 {action}"
+                        elif action in ["direct_reply", "send_new_message"]: # 正常发送成功的case
+                             final_reason = "成功发送"
+                        else:
+                            final_reason = f"动作 {action} 成功完成"
+                # 如果已经是 "done" 或 "done_no_reply"，则保留它们和它们对应的 final_reason
+            
+            else: # action_successful is False
+                # 如果动作标记为失败，且 final_status 还是 "recall" (初始值) 或 "start"
+                if final_status in ["recall", "start"]:
+                    # 尝试从 conversation_info 中获取更具体的失败原因（例如 checker 的原因）
+                    # 这个 specific_rejection_reason 是在 try 块中被设置的
+                    specific_rejection_reason = getattr(conversation_info, 'last_reply_rejection_reason', None)
+                    rejected_content = getattr(conversation_info, 'last_rejected_reply_content', None)
 
-            elif final_status == "recall" and not action_successful:
-                # 如果最终是 recall 且未成功，且不是因为检查不通过（比如生成失败），确保原因合理
-                # 保留之前的逻辑，检查是否已有更具体的失败原因
-                if not final_reason or final_reason == "动作未成功执行":
-                    # 检查是否有 checker 的原因
-                    checker_reason = conversation_info.last_reply_rejection_reason
-                    if checker_reason:
-                        final_reason = f"回复检查不通过: {checker_reason}"
-                    else:
-                        final_reason = "动作执行失败或被取消"  # 通用失败原因
+                    if specific_rejection_reason:
+                        final_reason = f"执行失败: {specific_rejection_reason}"
+                        if rejected_content and specific_rejection_reason == "机器人尝试发送重复消息": # 对复读提供更清晰的日志
+                            final_reason += f" (内容: '{rejected_content[:30]}...')"
+                    elif not final_reason or final_reason == "动作未成功执行": # 如果没有更具体的原因
+                        final_reason = f"动作 {action} 执行失败或被意外中止"
+                # 如果 final_status 已经是 "error" 或 "cancelled"，则保留它们和它们对应的 final_reason
 
-            # 更新历史记录字典
+            # 更新 done_action 中的记录
             if conversation_info.done_action and action_index < len(conversation_info.done_action):
-                # 使用 update 方法更新字典，更安全
+                # 确保 current_action_record 是最新的（尽管我们是更新它）
+                # 实际上我们是更新 list 中的元素
                 conversation_info.done_action[action_index].update(
                     {
-                        "status": final_status,  # 最终状态
-                        "time_completed": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # 完成时间
-                        "final_reason": final_reason,  # 最终原因
-                        "duration_ms": int((time.time() - action_start_time) * 1000),  # 记录耗时（毫秒）
+                        "status": final_status,
+                        "time_completed": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        "final_reason": final_reason,
+                        "duration_ms": int((time.time() - action_start_time) * 1000),
                     }
                 )
-                logger.debug(
-                    f"[私聊][{self.private_name}] 动作 '{action}' 最终状态: {final_status}, 原因: {final_reason}"
-                )
             else:
-                # 如果索引无效或列表为空，记录错误
                 logger.error(f"[私聊][{self.private_name}] 无法更新动作历史记录，索引 {action_index} 无效或列表为空。")
+            
+            # 最终日志输出
+            log_final_reason = final_reason if final_reason else "无明确原因"
+            if final_status == "done" and action_successful and action in ["direct_reply", "send_new_message"] and hasattr(self, 'generated_reply'):
+                 log_final_reason += f" (发送内容: '{self.generated_reply[:30]}...')"
 
+            logger.info(f"[私聊][{self.private_name}] 动作 '{action}' 处理完成。最终状态: {final_status}, 原因: {log_final_reason}")
     async def _send_reply(self) -> bool:
         """发送 `self.generated_reply` 中的内容到聊天流"""
         # 检查是否有内容可发送
