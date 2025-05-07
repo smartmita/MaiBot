@@ -19,7 +19,7 @@ from ..person_info.relationship_manager import relationship_manager
 from ..moods.moods import MoodManager
 
 from .pfc_relationship import PfcRelationshipUpdater, PfcRepationshipTranslator
-from .pfc_emotion_updater import PfcEmotionUpdater       # 新增
+from .pfc_emotion import PfcEmotionUpdater       # 新增
 
 # 导入 PFC 内部组件和类型
 from .pfc_types import ConversationState  # 导入更新后的 pfc_types

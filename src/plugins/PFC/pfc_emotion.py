@@ -1,23 +1,15 @@
-# PFC/pfc_emotion_updater.py
-
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 
 from MaiMBot.src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.plugins.moods.moods import MoodManager # MoodManager 本身是单例
 from src.plugins.utils.chat_message_builder import build_readable_messages
+from src.plugins.PFC.observation_info import ObservationInfo
+from src.plugins.PFC.conversation_info import ConversationInfo
+from src.config.config import global_config # 导入全局配置
 
-try:
-    from .observation_info import ObservationInfo
-    from .conversation_info import ConversationInfo
-except ImportError:
-    from observation_info import ObservationInfo
-    from conversation_info import ConversationInfo
-
-from ...config.config import global_config # 导入全局配置
-
-logger = get_logger("pfc_emotion_updater")
+logger = get_logger("pfc_emotion")
 
 class PfcEmotionUpdater:
     def __init__(self, private_name: str, bot_name: str):
