@@ -1,4 +1,5 @@
 from typing import List, Dict, Any
+from MaiMBot.src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.plugins.person_info.person_info import person_info_manager
@@ -65,7 +66,7 @@ class PfcRelationshipUpdater:
         self,
         conversation_info: ConversationInfo,
         observation_info: ObservationInfo,
-        chat_observer_for_history # ChatObserver 实例
+        chat_observer_for_history: ChatObserver # ChatObserver 实例
     ) -> None:
         if not self.llm:
             logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行增量关系更新。")
@@ -141,7 +142,7 @@ class PfcRelationshipUpdater:
         self,
         conversation_info: ConversationInfo,
         observation_info: ObservationInfo,
-        chat_observer_for_history
+        chat_observer_for_history: ChatObserver
     ) -> None:
         if not self.llm:
             logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行最终关系更新。")

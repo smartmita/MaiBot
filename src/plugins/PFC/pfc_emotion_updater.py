@@ -2,6 +2,7 @@
 
 from typing import List, Dict, Any, Optional
 
+from MaiMBot.src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.plugins.moods.moods import MoodManager # MoodManager 本身是单例
@@ -48,14 +49,14 @@ class PfcEmotionUpdater:
         self,
         conversation_info: ConversationInfo,
         observation_info: ObservationInfo,
-        chat_observer_for_history, # ChatObserver 实例
+        chat_observer_for_history: ChatObserver, # ChatObserver 实例
         event_description: str
     ) -> None:
         if not self.llm:
             logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行情绪更新。")
             # 即使LLM失败，也应该更新conversation_info中的情绪文本为MoodManager的当前状态
             if conversation_info and self.mood_mng:
-                 conversation_info.current_emotion_text = self.mood_mng.get_prompt()
+                conversation_info.current_emotion_text = self.mood_mng.get_prompt()
             return
 
         if not self.mood_mng or not conversation_info or not observation_info:
