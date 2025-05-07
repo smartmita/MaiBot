@@ -304,34 +304,39 @@ class ReplyGenerator:
             if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
             
-            format_params = {
+            base_format_params = {
                 "persona_text": persona_text,
                 "goals_str": goals_str,
                 "chat_history_text": chat_history_text,
-                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
+                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。", # 确保已定义
+                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。", # 确保已定义
                 "last_rejection_info": last_rejection_info_str,
                 "current_time_str": current_time_value,
-                "sender_name": sender_name_str, 
-                "relationship_text": relationship_text_str, 
-                "current_emotion_text": current_emotion_text_str, 
-                "prompt_ger": chosen_prompt_ger,
+                "sender_name": sender_name_str,
+                "relationship_text": relationship_text_str,
+                "current_emotion_text": current_emotion_text_str,
                 "reply_style1": chosen_reply_style1,
                 "reply_style2": chosen_reply_style2,
+                "prompt_ger": chosen_prompt_ger,
             }
 
             if action_type == "send_new_message":
-                format_params["spam_warning_info"] = spam_warning_message
+                current_format_params = base_format_params.copy()
+                current_format_params["spam_warning_info"] = spam_warning_message
+                prompt = prompt_template.format(**current_format_params) 
             elif action_type == "say_goodbye":
                 farewell_params = {
-                    key: format_params[key] for key in [
+                    k: v for k, v in base_format_params.items() if k in [
                         "persona_text", "chat_history_text", "current_time_str",
                         "sender_name", "relationship_text", "current_emotion_text",
-                    ] if key in format_params
+                    ]
                 }
+                
                 prompt = prompt_template.format(**farewell_params)
             else: # direct_reply
-                prompt = prompt_template.format(**format_params)
+                current_format_params = base_format_params.copy()
+                prompt = prompt_template.format(**current_format_params)
+
         except KeyError as e:
             logger.error(
                 f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
