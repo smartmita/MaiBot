@@ -70,7 +70,7 @@ class PfcEmotionUpdater:
         if not sender_name_for_prompt: sender_name_for_prompt = '对方'
         relationship_text_for_prompt = getattr(conversation_info, 'relationship_text', '关系一般。') # 从 ConversationInfo 获取关系文本
 
-        emotion_prompt = f"""你是机器人 {self.bot_name}。你现在的心情是【{current_mood_text_from_manager}】。
+        emotion_prompt = f"""你是{self.bot_name}。你现在的心情是【{current_mood_text_from_manager}】。
 你正在和用户【{sender_name_for_prompt}】私聊，你们的关系是：【{relationship_text_for_prompt}】。
 最近发生的事件是：【{event_description}】
 最近的对话摘要：
