@@ -1051,6 +1051,44 @@ class Conversation:
                         final_status = "done" # 明确设置 final_status
                         final_reason = "成功发送"  # 明确设置 final_reason
                         logger.info(f"[私聊][{self.private_name}] 动作 '{action}': 成功发送回复.")
+                    
+                        if observation_info and self.bot_qq_str:
+                            bot_message_dict = {
+                                "message_id": f"bot_sent_{send_end_time}", # 生成一个唯一ID
+                                "time": send_end_time,
+                                "user_info": { # 构造机器人的 UserInfo
+                                    "user_id": self.bot_qq_str,
+                                    "user_nickname": global_config.BOT_NICKNAME, # 或者 self.name (如果 Conversation 类有)
+                                    "platform": self.chat_stream.platform if self.chat_stream else "unknown_platform"
+                                },
+                                "processed_plain_text": self.generated_reply,
+                                "detailed_plain_text": self.generated_reply, # 简单处理
+                                # 根据你的消息字典结构，可能还需要其他字段，如 message_type 等
+                            }
+                            observation_info.chat_history.append(bot_message_dict)
+                            observation_info.chat_history_count = len(observation_info.chat_history)
+                            logger.debug(f"[私聊][{self.private_name}] 机器人发送的消息已添加到 chat_history。当前历史数: {observation_info.chat_history_count}")
+                            
+                            # 可选：如果 chat_history 过长，进行修剪
+                            max_history_len = getattr(global_config, 'pfc_max_chat_history_for_checker', 50) # 例如，可配置
+                            if len(observation_info.chat_history) > max_history_len:
+                                observation_info.chat_history = observation_info.chat_history[-max_history_len:]
+                                observation_info.chat_history_count = len(observation_info.chat_history)
+
+                            # 更新 chat_history_str (如果 ReplyChecker 也依赖这个字符串，尽管我们的修改是基于列表的)
+                            # 这个更新可能比较消耗资源，如果 checker 只用列表，可以考虑优化此处
+                            history_slice_for_str = observation_info.chat_history[-30:] 
+                            try:
+                                observation_info.chat_history_str = await build_readable_messages(
+                                    history_slice_for_str,
+                                    replace_bot_name=True, merge_messages=False, 
+                                    timestamp_mode="relative", read_mark=0.0
+                                )
+                            except Exception as e_build_hist:
+                                logger.error(f"[私聊][{self.private_name}] 更新 chat_history_str 时出错: {e_build_hist}")
+                                observation_info.chat_history_str = "[构建聊天记录出错]"
+                        # --- 新增结束 ---
+
                         if self.idle_conversation_starter:
                             await self.idle_conversation_starter.update_last_message_time(send_end_time)
 

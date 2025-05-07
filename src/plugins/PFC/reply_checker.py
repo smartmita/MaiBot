@@ -47,9 +47,11 @@ class ReplyChecker:
 
         if len(reply) <= 4:
             return True, "消息长度小于等于4字符，跳过重复检查。", False
+        
 
         try:
-            for msg_dict in chat_history:
+            match_found = False # <--- 用于调试
+            for i, msg_dict in enumerate(chat_history): # <--- 添加索引用于日志
                 if not isinstance(msg_dict, dict):
                     continue
 
@@ -59,16 +61,25 @@ class ReplyChecker:
 
                 sender_id = str(user_info_data.get("user_id"))
                 
-                # 只检查机器人自己发送过的历史消息
                 if sender_id == self.bot_qq_str:
                     historical_message_text = msg_dict.get("processed_plain_text", "")
+                    # <--- 新增详细对比日志 --- START --->
+                    logger.debug(
+                        f"[私聊][{self.private_name}] ReplyChecker: 历史记录 #{i} (机器人): '{historical_message_text}' (长度 {len(historical_message_text)})"
+                    )
                     if reply == historical_message_text:
+                        logger.warning(
+                            f"[私聊][{self.private_name}] ReplyChecker: !!! 精确匹配成功 !!!"
+                        )
                         logger.warning(
                             f"[私聊][{self.private_name}] ReplyChecker 检测到机器人自身重复消息: '{reply}'"
                         )
-                        return (False, "机器人尝试发送重复消息", False) # is_suitable=False, reason, need_replan=False
+                        match_found = True # <--- 标记找到
+                        return (False, "机器人尝试发送重复消息", False) 
+                    # <--- 新增详细对比日志 --- END --->
             
-            # 如果循环结束都没有找到重复
+            if not match_found: # <--- 根据标记判断
+                 logger.debug(f"[私聊][{self.private_name}] ReplyChecker: 未找到重复。") # <--- 新增日志
             return (True, "消息内容未与机器人历史发言重复。", False)
 
         except Exception as e:
