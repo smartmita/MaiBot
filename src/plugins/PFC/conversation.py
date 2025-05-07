@@ -774,7 +774,7 @@ class Conversation:
                     self.conversation_info.done_action[-1] if self.conversation_info.done_action else {} # type: ignore
                 )
                 if last_action_record.get("action") == "send_new_message" and \
-                   last_action_record.get("status") == "done_no_reply":
+                    last_action_record.get("status") == "done_no_reply":
                     logger.info(f"[私聊][{self.private_name}] 检测到 ReplyGenerator 决定不发送消息，将在下一轮强制使用反思Prompt。")
                     force_reflect_and_act = True # 设置标志，下一轮使用反思prompt
                     # 不需要立即 continue，让循环自然进入下一轮，下一轮的 plan 会用这个标志
