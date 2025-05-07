@@ -31,6 +31,7 @@ from .reply_generator import ReplyGenerator
 from .idle_conversation_starter import IdleConversationStarter
 from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
+from .pfc_utils import get_person_id
 from .reply_checker import ReplyChecker
 
 # 导入富文本回溯，用于更好的错误展示
@@ -187,61 +188,13 @@ class Conversation:
 
             # 4.1 加载用户数据
             # 尝试从 observation_info 获取，这依赖于 _load_initial_history 的实现
-            private_user_id_str: Optional[str] = None
-            private_platform_str: Optional[str] = None
-            private_nickname_str = self.private_name
+            self.conversation_info.person_id, private_platform_str, private_user_id_str = await get_person_id(
+                private_name=self.private_name,
+                chat_stream=self.chat_stream,
+            )
+            
+            logger.info(f"[私聊][{self.private_name}] 获取到 person_id: {self.conversation_info.person_id} for {private_platform_str}:{private_user_id_str}")
 
-            if self.observation_info and self.observation_info.last_message_sender and self.observation_info.last_message_sender != self.bot_qq_str:
-            # 如果历史记录最后一条不是机器人发的，那么发送者就是对方
-            # 假设 observation_info 中已经有了 sender_user_id, sender_platform, sender_name
-            # 这些字段应该在 observation_info.py 的 update_from_message 中从非机器人消息填充
-            # 并且 _load_initial_history 处理历史消息时也应该填充它们
-            # 这里的逻辑是：取 observation_info 中最新记录的非机器人发送者的信息
-                if self.observation_info.sender_user_id and self.observation_info.sender_platform:
-                    private_user_id_str = self.observation_info.sender_user_id
-                    private_platform_str = self.observation_info.sender_platform
-                    logger.info(f"[私聊][{self.private_name}] 从 ObservationInfo 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}")
-
-            if not private_user_id_str and self.chat_stream: # 如果 observation_info 中没有，尝试从 chat_stream (通常代表对方)
-                if self.chat_stream.user_info and str(self.chat_stream.user_info.user_id) != self.bot_qq_str : # 确保不是机器人自己
-                    private_user_id_str = str(self.chat_stream.user_info.user_id)
-                    private_platform_str = self.chat_stream.user_info.platform
-                    logger.info(f"[私聊][{self.private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}")
-                elif self.chat_stream.group_info is None and self.private_name: # 私聊场景，且 private_name 可能有用
-                    # 这是一个备选方案，如果 private_name 直接是 user_id
-                    # 你需要确认 private_name 的确切含义和格式
-                    # logger.warning(f"[私聊][{self.private_name}] 尝试使用 private_name ('{self.private_name}') 作为 user_id，平台默认为 'qq'")
-                    # private_user_id_str = self.private_name
-                    # private_platform_str = "qq" # 假设平台是qq
-                    # private_nickname_str = self.private_name # 昵称也暂时用 private_name
-                    pass # 暂时不启用此逻辑，依赖 observation_info 或 chat_stream.user_info
-
-            if private_user_id_str and private_platform_str:
-                try:
-                   # 将 user_id 转换为整数类型，因为 person_info_manager.get_person_id 需要 int
-                    private_user_id_int = int(private_user_id_str)
-                    self.conversation_info.person_id = self.person_info_mng.get_person_id(
-                        private_platform_str,
-                        private_user_id_int # 使用转换后的整数ID
-                    )
-                    logger.info(f"[私聊][{self.private_name}] 获取到 person_id: {self.conversation_info.person_id} for {private_platform_str}:{private_user_id_str}")
-
-                    # 确保用户在数据库中存在，如果不存在则创建
-                    # get_or_create_person 内部处理 person_id 的生成，所以我们直接传 platform 和 user_id
-                    await self.person_info_mng.get_or_create_person(
-                        platform=private_platform_str,
-                        user_id=private_user_id_int, # 使用转换后的整数ID
-                        nickname=private_nickname_str if private_nickname_str else "未知用户",
-                        # user_cardname 和 user_avatar 如果能从 chat_stream.user_info 或 observation_info 获取也应传入
-                        # user_cardname = self.chat_stream.user_info.card if self.chat_stream and self.chat_stream.user_info else None,
-                        # user_avatar = self.chat_stream.user_info.avatar if self.chat_stream and self.chat_stream.user_info else None
-                    )
-                except ValueError:
-                    logger.error(f"[私聊][{self.private_name}] 无法将 private_user_id_str ('{private_user_id_str}') 转换为整数。")
-                except Exception as e_pid:
-                    logger.error(f"[私聊][{self.private_name}] 获取或创建 person_id 时出错: {e_pid}")
-            else:
-                logger.warning(f"[私聊][{self.private_name}] 未能确定私聊对象的 user_id 或 platform，无法获取 person_id。将在收到消息后尝试。")
 
             # 5. 启动需要后台运行的组件
             logger.debug(f"[私聊][{self.private_name}] 启动 ChatObserver...")
@@ -251,12 +204,12 @@ class Conversation:
                 self.idle_conversation_starter.start()
                 logger.info(f"[私聊][{self.private_name}] 空闲对话检测器已启动")
 
-             # 5.1 启动 MoodManager 的后台更新
+            # 5.1 启动 MoodManager 的后台更新
             if self.mood_mng and hasattr(self.mood_mng, 'start_mood_update') and not self.mood_mng._running:
                 self.mood_mng.start_mood_update(update_interval=global_config.mood_update_interval) # 使用配置的更新间隔
                 logger.info(f"[私聊][{self.private_name}] MoodManager 已启动后台更新，间隔: {global_config.mood_update_interval} 秒。")
             elif self.mood_mng and self.mood_mng._running:
-                 logger.info(f"[私聊][{self.private_name}] MoodManager 已在运行中。")
+                logger.info(f"[私聊][{self.private_name}] MoodManager 已在运行中。")
             else:
                 logger.warning(f"[私聊][{self.private_name}] MoodManager 未能启动，相关功能可能受限。")
 
@@ -512,7 +465,7 @@ class Conversation:
                     logger.warning(f"[私聊][{self.private_name}] ObservationInfo 未初始化，无法更新当前时间。")
             except Exception as time_update_err:
                 logger.error(f"[私聊][{self.private_name}] 更新 ObservationInfo 当前时间时出错: {time_update_err}")
-                 # --- 更新时间代码结束 ---
+                # --- 更新时间代码结束 ---
 
             # --- 处理忽略状态 ---
             if self.ignore_until_timestamp and loop_iter_start_time < self.ignore_until_timestamp:

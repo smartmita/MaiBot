@@ -5,6 +5,8 @@ from typing import Dict, Any, Optional, Tuple, List, Union
 from src.common.logger_manager import get_logger  # 确认 logger 的导入路径
 from src.plugins.memory_system.Hippocampus import HippocampusManager
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # 确认 prompt_builder 的导入路径
+from src.plugins.chat.chat_stream import ChatStream
+from ..person_info.person_info import person_info_manager
 
 logger = get_logger("pfc_utils")
 
@@ -196,3 +198,45 @@ def get_items_from_json(
             return False, result
 
     return True, result
+
+async def get_person_id(private_name: str, chat_stream: ChatStream):
+    private_user_id_str: Optional[str] = None
+    private_platform_str: Optional[str] = None
+    private_nickname_str = private_name
+
+    if chat_stream.user_info:
+        private_user_id_str = str(chat_stream.user_info.user_id)
+        private_platform_str = chat_stream.user_info.platform
+        logger.info(f"[私聊][{private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}")
+    elif chat_stream.group_info is None and private_name: # 私聊场景，且 private_name 可能有用
+        # 这是一个备选方案，如果 private_name 直接是 user_id
+        # 你需要确认 private_name 的确切含义和格式 <- private_name 就是对方昵称，格式是 str
+        # logger.warning(f"[私聊][{self.private_name}] 尝试使用 private_name ('{self.private_name}') 作为 user_id，平台默认为 'qq'")
+        # private_user_id_str = self.private_name
+        # private_platform_str = "qq" # 假设平台是qq
+        # private_nickname_str = self.private_name # 昵称也暂时用 private_name
+        pass # 暂时不启用此逻辑，依赖 observation_info 或 chat_stream.user_info
+
+    if private_user_id_str and private_platform_str:
+        try:
+            # 将 user_id 转换为整数类型，因为 person_info_manager.get_person_id 需要 int
+            private_user_id_int = int(private_user_id_str)
+            person_id = person_info_manager.get_person_id(
+                private_platform_str,
+                private_user_id_int 
+                # 使用转换后的整数ID
+            )
+            # 确保用户在数据库中存在，如果不存在则创建
+            # get_or_create_person 内部处理 person_id 的生成，所以我们直接传 platform 和 user_id
+            await person_info_manager.get_or_create_person(
+                platform=private_platform_str,
+                user_id=private_user_id_int, # 使用转换后的整数ID
+                nickname=private_name,
+            )
+            return person_id, private_platform_str, private_user_id_str
+        except ValueError:
+            logger.error(f"[私聊][{private_name}] 无法将 private_user_id_str ('{private_user_id_str}') 转换为整数。")
+        except Exception as e_pid:
+            logger.error(f"[私聊][{private_name}] 获取或创建 person_id 时出错: {e_pid}")
+    else:
+        logger.warning(f"[私聊][{private_name}] 未能确定私聊对象的 user_id 或 platform，无法获取 person_id。将在收到消息后尝试。")
