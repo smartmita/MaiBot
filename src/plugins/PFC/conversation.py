@@ -1065,7 +1065,7 @@ class Conversation:
                     if not self.action_planner:
                         raise RuntimeError("ActionPlanner 未初始化")
                     
-                    logger.info(f"[私聊][{self.private_name}] {self.name} 本来想发一条新消息，但是想想还是算了。现在重新规划...")
+                    logger.info(f"[私聊][{self.private_name}] {global_config.BOT_NICKNAME}本来想发一条新消息，但是想想还是算了。现在重新规划...")
                     # 调用 action_planner.plan 并传入 use_reflect_prompt=True
                     new_action, new_reason = await self.action_planner.plan(
                         observation_info,
