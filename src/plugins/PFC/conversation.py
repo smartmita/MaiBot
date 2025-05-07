@@ -86,7 +86,7 @@ class Conversation:
 
         # 初始化所有核心组件为 None，将在 _initialize 中创建
         self.relationship_updater: Optional[PfcRelationshipUpdater] = None # 新增
-        self.relationshop_translator: Optional[PfcRepationshipTranslator] = None
+        self.relationship_translator: Optional[PfcRepationshipTranslator] = None
         self.emotion_updater: Optional[PfcEmotionUpdater] = None       # 新增
         self.action_planner: Optional[ActionPlanner] = None
         self.goal_analyzer: Optional[GoalAnalyzer] = None
@@ -132,7 +132,8 @@ class Conversation:
                 private_name=self.private_name,
                 bot_name=global_config.BOT_NICKNAME # 或者 self.name (如果 Conversation 类有 self.name)
             )
-            logger.info(f"[私聊][{self.private_name}] PfcRelationshipUpdater 初始化完成。")
+            self.relationship_translator = PfcRepationshipTranslator(private_name=self.private_name)
+            logger.info(f"[私聊][{self.private_name}] PfcRelationship 初始化完成。")
 
             self.emotion_updater = PfcEmotionUpdater(
                 private_name=self.private_name,
@@ -287,7 +288,7 @@ class Conversation:
                             numeric_relationship_value = 0.0
 
                     # 2. 使用PFC内部翻译函数
-                    self.conversation_info.relationship_text = self.relationshop_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                    self.conversation_info.relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                     logger.info(f"[私聊][{self.private_name}] 初始化时加载关系文本: {self.conversation_info.relationship_text}")
                 except Exception as e_init_rel:
                     logger.error(f"[私聊][{self.private_name}] 初始化时加载关系文本出错: {e_init_rel}")
@@ -572,7 +573,7 @@ class Conversation:
                             logger.debug(f"[私聊][{self.private_name}] 获取到数值型关系值: {numeric_relationship_value}")
                         
                             # 2. 使用PFC内部的翻译函数将其转换为文本描述
-                            simplified_relationship_text = self.relationshop_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                            simplified_relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                             self.conversation_info.relationship_text = simplified_relationship_text
                         
                             logger.debug(f"[私聊][{self.private_name}] 更新后关系文本 (PFC内部翻译): {self.conversation_info.relationship_text}")
@@ -604,7 +605,7 @@ class Conversation:
                                         numeric_relationship_value = float(numeric_relationship_value.to_decimal())
                                     else:
                                         numeric_relationship_value = 0.0
-                                self.conversation_info.relationship_text = self.relationshop_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                                self.conversation_info.relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                                 logger.debug(f"[私聊][{self.private_name}] (备用逻辑)更新后关系文本: {self.conversation_info.relationship_text}")
 
                         except ValueError:

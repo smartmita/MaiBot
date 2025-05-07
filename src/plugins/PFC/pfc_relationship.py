@@ -1,4 +1,4 @@
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.plugins.person_info.person_info import person_info_manager
@@ -215,15 +215,14 @@ class PfcRepationshipTranslator:
     因为对于PFC的planner来说
     其暗示了选择回复
     所以新建代码文件来适配PFC的决策层面"""
-    def __init__(self):
-        pass
+    def __init__(self, private_name: str):
+        self.private_name = private_name
 
-    @staticmethod
-    def translate_relationship_value_to_text(self, relationship_value: float) -> str:
+    async def translate_relationship_value_to_text(self, relationship_value: float) -> str:
         """
         将数值型的关系值转换为PFC私聊场景下简洁的关系描述文本。
         """
-        level_num = self._calculate_relationship_level_num(relationship_value)
+        level_num = self._calculate_relationship_level_num(relationship_value, self.private_name)
 
         relationship_descriptions = [
             "厌恶",   # level_num 0
@@ -238,18 +237,18 @@ class PfcRepationshipTranslator:
             description = relationship_descriptions[level_num]
         else:
             description = "普通" # 默认或错误情况
-            logger.warning(f"计算出的 level_num ({level_num}) 无效，关系描述默认为 '普通'")
+            logger.warning(f"[私聊][{self.private_name}] 计算出的 level_num ({level_num}) 无效，关系描述默认为 '普通'")
 
         return f"你们的关系是：{description}。"
     
     @staticmethod
-    def _calculate_relationship_level_num(relationship_value: float) -> int:
+    def _calculate_relationship_level_num(relationship_value: float, private_name: str) -> int:
         """
         根据关系值计算关系等级编号 (0-5)。
         这里的阈值应与 relationship_manager.py 中的保持一致
         """
         if not isinstance(relationship_value, (int, float)):
-            logger.warning(f"传入的 relationship_value '{relationship_value}' 不是有效的数值类型，默认为0。")
+            logger.warning(f"[私聊][{private_name}] 传入的 relationship_value '{relationship_value}' 不是有效的数值类型，默认为0。")
             relationship_value = 0.0
 
         if -1000 <= relationship_value < -227:
@@ -271,6 +270,6 @@ class PfcRepationshipTranslator:
             elif relationship_value < -1000:
                 level_num = 0
             else: # 理论上不会到这里，除非前面的条件逻辑有误
-                logger.warning(f"关系值 {relationship_value} 未落入任何预设范围，默认为普通。")
+                logger.warning(f"[私聊][{private_name}] 关系值 {relationship_value} 未落入任何预设范围，默认为普通。")
                 level_num = 2 
         return level_num
