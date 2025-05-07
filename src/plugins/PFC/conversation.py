@@ -3,7 +3,6 @@ import asyncio
 import datetime
 import traceback
 import json # 确保导入 json 模块
-from .pfc_utils import get_items_from_json # 导入JSON解析工具
 from typing import Dict, Any, Optional, Set, List
 from dateutil import tz
 
@@ -11,19 +10,18 @@ from src.common.logger_manager import get_logger
 from src.plugins.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 from maim_message import UserInfo
 from src.plugins.chat.chat_stream import chat_manager, ChatStream
-from ..chat.message import Message  # 假设 Message 类在这里
-from ...config.config import global_config
+from ..chat.message import Message
+from src.config.config import global_config
 from ..person_info.person_info import person_info_manager
 from ..person_info.relationship_manager import relationship_manager
-# 导入情绪
 from ..moods.moods import MoodManager
 
 from .pfc_relationship import PfcRelationshipUpdater, PfcRepationshipTranslator
-from .pfc_emotion import PfcEmotionUpdater       # 新增
+from .pfc_emotion import PfcEmotionUpdater
 
 # 导入 PFC 内部组件和类型
-from .pfc_types import ConversationState  # 导入更新后的 pfc_types
-from .pfc import GoalAnalyzer  # 假设 GoalAnalyzer 在 pfc.py
+from .pfc_types import ConversationState
+from .pfc import GoalAnalyzer
 from .chat_observer import ChatObserver
 from .message_sender import DirectMessageSender
 from .action_planner import ActionPlanner
@@ -31,9 +29,9 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
 from .idle_conversation_starter import IdleConversationStarter
-from .pfc_KnowledgeFetcher import KnowledgeFetcher  # 假设 KnowledgeFetcher 在这里
+from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
-from .reply_checker import ReplyChecker  # 确保 ReplyChecker 被导入
+from .reply_checker import ReplyChecker
 
 # 导入富文本回溯，用于更好的错误展示
 from rich.traceback import install
@@ -43,19 +41,12 @@ install(extra_lines=3)
 # 获取当前模块的日志记录器
 logger = get_logger("pfc_conversation")
 
-try:
-    from ...config.config import global_config
-except ImportError:
-    logger.error("无法在 conversation.py 中导入 global_config，时区可能不准确！")
-    global_config = None
-    TIME_ZONE = tz.tzlocal() # 使用本地时区作为后备
-else:
-     # 确保 global_config.TIME_ZONE 存在且有效，否则使用默认值
-    configured_tz = getattr(global_config, 'TIME_ZONE', 'Asia/Shanghai') # 使用 getattr 安全访问
-    TIME_ZONE = tz.gettz(configured_tz)
-    if TIME_ZONE is None: # 如果 gettz 返回 None，说明时区字符串无效
-        logger.error(f"配置的时区 '{configured_tz}' 无效，将使用默认时区 'Asia/Shanghai'")
-        TIME_ZONE = tz.gettz('Asia/Shanghai')
+# 确保 global_config.TIME_ZONE 存在且有效，否则使用默认值
+configured_tz = getattr(global_config, 'TIME_ZONE', 'Asia/Shanghai') # 使用 getattr 安全访问
+TIME_ZONE = tz.gettz(configured_tz)
+if TIME_ZONE is None: # 如果 gettz 返回 None，说明时区字符串无效
+    logger.error(f"配置的时区 '{configured_tz}' 无效，将使用默认时区 'Asia/Shanghai'")
+    TIME_ZONE = tz.gettz('Asia/Shanghai')
 
 class Conversation:
     """
@@ -139,7 +130,7 @@ class Conversation:
                 private_name=self.private_name,
                 bot_name=global_config.BOT_NICKNAME # 或者 self.name
             )
-            logger.info(f"[私聊][{self.private_name}] PfcEmotionUpdater 初始化完成。")
+            logger.info(f"[私聊][{self.private_name}] PfcEmotion 初始化完成。")
 
             logger.debug(f"[私聊][{self.private_name}] 初始化 GoalAnalyzer...")
             self.goal_analyzer = GoalAnalyzer(self.stream_id, self.private_name)
@@ -198,7 +189,7 @@ class Conversation:
             # 尝试从 observation_info 获取，这依赖于 _load_initial_history 的实现
             private_user_id_str: Optional[str] = None
             private_platform_str: Optional[str] = None
-            private_nickname_str: Optional[str] = None
+            private_nickname_str = self.private_name
 
             if self.observation_info and self.observation_info.last_message_sender and self.observation_info.last_message_sender != self.bot_qq_str:
             # 如果历史记录最后一条不是机器人发的，那么发送者就是对方
@@ -209,14 +200,12 @@ class Conversation:
                 if self.observation_info.sender_user_id and self.observation_info.sender_platform:
                     private_user_id_str = self.observation_info.sender_user_id
                     private_platform_str = self.observation_info.sender_platform
-                    private_nickname_str = self.observation_info.sender_name
                     logger.info(f"[私聊][{self.private_name}] 从 ObservationInfo 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}")
 
             if not private_user_id_str and self.chat_stream: # 如果 observation_info 中没有，尝试从 chat_stream (通常代表对方)
                 if self.chat_stream.user_info and str(self.chat_stream.user_info.user_id) != self.bot_qq_str : # 确保不是机器人自己
                     private_user_id_str = str(self.chat_stream.user_info.user_id)
                     private_platform_str = self.chat_stream.user_info.platform
-                    private_nickname_str = self.chat_stream.user_info.user_nickname
                     logger.info(f"[私聊][{self.private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}")
                 elif self.chat_stream.group_info is None and self.private_name: # 私聊场景，且 private_name 可能有用
                     # 这是一个备选方案，如果 private_name 直接是 user_id
@@ -288,7 +277,7 @@ class Conversation:
                             numeric_relationship_value = 0.0
 
                     # 2. 使用PFC内部翻译函数
-                    self.conversation_info.relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                    self.conversation_info.relationship_text = await self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                     logger.info(f"[私聊][{self.private_name}] 初始化时加载关系文本: {self.conversation_info.relationship_text}")
                 except Exception as e_init_rel:
                     logger.error(f"[私聊][{self.private_name}] 初始化时加载关系文本出错: {e_init_rel}")
@@ -573,7 +562,7 @@ class Conversation:
                             logger.debug(f"[私聊][{self.private_name}] 获取到数值型关系值: {numeric_relationship_value}")
                         
                             # 2. 使用PFC内部的翻译函数将其转换为文本描述
-                            simplified_relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                            simplified_relationship_text = await self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                             self.conversation_info.relationship_text = simplified_relationship_text
                         
                             logger.debug(f"[私聊][{self.private_name}] 更新后关系文本 (PFC内部翻译): {self.conversation_info.relationship_text}")
@@ -605,7 +594,7 @@ class Conversation:
                                         numeric_relationship_value = float(numeric_relationship_value.to_decimal())
                                     else:
                                         numeric_relationship_value = 0.0
-                                self.conversation_info.relationship_text = self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
+                                self.conversation_info.relationship_text = await self.relationship_translator.translate_relationship_value_to_text(numeric_relationship_value)
                                 logger.debug(f"[私聊][{self.private_name}] (备用逻辑)更新后关系文本: {self.conversation_info.relationship_text}")
 
                         except ValueError:

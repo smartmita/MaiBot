@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from MaiMBot.src.plugins.PFC.chat_observer import ChatObserver
+from src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
 from src.plugins.person_info.person_info import person_info_manager
