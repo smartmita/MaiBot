@@ -849,7 +849,7 @@ class Conversation:
 
             # 1. 处理需要生成、检查、发送的动作
             if action in ["direct_reply", "send_new_message"]:
-                max_reply_attempts: int = global_config.get("pfc_max_reply_attempts", 3)  # 最多尝试次数 (可配置)
+                max_reply_attempts: int = getattr(global_config, "pfc_max_reply_attempts", 3)  # 最多尝试次数 (可配置)
                 reply_attempt_count: int = 0
                 is_suitable: bool = False  # 标记回复是否合适
                 generated_content: str = ""  # 存储生成的回复
