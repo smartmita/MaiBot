@@ -1,3 +1,4 @@
+import random
 from .pfc_utils import retrieve_contextual_info
 
 # 可能用于旧知识库提取主题 (如果需要回退到旧方法)
@@ -17,6 +18,35 @@ from .conversation_info import ConversationInfo
 from src.plugins.utils.chat_message_builder import build_readable_messages
 
 logger = get_logger("reply_generator")
+
+PROMPT_GER_VARIATIONS = [
+    ("不用输出或提及提及对方的网名或绰号", 0.50),
+    ("如果当前对话比较轻松，可以尝试用轻松幽默或者略带调侃的语气回应，但要注意分寸", 0.8),
+    ("避免使用过于正式或书面化的词语，多用生活化的口语表达", 0.8),
+    ("如果对方的发言比较跳跃或难以理解，可以尝试用猜测或确认的语气回应", 0.8),
+    ("如果感觉对话有点干巴，可以尝试引入一些轻松的相关小话题或者自己的小想法，但不要偏离太远", 0.8),
+    ("注意观察对方的情绪（如果能从文字中判断），并作出适当的回应，比如安慰、鼓励或表示理解", 0.8), 
+    ("", 0.10) 
+]
+
+REPLY_STYLE1_VARIATIONS = [
+    ("整体风格可以平和、简短", 0.3),
+    ("回复可以非常简洁，有时甚至用单个词、短语或者一个反问就能表达清楚", 0.10), 
+    ("尝试使用更自然的口语连接词，例如：然后/所以呢/不过嘛/倒是", 0.05),
+    ("在表达观点时，可以说得主观一些，例如：我觉得.../我个人感觉.../要我说...", 0.10),
+    ("**请省略主语，简短**", 0.4),
+    ("回复得认真一些", 0.05),
+]
+
+REPLY_STYLE2_VARIATIONS = [
+    ("结尾可以使用语气助词，例如：呀/噢/诶/哈/啦，让语气更生动", 0.10),
+    ("不要输出任何语气词", 0.10),
+    ("在适当的时候，可以用一些感叹词来表达情绪或态度，例如：哇/啊？/啧啧/哎呀", 0.05),
+    ("可以模糊化表达，例如：'我记得...'", 0.10),
+    ("对于一些无聊或者不想深入的话题，可以敷衍一下，例如：/哦这样啊/还行吧/随便啦", 0.10), 
+    ("尽量用简单句和短句", 0.25),
+    ("不要输出任何标点符号，简短", 0.30),
+]
 
 # --- 定义 Prompt 模板 ---
 
@@ -51,8 +81,8 @@ PROMPT_DIRECT_REPLY = """
 5. 自然、得体，结合聊天记录逻辑合理，没有重复表达同质内容，也没有复读你之前的发言
 
 请注意把握聊天内容，不要回复的太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
-可以回复得自然随意自然一些，就像真人一样，注意把握聊天内容，整体风格可以平和、简短，不要刻意突出自身学科背景，不要说你说过的话，可以简短，多简短都可以，但是避免冗长。
-请你注意不要输出多余内容(包括前后缀，冒号和引号，括号，表情等)，只输出回复内容。
+可以回复得自然随意自然一些，就像真人一样，注意把握聊天内容，{reply_style1}，不要刻意突出自身学科背景，不要说你说过的话，{reply_style2}。
+{prompt_ger}，请你注意不要输出多余内容(包括前后缀，冒号和引号，括号，表情等)，只输出回复内容。
 不要输出多余内容(包括前后缀，冒号和引号，括号，表情包，at或 @等 )。
 
 请直接输出回复内容，不需要任何额外格式。"""
@@ -89,7 +119,8 @@ PROMPT_SEND_NEW_MESSAGE = """
 5. 跟之前你发的消息自然的衔接，逻辑合理，没有重复表达同质内容或部分重叠内容，也没有复读你之前的发言
 
 请注意把握聊天内容，不用太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
-这条消息可以自然随意自然一些，就像真人一样，注意把握聊天内容，整体风格可以平和、简短，不要刻意突出自身学科背景，不要说你说过的话，可以简短，多简短都可以，但是避免冗长。
+这条消息可以自然随意自然一些，就像真人一样，注意把握聊天内容，{reply_style1}，不要刻意突出自身学科背景，不要说你说过的话，{reply_style2}。
+{prompt_ger}。
 如果你决定继续发消息不合适，也可以不发送。
 
 请严格按照以下JSON格式输出你的选择和消息内容，不要包含任何其他说明或非JSON文本：
@@ -159,6 +190,10 @@ class ReplyGenerator:
         logger.debug(
             f"[私聊][{self.private_name}]开始生成回复 (动作类型: {action_type})：当前目标: {conversation_info.goal_list}"
         )
+        
+        chosen_prompt_ger = random.choices([style[0] for style in PROMPT_GER_VARIATIONS], weights=[style[1] for style in PROMPT_GER_VARIATIONS], k=1)[0]
+        chosen_reply_style1 = random.choices([style[0] for style in REPLY_STYLE1_VARIATIONS], weights=[style[1] for style in REPLY_STYLE1_VARIATIONS], k=1)[0]
+        chosen_reply_style2 = random.choices([style[0] for style in REPLY_STYLE2_VARIATIONS], weights=[style[1] for style in REPLY_STYLE2_VARIATIONS], k=1)[0]
 
         # --- 构建通用 Prompt 参数 ---
         goals_str = ""
@@ -269,42 +304,34 @@ class ReplyGenerator:
             if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
             
-            if action_type == "say_goodbye":
-                prompt = prompt_template.format(
-                    persona_text=persona_text,
-                    chat_history_text=chat_history_text,
-                    current_time_str=current_time_value,
-                    sender_name=sender_name_str,
-                    relationship_text=relationship_text_str,
-                    current_emotion_text=current_emotion_text_str
-                )
-            elif action_type == "send_new_message": # PROMPT_SEND_NEW_MESSAGE 增加了 spam_warning_info
-                prompt = prompt_template.format(
-                    persona_text=persona_text,
-                    goals_str=goals_str,
-                    chat_history_text=chat_history_text,
-                    retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                    retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                    last_rejection_info=last_rejection_info_str,
-                    current_time_str=current_time_value,
-                    sender_name=sender_name_str,
-                    relationship_text=relationship_text_str,
-                    current_emotion_text=current_emotion_text_str,
-                    spam_warning_info=spam_warning_message # 添加 spam_warning_info
-                )
-            else: # PROMPT_DIRECT_REPLY (没有 spam_warning_info)
-                prompt = prompt_template.format(
-                    persona_text=persona_text,
-                    goals_str=goals_str,
-                    chat_history_text=chat_history_text,
-                    retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                    retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                    last_rejection_info=last_rejection_info_str,
-                    current_time_str=current_time_value,
-                    sender_name=sender_name_str,
-                    relationship_text=relationship_text_str,
-                    current_emotion_text=current_emotion_text_str
-                )
+            format_params = {
+                "persona_text": persona_text,
+                "goals_str": goals_str,
+                "chat_history_text": chat_history_text,
+                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
+                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
+                "last_rejection_info": last_rejection_info_str,
+                "current_time_str": current_time_value,
+                "sender_name": sender_name_str, 
+                "relationship_text": relationship_text_str, 
+                "current_emotion_text": current_emotion_text_str, 
+                "prompt_ger": chosen_prompt_ger,
+                "reply_style1": chosen_reply_style1,
+                "reply_style2": chosen_reply_style2,
+            }
+
+            if action_type == "send_new_message":
+                format_params["spam_warning_info"] = spam_warning_message
+            elif action_type == "say_goodbye":
+                farewell_params = {
+                    key: format_params[key] for key in [
+                        "persona_text", "chat_history_text", "current_time_str",
+                        "sender_name", "relationship_text", "current_emotion_text",
+                    ] if key in format_params
+                }
+                prompt = prompt_template.format(**farewell_params)
+            else: # direct_reply
+                prompt = prompt_template.format(**format_params)
         except KeyError as e:
             logger.error(
                 f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
@@ -335,5 +362,3 @@ class ReplyGenerator:
                 }}""".strip()
             else:
                 return "抱歉，我现在有点混乱，让我重新思考一下..."
-
-   # check_reply 方法在 ReplyGenerator 中不再需要
