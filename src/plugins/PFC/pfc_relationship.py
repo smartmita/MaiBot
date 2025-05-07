@@ -4,22 +4,13 @@ from src.plugins.models.utils_model import LLMRequest
 from src.plugins.person_info.person_info import person_info_manager
 from src.plugins.person_info.relationship_manager import relationship_manager # 主要用其 ensure_float 和 build_relationship_info
 from src.plugins.utils.chat_message_builder import build_readable_messages
-
-# 从PFC内部导入必要的类 (根据你的项目结构调整，当前假设与PFC核心文件同级或有正确路径)
-try:
-    from .observation_info import ObservationInfo
-    from .conversation_info import ConversationInfo
-    from .pfc_utils import get_items_from_json
-except ImportError: # 如果直接从 plugins/PFC 目录运行，上面的相对导入会失败，尝试绝对导入
-    from observation_info import ObservationInfo
-    from conversation_info import ConversationInfo
-    from pfc_utils import get_items_from_json
+from src.plugins.PFC.observation_info import ObservationInfo
+from src.plugins.PFC.conversation_info import ConversationInfo
+from src.plugins.PFC.pfc_utils import get_items_from_json
+from src.config.config import global_config # 导入全局配置 (向上两级到 src/, 再到 config)
 
 
-from ...config.config import global_config # 导入全局配置 (向上两级到 src/, 再到 config)
-
-
-logger = get_logger("pfc_relationship_updater")
+logger = get_logger("pfc_relationship")
 
 class PfcRelationshipUpdater:
     def __init__(self, private_name: str, bot_name: str):
@@ -217,3 +208,69 @@ class PfcRelationshipUpdater:
         
         if conversation_info.person_id: # 虽然通常结束了，但更新一下无妨
              conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
+
+
+class PfcRepationshipTranslator:
+    """直接完整导入群聊的relationship_manager.py可能不可取
+    因为对于PFC的planner来说
+    其暗示了选择回复
+    所以新建代码文件来适配PFC的决策层面"""
+    def __init__(self):
+        pass
+
+    @staticmethod
+    def translate_relationship_value_to_text(self, relationship_value: float) -> str:
+        """
+        将数值型的关系值转换为PFC私聊场景下简洁的关系描述文本。
+        """
+        level_num = self._calculate_relationship_level_num(relationship_value)
+
+        relationship_descriptions = [
+            "厌恶",   # level_num 0
+            "冷漠",   # level_num 1
+            "初识",   # level_num 2
+            "友好",   # level_num 3
+            "喜欢",   # level_num 4
+            "暧昧"    # level_num 5
+        ]
+
+        if 0 <= level_num < len(relationship_descriptions):
+            description = relationship_descriptions[level_num]
+        else:
+            description = "普通" # 默认或错误情况
+            logger.warning(f"计算出的 level_num ({level_num}) 无效，关系描述默认为 '普通'")
+
+        return f"你们的关系是：{description}。"
+    
+    @staticmethod
+    def _calculate_relationship_level_num(relationship_value: float) -> int:
+        """
+        根据关系值计算关系等级编号 (0-5)。
+        这里的阈值应与 relationship_manager.py 中的保持一致
+        """
+        if not isinstance(relationship_value, (int, float)):
+            logger.warning(f"传入的 relationship_value '{relationship_value}' 不是有效的数值类型，默认为0。")
+            relationship_value = 0.0
+
+        if -1000 <= relationship_value < -227:
+            level_num = 0  # 厌恶
+        elif -227 <= relationship_value < -73:
+            level_num = 1  # 冷漠
+        elif -73 <= relationship_value < 227:
+            level_num = 2  # 普通/认识
+        elif 227 <= relationship_value < 587:
+            level_num = 3  # 友好
+        elif 587 <= relationship_value < 900:
+            level_num = 4  # 喜欢
+        elif 900 <= relationship_value <= 1000:
+            level_num = 5  # 暧昧
+        else:
+            # 超出范围的值处理
+            if relationship_value > 1000:
+                level_num = 5
+            elif relationship_value < -1000:
+                level_num = 0
+            else: # 理论上不会到这里，除非前面的条件逻辑有误
+                logger.warning(f"关系值 {relationship_value} 未落入任何预设范围，默认为普通。")
+                level_num = 2 
+        return level_num
