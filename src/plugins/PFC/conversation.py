@@ -28,7 +28,6 @@ from .idle_conversation_starter import IdleConversationStarter
 from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
 from .reply_checker import ReplyChecker
-from . import actions
 
 # >>> 新增导入 <<<
 from .conversation_loop import run_conversation_loop # 导入新的循环函数
