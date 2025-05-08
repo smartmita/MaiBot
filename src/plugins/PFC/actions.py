@@ -246,7 +246,7 @@ async def handle_action(
                     is_suitable = True
                     check_reason = "ReplyChecker 已通过配置关闭"
                     need_replan_from_checker = False
-                    logger.info(f"{log_prefix} [配置关闭] ReplyChecker 已跳过，默认回复为合适。")
+                    logger.debug(f"{log_prefix} [配置关闭] ReplyChecker 已跳过，默认回复为合适。")
 
                 # 处理检查结果
                 if not is_suitable:
@@ -295,7 +295,7 @@ async def handle_action(
                 # 后续的 plan 循环会检测到这个 "done_no_reply" 状态并使用反思 prompt
 
             elif is_suitable:  # 适用于 direct_reply 或 (send_new_message 且 RG决定发送并通过检查)
-                logger.info(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。")
+                logger.debug(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。")
                 # conversation_info.last_reply_rejection_reason = None # 已在循环内清除
                 # conversation_info.last_rejected_reply_content = None
                 conversation_instance.generated_reply = generated_content_for_check_or_send  # 使用检查通过的内容
@@ -311,7 +311,7 @@ async def handle_action(
                     action_successful = True
                     final_status = "done"  # 明确设置 final_status
                     final_reason = "成功发送"  # 明确设置 final_reason
-                    logger.info(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 成功发送回复.")
+                    logger.debug(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 成功发送回复.")
 
                     # --- 新增：将机器人发送的消息添加到 ObservationInfo 的 chat_history ---
                     if (
@@ -334,7 +334,7 @@ async def handle_action(
                         observation_info.chat_history.append(bot_message_dict)
                         observation_info.chat_history_count = len(observation_info.chat_history)
                         logger.debug(
-                            f"[私聊][{conversation_instance.private_name}] 机器人发送的消息已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
+                            f"[私聊][{conversation_instance.private_name}] {global_config.BOT_NICKNAME}发送的消息已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
                         )
 
                         # 可选：如果 chat_history 过长，进行修剪 (例如，保留最近N条)
@@ -398,13 +398,13 @@ async def handle_action(
 
                     # 如果是 direct_reply 且规划期间有他人新消息，则下次不追问
                     if other_new_msg_count_during_planning > 0 and action == "direct_reply":
-                        logger.info(
+                        logger.debug(
                             f"[私聊][{conversation_instance.private_name}] 因规划期间收到 {other_new_msg_count_during_planning} 条他人新消息，下一轮强制使用【初始回复】逻辑。"
                         )
                         conversation_info.last_successful_reply_action = None
                         # conversation_info.my_message_count 不在此处重置，因为它刚发了一条
                     elif action == "direct_reply" or action == "send_new_message":  # 成功发送后
-                        logger.info(
+                        logger.debug(
                             f"[私聊][{conversation_instance.private_name}] 成功执行 '{action}', 下一轮【允许】使用追问逻辑。"
                         )
                         conversation_info.last_successful_reply_action = action
@@ -413,7 +413,7 @@ async def handle_action(
                     if conversation_info:  # 再次确认
                         conversation_info.current_instance_message_count += 1
                         logger.debug(
-                            f"[私聊][{conversation_instance.private_name}] 实例消息计数(机器人发送后)增加到: {conversation_info.current_instance_message_count}"
+                            f"[私聊][{conversation_instance.private_name}] 实例消息计数({global_config.BOT_NICKNAME}发送后)增加到: {conversation_info.current_instance_message_count}"
                         )
 
                         if conversation_instance.relationship_updater:  # 确保存在

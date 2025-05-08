@@ -7,6 +7,7 @@ from src.plugins.memory_system.Hippocampus import HippocampusManager
 from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # 确认 prompt_builder 的导入路径
 from src.plugins.chat.chat_stream import ChatStream
 from ..person_info.person_info import person_info_manager
+import math
 
 logger = get_logger("pfc_utils")
 
@@ -273,7 +274,7 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
     if chat_stream.user_info:
         private_user_id_str = str(chat_stream.user_info.user_id)
         private_platform_str = chat_stream.user_info.platform
-        logger.info(
+        logger.debug(
             f"[私聊][{private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}"
         )
     elif chat_stream.group_info is None and private_name:
@@ -308,3 +309,33 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
             f"[私聊][{private_name}] 未能确定私聊对象的 user_id 或 platform，无法获取 person_id。将在收到消息后尝试。"
         )
         return None  # 返回 None 表示失败
+
+
+async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: float) -> float:
+    # 限制 old_value 范围
+    old_value = max(-1000, min(1000, old_value))
+    value = raw_adjustment
+
+    if old_value >= 0:
+        if value >= 0:
+            value = value * math.cos(math.pi * old_value / 2000)
+            if old_value > 500:
+                rdict = await person_info_manager.get_specific_value_list("relationship_value", lambda x: x > 700)
+                high_value_count = len(rdict)
+                if old_value > 700:
+                    value *= 3 / (high_value_count + 2)
+                else:
+                    value *= 3 / (high_value_count + 3)
+        elif value < 0:
+            value = value * math.exp(old_value / 2000)
+        else:
+            value = 0
+    else:
+        if value >= 0:
+            value = value * math.exp(old_value / 2000)
+        elif value < 0:
+            value = value * math.cos(math.pi * old_value / 2000)
+        else:
+            value = 0
+
+    return value

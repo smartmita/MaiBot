@@ -42,7 +42,7 @@ async def load_initial_history(conversation_instance: "Conversation"):
         return
 
     try:
-        logger.info(
+        logger.debug(
             f"[私聊][{conversation_instance.private_name}] 为 {conversation_instance.stream_id} 加载初始聊天记录..."
         )
         # 从聊天核心获取原始消息列表
@@ -99,10 +99,7 @@ async def load_initial_history(conversation_instance: "Conversation"):
                 conversation_instance.chat_observer.last_message_time = (
                     conversation_instance.observation_info.last_message_time
                 )
-            if (
-                conversation_instance.idle_chat
-                and conversation_instance.observation_info.last_message_time
-            ):
+            if conversation_instance.idle_chat and conversation_instance.observation_info.last_message_time:
                 # 更新空闲计时器的起始时间
                 await conversation_instance.idle_chat.update_last_message_time(
                     conversation_instance.observation_info.last_message_time
@@ -135,7 +132,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
     # return
 
     # conversation_instance._initializing_flag_from_manager = True # 标记开始初始化
-    logger.info(
+    logger.debug(
         f"[私聊][{conversation_instance.private_name}] (Initializer) 开始初始化对话实例核心组件: {conversation_instance.stream_id}"
     )
 
@@ -152,12 +149,12 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         conversation_instance.relationship_translator = PfcRepationshipTranslator(
             private_name=conversation_instance.private_name
         )
-        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcRelationship 初始化完成。")
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcRelationship 初始化完成。")
 
         conversation_instance.emotion_updater = PfcEmotionUpdater(
             private_name=conversation_instance.private_name, bot_name=global_config.BOT_NICKNAME
         )
-        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcEmotion 初始化完成。")
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcEmotion 初始化完成。")
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 GoalAnalyzer...")
         conversation_instance.goal_analyzer = GoalAnalyzer(
@@ -197,7 +194,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
             conversation_instance.stream_id, conversation_instance.private_name
         )
         await conversation_instance.idle_chat.increment_active_instances()
-        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已获取并增加活跃计数")
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已获取并增加活跃计数")
 
         # 2. 初始化信息存储和观察组件
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取 ChatObserver 实例...")
@@ -238,7 +235,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
                 conversation_instance.conversation_info.person_id = person_id_tuple[0]  # 第一个元素是 person_id
                 private_platform_str = person_id_tuple[1]
                 private_user_id_str = person_id_tuple[2]
-                logger.info(
+                logger.debug(
                     f"[私聊][{conversation_instance.private_name}] (Initializer) 获取到 person_id: {conversation_instance.conversation_info.person_id} for {private_platform_str}:{private_user_id_str}"
                 )
             else:
@@ -254,7 +251,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         if conversation_instance.idle_chat:
             logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 IdleChat...")
             # 不需要再次启动，只需确保已初始化
-            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已初始化")
+            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已初始化")
 
         if (
             conversation_instance.mood_mng
@@ -262,11 +259,11 @@ async def initialize_core_components(conversation_instance: "Conversation"):
             and not conversation_instance.mood_mng._running
         ):  # type: ignore
             conversation_instance.mood_mng.start_mood_update(update_interval=global_config.mood_update_interval)  # type: ignore
-            logger.info(
+            logger.debug(
                 f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已启动后台更新，间隔: {global_config.mood_update_interval} 秒。"
             )
         elif conversation_instance.mood_mng and conversation_instance.mood_mng._running:  # type: ignore
-            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已在运行中。")
+            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已在运行中。")
         else:
             logger.warning(
                 f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 未能启动，相关功能可能受限。"
@@ -294,7 +291,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
                         numeric_relationship_value
                     )
                 )
-                logger.info(
+                logger.debug(
                     f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载关系文本: {conversation_instance.conversation_info.relationship_text}"
                 )
             except Exception as e_init_rel:
@@ -308,7 +305,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
                 conversation_instance.conversation_info.current_emotion_text = (
                     conversation_instance.mood_mng.get_prompt()
                 )  # type: ignore
-                logger.info(
+                logger.debug(
                     f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}"
                 )
             except Exception as e_init_emo:

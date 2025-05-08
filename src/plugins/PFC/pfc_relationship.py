@@ -9,7 +9,7 @@ from src.plugins.person_info.relationship_manager import (
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from src.plugins.PFC.observation_info import ObservationInfo
 from src.plugins.PFC.conversation_info import ConversationInfo
-from src.plugins.PFC.pfc_utils import get_items_from_json
+from src.plugins.PFC.pfc_utils import get_items_from_json, adjust_relationship_value_nonlinear
 from src.config.config import global_config  # 导入全局配置 (向上两级到 src/, 再到 config)
 
 
@@ -121,7 +121,7 @@ class PfcRelationshipUpdater:
 请输出一个JSON对象，包含一个 "adjustment" 字段，其值为一个介于 -{self.REL_INCREMENTAL_MAX_CHANGE} 和 +{self.REL_INCREMENTAL_MAX_CHANGE} 之间的整数，代表关系值的变化。
 例如：{{ "adjustment": 3 }}。如果对话内容不明确或难以判断，请倾向于输出较小的调整值（如0, 1, -1）。"""
 
-        adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
+        raw_adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
         try:
             logger.debug(f"[私聊][{self.private_name}] 增量关系评估Prompt:\n{relationship_prompt}")
             content, _ = await self.llm.generate_response_async(relationship_prompt)
@@ -136,12 +136,16 @@ class PfcRelationshipUpdater:
             )
             raw_adjustment = result.get("adjustment", self.REL_INCREMENTAL_DEFAULT_CHANGE)
             if not isinstance(raw_adjustment, (int, float)):
-                adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
+                raw_adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
             else:
-                adjustment_val = float(raw_adjustment)
-            adjustment_val = max(-self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, adjustment_val))
+                raw_adjustment_val = float(raw_adjustment)
+            raw_adjustment_val = max(
+                -self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val)
+            )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}] 增量关系评估LLM调用或解析失败: {e}")
+
+        adjustment_val = await adjust_relationship_value_nonlinear(current_relationship_value, raw_adjustment_val)
 
         new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
         await self.person_info_mng.update_one_field(
@@ -202,7 +206,7 @@ class PfcRelationshipUpdater:
 请输出一个JSON对象，包含一个 "final_adjustment" 字段，其值为一个整数，代表关系值的变化量（例如，可以是 -{self.REL_FINAL_MAX_CHANGE} 到 +{self.REL_FINAL_MAX_CHANGE} 之间的一个值）。
 请大胆评估，但也要合理。"""
 
-        adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
+        raw_adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
         try:
             logger.debug(f"[私聊][{self.private_name}] 最终关系评估Prompt:\n{relationship_prompt}")
             content, _ = await self.llm.generate_response_async(relationship_prompt)
@@ -217,12 +221,16 @@ class PfcRelationshipUpdater:
             )
             raw_adjustment = result.get("final_adjustment", self.REL_FINAL_DEFAULT_CHANGE)
             if not isinstance(raw_adjustment, (int, float)):
-                adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
+                raw_adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
             else:
-                adjustment_val = float(raw_adjustment)
-            adjustment_val = max(-self.REL_FINAL_MAX_CHANGE, min(self.REL_FINAL_MAX_CHANGE, adjustment_val))
+                raw_adjustment_val = float(raw_adjustment)
+            raw_adjustment_val = max(
+                -self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val)
+            )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}] 最终关系评估LLM调用或解析失败: {e}")
+
+        adjustment_val = await adjust_relationship_value_nonlinear(current_relationship_value, raw_adjustment_val)
 
         new_relationship_value = max(-1000.0, min(1000.0, current_relationship_value + adjustment_val))
         await self.person_info_mng.update_one_field(

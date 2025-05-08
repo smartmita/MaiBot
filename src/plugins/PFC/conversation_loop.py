@@ -28,7 +28,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
     核心的规划与行动循环 (PFC Loop)。
     之前是 Conversation 类中的 _plan_and_action_loop 方法。
     """
-    logger.info(f"[私聊][{conversation_instance.private_name}] 进入 run_conversation_loop 循环。")
+    logger.debug(f"[私聊][{conversation_instance.private_name}] 进入 run_conversation_loop 循环。")
 
     if not conversation_instance._initialized:
         logger.error(f"[私聊][{conversation_instance.private_name}] 尝试在未初始化状态下运行规划循环，退出。")
@@ -69,10 +69,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             conversation_instance.ignore_until_timestamp
             and loop_iter_start_time < conversation_instance.ignore_until_timestamp
         ):
-            if (
-                conversation_instance.idle_chat
-                and conversation_instance.idle_chat._running
-            ):
+            if conversation_instance.idle_chat and conversation_instance.idle_chat._running:
                 # 不直接停止服务，改为暂时忽略此用户
                 # 虽然我们仍然可以通过active_instances_count来决定是否触发主动聊天
                 # 但为了安全起见，我们只记录一个日志

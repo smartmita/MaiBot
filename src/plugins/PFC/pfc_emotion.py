@@ -24,7 +24,7 @@ class PfcEmotionUpdater:
         # LLM 实例 (根据 global_config.llm_summary 配置)
         llm_config_summary = getattr(global_config, "llm_summary", None)
         if llm_config_summary and isinstance(llm_config_summary, dict):
-            logger.info(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
+            logger.debug(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
             self.llm = LLMRequest(
                 model=llm_config_summary,
                 temperature=llm_config_summary.get(
@@ -102,11 +102,11 @@ class PfcEmotionUpdater:
                 and detected_emotion_word in self.mood_mng.emotion_map
             ):
                 self.mood_mng.update_mood_from_emotion(detected_emotion_word, intensity=self.EMOTION_UPDATE_INTENSITY)
-                logger.info(
+                logger.debug(
                     f"[私聊][{self.private_name}] 基于事件 '{event_description}'，情绪已更新为倾向于 '{detected_emotion_word}'。当前心情: {self.mood_mng.current_mood.text}"
                 )
             elif detected_emotion_word == "无变化":
-                logger.info(f"[私聊][{self.private_name}] 基于事件 '{event_description}'，LLM判断情绪无显著变化。")
+                logger.debug(f"[私聊][{self.private_name}] 基于事件 '{event_description}'，LLM判断情绪无显著变化。")
             else:
                 logger.warning(
                     f"[私聊][{self.private_name}] LLM返回了未知的情绪词 '{detected_emotion_word}' 或未返回有效词，情绪未主动更新。"

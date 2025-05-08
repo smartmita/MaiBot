@@ -134,7 +134,7 @@ class Conversation:
                     observation_info=self.observation_info,
                     chat_observer_for_history=self.chat_observer,
                 )
-                logger.info(f"[私聊][{self.private_name}] 最终关系评估已调用。")
+                logger.debug(f"[私聊][{self.private_name}] 最终关系评估已调用。")
             except Exception as e_final_rel:
                 logger.error(f"[私聊][{self.private_name}] 调用最终关系评估时出错: {e_final_rel}")
                 logger.error(traceback.format_exc())
@@ -145,12 +145,12 @@ class Conversation:
         if self.idle_chat:
             # 减少活跃实例计数，而不是停止IdleChat
             await self.idle_chat.decrement_active_instances()
-            logger.info(f"[私聊][{self.private_name}] 已减少IdleChat活跃实例计数")
+            logger.debug(f"[私聊][{self.private_name}] 已减少IdleChat活跃实例计数")
         if self.observation_info and self.chat_observer:
             self.observation_info.unbind_from_chat_observer()
         if self.mood_mng and hasattr(self.mood_mng, "stop_mood_update") and self.mood_mng._running:  # type: ignore
             self.mood_mng.stop_mood_update()  # type: ignore
-            logger.info(f"[私聊][{self.private_name}] MoodManager 后台更新已停止。")
+            logger.debug(f"[私聊][{self.private_name}] MoodManager 后台更新已停止。")
 
         self._initialized = False  # 标记为未初始化
         logger.info(f"[私聊][{self.private_name}] 对话实例 {self.stream_id} 已停止。")
