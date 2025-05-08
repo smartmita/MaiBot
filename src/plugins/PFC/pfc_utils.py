@@ -320,7 +320,7 @@ async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: 
         if value >= 0:
             value = value * math.cos(math.pi * old_value / 2000)
             if old_value > 500:
-                rdict = person_info_manager.get_specific_value_list("relationship_value", lambda x: x > 700)
+                rdict = await person_info_manager.get_specific_value_list("relationship_value", lambda x: x > 700)
                 high_value_count = len(rdict)
                 if old_value > 700:
                     value *= 3 / (high_value_count + 2)
