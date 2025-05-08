@@ -149,12 +149,11 @@ class IdleChat:
         self._task: Optional[asyncio.Task] = None
         
         # 配置参数 - 从global_config加载
-        self.min_cooldown = getattr(global_config,"MIN_IDLE_TIME", 7200)  # 最短冷却时间（默认2小时）建议修改长一点，你也不希望你的bot一直骚扰你吧
-        self.max_cooldown = getattr(global_config, "MAX_IDLE_TIME", 14400)  # 最长冷却时间（默认4小时）
-        self.min_idle_time = getattr(global_config, "MIN_IDLE_TIME", 3600)  
-        self.check_interval = getattr(global_config, "IDLE_CHECK_INTERVAL", 600)  # 检查间隔（默认10分钟）
-        self.active_hours_start = 6  # 活动开始时间
-        self.active_hours_end = 24   # 活动结束时间
+        self.min_cooldown = getattr(global_config, "min_idle_time", 7200)  # 最短冷却时间（默认2小时）
+        self.max_cooldown = getattr(global_config, "max_idle_time", 18000)  # 最长冷却时间（默认5小时）
+        self.check_interval = getattr(global_config, "idle_check_interval", 10) * 60  # 检查间隔（默认10分钟，转换为秒）
+        self.active_hours_start = 7  # 活动开始时间
+        self.active_hours_end = 23   # 活动结束时间
         
         # 关系值相关
         self.base_trigger_probability = 0.3  # 基础触发概率
