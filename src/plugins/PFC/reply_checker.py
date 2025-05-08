@@ -79,7 +79,7 @@ class ReplyChecker:
                     # <--- 新增详细对比日志 --- END --->
             
             if not match_found: # <--- 根据标记判断
-                 logger.debug(f"[私聊][{self.private_name}] ReplyChecker: 未找到重复。") # <--- 新增日志
+                logger.debug(f"[私聊][{self.private_name}] ReplyChecker: 未找到重复。") # <--- 新增日志
             return (True, "消息内容未与机器人历史发言重复。", False)
 
         except Exception as e:

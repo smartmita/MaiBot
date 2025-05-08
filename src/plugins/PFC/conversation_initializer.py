@@ -8,9 +8,6 @@ from src.plugins.utils.chat_message_builder import build_readable_messages, get_
 from maim_message import UserInfo
 from src.plugins.chat.chat_stream import chat_manager
 from src.config.config import global_config
-from ..person_info.person_info import person_info_manager
-from ..person_info.relationship_manager import relationship_manager
-from ..moods.moods import MoodManager
 
 # 导入 PFC 内部组件和类型
 from .pfc_types import ConversationState
@@ -226,7 +223,7 @@ async def initialize_core_components(conversation_instance: 'Conversation'):
             logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) 空闲对话检测器已启动")
 
         if conversation_instance.mood_mng and hasattr(conversation_instance.mood_mng, 'start_mood_update') and \
-           not conversation_instance.mood_mng._running: # type: ignore
+            not conversation_instance.mood_mng._running: # type: ignore
             conversation_instance.mood_mng.start_mood_update(update_interval=global_config.mood_update_interval) # type: ignore
             logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已启动后台更新，间隔: {global_config.mood_update_interval} 秒。")
         elif conversation_instance.mood_mng and conversation_instance.mood_mng._running: # type: ignore
@@ -235,7 +232,7 @@ async def initialize_core_components(conversation_instance: 'Conversation'):
             logger.warning(f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 未能启动，相关功能可能受限。")
 
         if conversation_instance.conversation_info and conversation_instance.conversation_info.person_id and \
-           conversation_instance.relationship_translator and conversation_instance.person_info_mng: # 确保都存在
+            conversation_instance.relationship_translator and conversation_instance.person_info_mng: # 确保都存在
             try:
                 numeric_relationship_value = await conversation_instance.person_info_mng.get_value(
                     conversation_instance.conversation_info.person_id, "relationship_value"
@@ -254,11 +251,11 @@ async def initialize_core_components(conversation_instance: 'Conversation'):
         
         if conversation_instance.conversation_info and conversation_instance.mood_mng: # 确保都存在
             try:
-               conversation_instance.conversation_info.current_emotion_text = conversation_instance.mood_mng.get_prompt() # type: ignore
-               logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}")
+                conversation_instance.conversation_info.current_emotion_text = conversation_instance.mood_mng.get_prompt() # type: ignore
+                logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}")
             except Exception as e_init_emo:
-               logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本出错: {e_init_emo}")
-               # 保留 ConversationInfo 中的默认值
+                logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本出错: {e_init_emo}")
+                # 保留 ConversationInfo 中的默认值
 
         # 6. 标记初始化成功并设置运行状态 (这些标志由PFCManager控制和检查)
         # conversation_instance._initialized = True -> 由 manager 设置

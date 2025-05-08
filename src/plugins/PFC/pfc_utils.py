@@ -137,9 +137,9 @@ def get_items_from_json(
                         if field in item:
                             current_item_result[field] = item[field]
                         elif field not in default_result: # 如果字段不存在且没有默认值
-                             logger.warning(f"[私聊][{private_name}] JSON数组元素缺少必要字段 '{field}': {item}")
-                             valid_item = False
-                             break # 这个元素无效
+                            logger.warning(f"[私聊][{private_name}] JSON数组元素缺少必要字段 '{field}': {item}")
+                            valid_item = False
+                            break # 这个元素无效
 
                     if not valid_item: continue
 
@@ -156,10 +156,10 @@ def get_items_from_json(
                     
                     # 验证字符串不为空 (只检查 items 中要求的字段)
                     for field in items:
-                         if field in current_item_result and isinstance(current_item_result[field], str) and not current_item_result[field].strip():
-                              logger.warning(f"[私聊][{private_name}] JSON数组元素字段 '{field}' 不能为空字符串: {item}")
-                              valid_item = False
-                              break
+                        if field in current_item_result and isinstance(current_item_result[field], str) and not current_item_result[field].strip():
+                            logger.warning(f"[私聊][{private_name}] JSON数组元素字段 '{field}' 不能为空字符串: {item}")
+                            valid_item = False
+                            break
 
                     if valid_item:
                         valid_items_list.append(current_item_result) # 只添加完全有效的项
@@ -188,8 +188,8 @@ def get_items_from_json(
         # 尝试直接解析清理后的内容
         json_data = json.loads(cleaned_content)
         if not isinstance(json_data, dict):
-             logger.error(f"[私聊][{private_name}] 解析为单个对象，但结果不是字典类型: {type(json_data)}")
-             return False, default_result # 返回失败和默认值
+            logger.error(f"[私聊][{private_name}] 解析为单个对象，但结果不是字典类型: {type(json_data)}")
+            return False, default_result # 返回失败和默认值
 
     except json.JSONDecodeError:
         # 如果直接解析失败，尝试用正则表达式查找 JSON 对象部分 (作为后备)
@@ -201,8 +201,8 @@ def get_items_from_json(
                 potential_json_str = json_match.group()
                 json_data = json.loads(potential_json_str)
                 if not isinstance(json_data, dict):
-                     logger.error(f"[私聊][{private_name}] 正则提取后解析，但结果不是字典类型: {type(json_data)}")
-                     return False, default_result
+                    logger.error(f"[私聊][{private_name}] 正则提取后解析，但结果不是字典类型: {type(json_data)}")
+                    return False, default_result
                 logger.debug(f"[私聊][{private_name}] 通过正则提取并成功解析JSON对象。")
             except json.JSONDecodeError:
                 logger.error(f"[私聊][{private_name}] 正则提取的部分 '{potential_json_str[:100]}...' 无法解析为JSON。")
@@ -222,9 +222,9 @@ def get_items_from_json(
         if item in json_data:
             result[item] = json_data[item]
         elif item not in default_result: # 如果字段不存在且没有默认值
-             logger.error(f"[私聊][{private_name}] JSON对象缺少必要字段 '{item}'。JSON内容: {json_data}")
-             valid_single_object = False
-             break # 这个对象无效
+            logger.error(f"[私聊][{private_name}] JSON对象缺少必要字段 '{item}'。JSON内容: {json_data}")
+            valid_single_object = False
+            break # 这个对象无效
 
     if not valid_single_object:
         return False, default_result
@@ -248,10 +248,10 @@ def get_items_from_json(
             break
 
     if valid_single_object:
-         logger.debug(f"[私聊][{private_name}] 成功解析并验证了单个JSON对象。")
-         return True, result # 返回提取并验证后的字典
+        logger.debug(f"[私聊][{private_name}] 成功解析并验证了单个JSON对象。")
+        return True, result # 返回提取并验证后的字典
     else:
-         return False, default_result # 验证失败
+        return False, default_result # 验证失败
 
 
 async def get_person_id(private_name: str, chat_stream: ChatStream):
@@ -280,8 +280,8 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
                 nickname=private_name, # 使用传入的 private_name 作为昵称
             )
             if person_id is None: # 如果 get_or_create_person 返回 None，说明创建失败
-                 logger.error(f"[私聊][{private_name}] get_or_create_person 未能获取或创建 person_id。")
-                 return None # 返回 None 表示失败
+                logger.error(f"[私聊][{private_name}] get_or_create_person 未能获取或创建 person_id。")
+                return None # 返回 None 表示失败
 
             return person_id, private_platform_str, private_user_id_str # 返回获取或创建的 person_id
         except ValueError:

@@ -74,10 +74,10 @@ async def handle_action(
         logger.error(f"[私聊][{conversation_instance.private_name}] ObservationInfo 为空，无法处理动作 '{action}'。")
         # 在 conversation_info 和 done_action 存在时更新状态
         if conversation_info and hasattr(conversation_info, 'done_action') and conversation_info.done_action:
-             conversation_info.done_action[-1].update({
+            conversation_info.done_action[-1].update({
                 "status": "error",
                 "final_reason": "ObservationInfo is None",
-             })
+            })
         conversation_instance.state = ConversationState.ERROR
         return
     if not conversation_info: # conversation_info 在这里是必需的
@@ -180,9 +180,9 @@ async def handle_action(
 
                 # 检查生成的内容是否有效
                 if not generated_content_for_check_or_send or \
-                   generated_content_for_check_or_send.startswith("抱歉") or \
-                   generated_content_for_check_or_send.strip() == "" or \
-                   (action == "send_new_message" and generated_content_for_check_or_send == "no" and should_send_reply): # RG决定发送但文本为"no"或空
+                    generated_content_for_check_or_send.startswith("抱歉") or \
+                    generated_content_for_check_or_send.strip() == "" or \
+                    (action == "send_new_message" and generated_content_for_check_or_send == "no" and should_send_reply): # RG决定发送但文本为"no"或空
                     
                     warning_msg = f"{log_prefix} 生成内容无效或为错误提示"
                     if action == "send_new_message" and generated_content_for_check_or_send == "no": # 特殊情况日志
@@ -586,7 +586,7 @@ async def handle_action(
                 event_for_emotion_update = "你选择等待对方的回复（对方可能很快回复了）"
             
             if conversation_instance.emotion_updater and conversation_info and observation_info: # 确保都存在
-                 await conversation_instance.emotion_updater.update_emotion_based_on_context(
+                await conversation_instance.emotion_updater.update_emotion_based_on_context(
                     conversation_info=conversation_info,
                     observation_info=observation_info,
                     chat_observer_for_history=conversation_instance.chat_observer, # 确保 chat_observer 存在
@@ -634,7 +634,7 @@ async def handle_action(
 
         # 1. 重置临时存储的计数值
         if conversation_info: # 确保 conversation_info 存在
-             conversation_info.other_new_messages_during_planning_count = 0
+            conversation_info.other_new_messages_during_planning_count = 0
 
         # 2. 更新动作历史记录的最终状态和原因
         # 优化：如果动作成功但状态仍是默认的 recall，则更新为 done
@@ -659,7 +659,7 @@ async def handle_action(
                     elif action in ["rethink_goal", "end_conversation", "block_and_ignore", "say_goodbye"]:
                         final_reason = f"成功执行 {action}"
                     elif action in ["direct_reply", "send_new_message"]: # 正常发送成功的case
-                         final_reason = "成功发送"
+                        final_reason = "成功发送"
                     else:
                         final_reason = f"动作 {action} 成功完成"
             # 如果已经是 "done" 或 "done_no_reply"，则保留它们和它们对应的 final_reason
@@ -683,7 +683,7 @@ async def handle_action(
         # 更新 done_action 中的记录
         # 防御性检查，确保 conversation_info, done_action 存在，并且索引有效
         if conversation_info and hasattr(conversation_info, 'done_action') and \
-           conversation_info.done_action and action_index < len(conversation_info.done_action):
+            conversation_info.done_action and action_index < len(conversation_info.done_action):
             conversation_info.done_action[action_index].update(
                 {
                     "status": final_status,
@@ -699,8 +699,8 @@ async def handle_action(
         log_final_reason = final_reason if final_reason else "无明确原因"
         # 为成功发送的动作添加发送内容摘要
         if final_status == "done" and action_successful and \
-           action in ["direct_reply", "send_new_message"] and \
-           hasattr(conversation_instance, 'generated_reply') and conversation_instance.generated_reply:
-             log_final_reason += f" (发送内容: '{conversation_instance.generated_reply[:30]}...')"
+            action in ["direct_reply", "send_new_message"] and \
+            hasattr(conversation_instance, 'generated_reply') and conversation_instance.generated_reply:
+                log_final_reason += f" (发送内容: '{conversation_instance.generated_reply[:30]}...')"
 
         logger.info(f"[私聊][{conversation_instance.private_name}] 动作 '{action}' 处理完成。最终状态: {final_status}, 原因: {log_final_reason}")

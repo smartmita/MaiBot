@@ -362,8 +362,8 @@ class ReplyGenerator:
             if action_type == "send_new_message":
                 # 返回一个表示错误的JSON，让调用方知道出错了但仍能解析
                 return """{{
-                  "send": "no",
-                  "txt": "LLM生成回复时出错"
+                    "send": "no",
+                    "txt": "LLM生成回复时出错"
                 }}""".strip()
             else:
                 return "抱歉，我现在有点混乱，让我重新思考一下..."

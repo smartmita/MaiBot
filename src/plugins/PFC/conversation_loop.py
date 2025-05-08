@@ -208,7 +208,7 @@ async def run_conversation_loop(conversation_instance: 'Conversation'):
 
             last_action_record_for_end_check = {}
             if conversation_instance.conversation_info and conversation_instance.conversation_info.done_action:
-                 last_action_record_for_end_check = conversation_instance.conversation_info.done_action[-1]
+                last_action_record_for_end_check = conversation_instance.conversation_info.done_action[-1]
             action_ended: bool = ( last_action_record_for_end_check.get("action") in ["end_conversation", "say_goodbye"] and last_action_record_for_end_check.get("status") == "done" )
 
             if goal_ended or action_ended:

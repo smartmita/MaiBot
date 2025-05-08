@@ -126,7 +126,7 @@ class Conversation:
 
         # 最终关系评估
         if self._initialized and self.relationship_updater and self.conversation_info and \
-           self.observation_info and self.chat_observer:
+            self.observation_info and self.chat_observer:
             try:
                 logger.info(f"[私聊][{self.private_name}] 准备执行最终关系评估...")
                 await self.relationship_updater.update_relationship_final(

@@ -202,7 +202,7 @@ class PfcRelationshipUpdater:
         logger.info(f"[私聊][{self.private_name}] 最终关系值更新：与【{self.private_name}】的关系值从 {current_relationship_value:.2f} 调整了 {adjustment_val:.2f}，最终为 {new_relationship_value:.2f}")
         
         if conversation_info.person_id: # 虽然通常结束了，但更新一下无妨
-             conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
+            conversation_info.relationship_text = await self.relationship_mng.build_relationship_info(conversation_info.person_id, is_id=True)
 
 
 class PfcRepationshipTranslator:
