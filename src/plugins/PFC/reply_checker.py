@@ -42,7 +42,7 @@ class ReplyChecker:
                                     对于非重复消息: (True, "消息内容未与机器人历史发言重复。", False)
         """
         if not self.bot_qq_str:
-            logger.error(f"[私聊][{self.private_name}] ReplyChecker: BOT_QQ 未配置，无法检查机器人自身消息。")
+            logger.error(f"[私聊][{self.private_name}] ReplyChecker: BOT_QQ 未配置，无法检查{global_config.BOT_NICKNAME}自身消息。")
             return True, "BOT_QQ未配置，跳过重复检查。", False  # 无法检查则默认通过
 
         if len(reply) <= 4:
@@ -64,11 +64,11 @@ class ReplyChecker:
                     historical_message_text = msg_dict.get("processed_plain_text", "")
                     # <--- 新增详细对比日志 --- START --->
                     logger.debug(
-                        f"[私聊][{self.private_name}] ReplyChecker: 历史记录 #{i} (机器人): '{historical_message_text}' (长度 {len(historical_message_text)})"
+                        f"[私聊][{self.private_name}] ReplyChecker: 历史记录 #{i} ({global_config.BOT_NICKNAME}): '{historical_message_text}' (长度 {len(historical_message_text)})"
                     )
                     if reply == historical_message_text:
                         logger.warning(f"[私聊][{self.private_name}] ReplyChecker: !!! 精确匹配成功 !!!")
-                        logger.warning(f"[私聊][{self.private_name}] ReplyChecker 检测到机器人自身重复消息: '{reply}'")
+                        logger.warning(f"[私聊][{self.private_name}] ReplyChecker 检测到{global_config.BOT_NICKNAME}自身重复消息: '{reply}'")
                         match_found = True  # <--- 标记找到
                         return (False, "机器人尝试发送重复消息", False)
                     # <--- 新增详细对比日志 --- END --->

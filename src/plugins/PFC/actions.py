@@ -334,7 +334,7 @@ async def handle_action(
                         observation_info.chat_history.append(bot_message_dict)
                         observation_info.chat_history_count = len(observation_info.chat_history)
                         logger.debug(
-                            f"[私聊][{conversation_instance.private_name}] 机器人发送的消息已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
+                            f"[私聊][{conversation_instance.private_name}] {global_config.BOT_NICKNAME}发送的消息已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
                         )
 
                         # 可选：如果 chat_history 过长，进行修剪 (例如，保留最近N条)
@@ -413,7 +413,7 @@ async def handle_action(
                     if conversation_info:  # 再次确认
                         conversation_info.current_instance_message_count += 1
                         logger.debug(
-                            f"[私聊][{conversation_instance.private_name}] 实例消息计数(机器人发送后)增加到: {conversation_info.current_instance_message_count}"
+                            f"[私聊][{conversation_instance.private_name}] 实例消息计数({global_config.BOT_NICKNAME}发送后)增加到: {conversation_info.current_instance_message_count}"
                         )
 
                         if conversation_instance.relationship_updater:  # 确保存在
