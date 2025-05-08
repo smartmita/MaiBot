@@ -6,56 +6,6 @@ from types import ModuleType
 from pathlib import Path
 from dotenv import load_dotenv
 
-"""
-日志颜色说明:
-
-1. 主程序(Main)
-浅黄色标题 | 浅黄色消息
-
-2. 海马体(Memory)  
-浅黄色标题 | 浅黄色消息
-
-3. PFC(前额叶皮质)
-浅绿色标题 | 浅绿色消息
-
-4. 心情(Mood)
-品红色标题 | 品红色消息
-
-5. 工具使用(Tool)
-品红色标题 | 品红色消息
-
-6. 关系(Relation)
-浅品红色标题 | 浅品红色消息
-
-7. 配置(Config)
-浅青色标题 | 浅青色消息
-
-8. 麦麦大脑袋
-浅绿色标题 | 浅绿色消息
-
-9. 在干嘛
-青色标题 | 青色消息
-
-10. 麦麦组织语言
-浅绿色标题 | 浅绿色消息
-
-11. 见闻(Chat)
-浅蓝色标题 | 绿色消息
-
-12. 表情包(Emoji)
-橙色标题 | 橙色消息 fg #FFD700
-
-13. 子心流
-
-13. 其他模块
-模块名标题 | 对应颜色消息
-
-
-注意:
-1. 级别颜色遵循loguru默认配置
-2. 可通过环境变量修改日志级别
-"""
-
 
 # 加载 .env 文件
 env_path = Path(__file__).resolve().parent.parent.parent / ".env"
