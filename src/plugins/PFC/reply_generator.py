@@ -19,13 +19,13 @@ PROMPT_GER_VARIATIONS = [
     ("避免使用过于正式或书面化的词语，多用生活化的口语表达", 0.8),
     ("如果对方的发言比较跳跃或难以理解，可以尝试用猜测或确认的语气回应", 0.8),
     ("如果感觉对话有点干巴，可以尝试引入一些轻松的相关小话题或者自己的小想法，但不要偏离太远", 0.8),
-    ("注意观察对方的情绪（如果能从文字中判断），并作出适当的回应，比如安慰、鼓励或表示理解", 0.8), 
-    ("", 0.10) 
+    ("注意观察对方的情绪（如果能从文字中判断），并作出适当的回应，比如安慰、鼓励或表示理解", 0.8),
+    ("", 0.10),
 ]
 
 REPLY_STYLE1_VARIATIONS = [
     ("整体风格可以平和、简短", 0.3),
-    ("回复可以非常简洁，有时甚至用单个词、短语或者一个反问就能表达清楚", 0.10), 
+    ("回复可以非常简洁，有时甚至用单个词、短语或者一个反问就能表达清楚", 0.10),
     ("尝试使用更自然的口语连接词，例如：然后/所以呢/不过嘛/倒是", 0.05),
     ("在表达观点时，可以说得主观一些，例如：我觉得.../我个人感觉.../要我说...", 0.10),
     ("**请省略主语，简短**", 0.4),
@@ -37,7 +37,7 @@ REPLY_STYLE2_VARIATIONS = [
     ("不要输出任何语气词", 0.10),
     ("在适当的时候，可以用一些感叹词来表达情绪或态度，例如：哇/啊？/啧啧/哎呀", 0.05),
     ("可以模糊化表达，例如：'我记得...'", 0.10),
-    ("对于一些无聊或者不想深入的话题，可以敷衍一下，例如：/哦这样啊/还行吧/随便啦", 0.10), 
+    ("对于一些无聊或者不想深入的话题，可以敷衍一下，例如：/哦这样啊/还行吧/随便啦", 0.10),
     ("尽量用简单句和短句", 0.25),
     ("不要输出任何标点符号，简短", 0.30),
 ]
@@ -156,7 +156,7 @@ class ReplyGenerator:
         self.llm = LLMRequest(
             model=global_config.llm_PFC_chat,
             temperature=global_config.llm_PFC_chat["temp"],
-            max_tokens=300, # 对于JSON输出，这个可能需要适当调整，但一般回复短，JSON结构也简单
+            max_tokens=300,  # 对于JSON输出，这个可能需要适当调整，但一般回复短，JSON结构也简单
             request_type="reply_generation",
         )
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
@@ -184,10 +184,20 @@ class ReplyGenerator:
         logger.debug(
             f"[私聊][{self.private_name}]开始生成回复 (动作类型: {action_type})：当前目标: {conversation_info.goal_list}"
         )
-        
-        chosen_prompt_ger = random.choices([style[0] for style in PROMPT_GER_VARIATIONS], weights=[style[1] for style in PROMPT_GER_VARIATIONS], k=1)[0]
-        chosen_reply_style1 = random.choices([style[0] for style in REPLY_STYLE1_VARIATIONS], weights=[style[1] for style in REPLY_STYLE1_VARIATIONS], k=1)[0]
-        chosen_reply_style2 = random.choices([style[0] for style in REPLY_STYLE2_VARIATIONS], weights=[style[1] for style in REPLY_STYLE2_VARIATIONS], k=1)[0]
+
+        chosen_prompt_ger = random.choices(
+            [style[0] for style in PROMPT_GER_VARIATIONS], weights=[style[1] for style in PROMPT_GER_VARIATIONS], k=1
+        )[0]
+        chosen_reply_style1 = random.choices(
+            [style[0] for style in REPLY_STYLE1_VARIATIONS],
+            weights=[style[1] for style in REPLY_STYLE1_VARIATIONS],
+            k=1,
+        )[0]
+        chosen_reply_style2 = random.choices(
+            [style[0] for style in REPLY_STYLE2_VARIATIONS],
+            weights=[style[1] for style in REPLY_STYLE2_VARIATIONS],
+            k=1,
+        )[0]
 
         # --- 构建通用 Prompt 参数 ---
         goals_str = ""
@@ -220,16 +230,14 @@ class ReplyGenerator:
         elif not chat_history_text:
             chat_history_text = "还没有聊天记录。"
         else:
-            chat_history_text += (
-                "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
-            )
+            chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
 
-        sender_name_str = getattr(observation_info, 'sender_name', '对方')
-        if not sender_name_str: 
-            sender_name_str = '对方'
+        sender_name_str = getattr(observation_info, "sender_name", "对方")
+        if not sender_name_str:
+            sender_name_str = "对方"
 
-        relationship_text_str = getattr(conversation_info, 'relationship_text', '你们还不熟悉。')
-        current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
+        relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
+        current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
 
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
         retrieval_context = chat_history_text
@@ -270,17 +278,16 @@ class ReplyGenerator:
                     f"  内容: {last_content}\n"
                     f"  原因: {last_reason}"
                 )
-        
+
         # 新增：构建刷屏警告信息 for PROMPT_SEND_NEW_MESSAGE
         spam_warning_message = ""
-        if action_type == "send_new_message": # 只在 send_new_message 时构建刷屏警告
+        if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
             if conversation_info.my_message_count > 5:
                 spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
             elif conversation_info.my_message_count > 2:
                 spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
             if spam_warning_message:
                 spam_warning_message = f"\n{spam_warning_message}\n"
-
 
         # --- 选择 Prompt ---
         if action_type == "send_new_message":
@@ -289,22 +296,24 @@ class ReplyGenerator:
         elif action_type == "say_goodbye":
             prompt_template = PROMPT_FAREWELL
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_FAREWELL (告别语生成)")
-        else: 
+        else:
             prompt_template = PROMPT_DIRECT_REPLY
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_DIRECT_REPLY (首次/非连续回复生成)")
 
         # --- 格式化最终的 Prompt ---
         try:
             current_time_value = "获取时间失败"
-            if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+            if observation_info and hasattr(observation_info, "current_time_str") and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
-            
+
             base_format_params = {
                 "persona_text": persona_text,
                 "goals_str": goals_str,
                 "chat_history_text": chat_history_text,
-                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。", # 确保已定义
-                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。", # 确保已定义
+                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。",  # 确保已定义
+                "retrieved_knowledge_str": retrieved_knowledge_str
+                if retrieved_knowledge_str
+                else "无相关知识。",  # 确保已定义
                 "last_rejection_info": last_rejection_info_str,
                 "current_time_str": current_time_value,
                 "sender_name": sender_name_str,
@@ -318,17 +327,24 @@ class ReplyGenerator:
             if action_type == "send_new_message":
                 current_format_params = base_format_params.copy()
                 current_format_params["spam_warning_info"] = spam_warning_message
-                prompt = prompt_template.format(**current_format_params) 
+                prompt = prompt_template.format(**current_format_params)
             elif action_type == "say_goodbye":
                 farewell_params = {
-                    k: v for k, v in base_format_params.items() if k in [
-                        "persona_text", "chat_history_text", "current_time_str",
-                        "sender_name", "relationship_text", "current_emotion_text",
+                    k: v
+                    for k, v in base_format_params.items()
+                    if k
+                    in [
+                        "persona_text",
+                        "chat_history_text",
+                        "current_time_str",
+                        "sender_name",
+                        "relationship_text",
+                        "current_emotion_text",
                     ]
                 }
-                
+
                 prompt = prompt_template.format(**farewell_params)
-            else: # direct_reply
+            else:  # direct_reply
                 current_format_params = base_format_params.copy()
                 prompt = prompt_template.format(**current_format_params)
 
@@ -336,7 +352,7 @@ class ReplyGenerator:
             logger.error(
                 f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
             )
-            return "抱歉，准备回复时出了点问题，请检查一下我的代码..." # 对于JSON期望的场景，这里可能也需要返回一个固定的错误JSON
+            return "抱歉，准备回复时出了点问题，请检查一下我的代码..."  # 对于JSON期望的场景，这里可能也需要返回一个固定的错误JSON
         except Exception as fmt_err:
             logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时发生未知错误: {fmt_err}")
             return "抱歉，准备回复时出了点内部错误，请检查一下我的代码..."

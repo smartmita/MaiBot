@@ -99,9 +99,7 @@ class GoalAnalyzer:
             )
             chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
         else:
-            chat_history_text += (
-                "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
-            )
+            chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
             # await observation_info.clear_unprocessed_messages()
 
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"

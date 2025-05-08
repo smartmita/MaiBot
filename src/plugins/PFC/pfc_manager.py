@@ -6,8 +6,9 @@ from typing import Dict, Optional
 from src.common.logger import get_module_logger
 from .conversation import Conversation
 from .conversation_initializer import initialize_core_components
+
 # >>> 新增导入 <<<
-from .pfc_types import ConversationState # 导入 ConversationState
+from .pfc_types import ConversationState  # 导入 ConversationState
 
 logger = get_module_logger("pfc_manager")
 
@@ -17,7 +18,7 @@ class PFCManager:
 
     _instance = None
     _instances: Dict[str, Conversation] = {}
-    _initializing: Dict[str, bool] = {} # 用于防止并发初始化同一个 stream_id
+    _initializing: Dict[str, bool] = {}  # 用于防止并发初始化同一个 stream_id
 
     @classmethod
     def get_instance(cls) -> "PFCManager":
@@ -56,9 +57,8 @@ class PFCManager:
                 await self._cleanup_conversation(instance)
                 if stream_id in self._instances:
                     del self._instances[stream_id]
-                if stream_id in self._initializing: # 确保也从这里移除
+                if stream_id in self._initializing:  # 确保也从这里移除
                     del self._initializing[stream_id]
-
 
         conversation_instance: Optional[Conversation] = None
         try:
@@ -74,11 +74,11 @@ class PFCManager:
             # 检查初始化结果并启动
             if conversation_instance._initialized and conversation_instance.should_continue:
                 logger.info(f"[私聊][{private_name}] 初始化成功，调用 conversation.start() 启动主循环...")
-                await conversation_instance.start() # start 方法内部会创建 loop 任务
+                await conversation_instance.start()  # start 方法内部会创建 loop 任务
             else:
                 logger.error(f"[私聊][{private_name}] 初始化未成功完成，无法启动实例 {stream_id}。")
                 await self._cleanup_conversation(conversation_instance)
-                if stream_id in self._instances: # 再次检查以防万一
+                if stream_id in self._instances:  # 再次检查以防万一
                     del self._instances[stream_id]
                 conversation_instance = None
 
@@ -91,8 +91,8 @@ class PFCManager:
                 del self._instances[stream_id]
             conversation_instance = None
         finally:
-            if stream_id in self._initializing: # 确保在 finally 中也检查
-                self._initializing[stream_id] = False # 清除初始化标记
+            if stream_id in self._initializing:  # 确保在 finally 中也检查
+                self._initializing[stream_id] = False  # 清除初始化标记
 
         return conversation_instance
 

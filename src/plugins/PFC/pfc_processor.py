@@ -13,6 +13,7 @@ from datetime import datetime
 
 logger = get_logger("pfc_processor")
 
+
 async def _handle_error(error: Exception, context: str, message: Optional[MessageRecv] = None) -> None:
     """统一的错误处理函数
 
@@ -26,8 +27,9 @@ async def _handle_error(error: Exception, context: str, message: Optional[Messag
     if message and hasattr(message, "raw_message"):
         logger.error(f"相关消息原始内容: {message.raw_message}")
 
+
 class PFCProcessor:
-    """ PFC 处理器，负责处理接收到的信息并计数"""
+    """PFC 处理器，负责处理接收到的信息并计数"""
 
     def __init__(self):
         """初始化 PFC 处理器，创建消息存储实例"""
@@ -105,9 +107,7 @@ class PFCProcessor:
         """检查消息中是否包含过滤词"""
         for word in global_config.ban_words:
             if word in text:
-                logger.info(
-                    f"[私聊]{userinfo.user_nickname}:{text}"
-                )
+                logger.info(f"[私聊]{userinfo.user_nickname}:{text}")
                 logger.info(f"[过滤词识别]消息中含有{word}，filtered")
                 return True
         return False
@@ -117,9 +117,7 @@ class PFCProcessor:
         """检查消息是否匹配过滤正则表达式"""
         for pattern in global_config.ban_msgs_regex:
             if pattern.search(text):
-                logger.info(
-                    f"[私聊]{userinfo.user_nickname}:{text}"
-                )
+                logger.info(f"[私聊]{userinfo.user_nickname}:{text}")
                 logger.info(f"[正则表达式过滤]消息匹配到{pattern}，filtered")
                 return True
         return False

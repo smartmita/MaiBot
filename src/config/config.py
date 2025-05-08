@@ -273,7 +273,7 @@ class BotConfig:
     # enable_think_flow: bool = False  # 是否启用思考流程
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
-    enable_pfc_reply_checker: bool = True # 是否开启PFC回复检查
+    enable_pfc_reply_checker: bool = True  # 是否开启PFC回复检查
 
     # idle_conversation
     enable_idle_conversation: bool = False  # 是否启用 pfc 主动发言（未完善）
@@ -666,8 +666,10 @@ class BotConfig:
             config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
             if config.INNER_VERSION in SpecifierSet(">=1.1.0"):
                 config.enable_pfc_chatting = experimental_config.get("pfc_chatting", config.enable_pfc_chatting)
-            if config.INNER_VERSION in SpecifierSet(">=1.1.0"): 
-                config.enable_pfc_reply_checker = experimental_config.get("enable_pfc_reply_checker", config.enable_pfc_reply_checker)
+            if config.INNER_VERSION in SpecifierSet(">=1.1.0"):
+                config.enable_pfc_reply_checker = experimental_config.get(
+                    "enable_pfc_reply_checker", config.enable_pfc_reply_checker
+                )
                 logger.info(f"PFC Reply Checker 状态: {'启用' if config.enable_pfc_reply_checker else '关闭'}")
 
         def idle_conversation(parent: dict):

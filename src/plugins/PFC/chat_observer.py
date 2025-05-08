@@ -101,17 +101,19 @@ class ChatObserver:
             message: 消息数据
         """
         try:
-            if isinstance(message, dict): # 确保是字典才添加
+            if isinstance(message, dict):  # 确保是字典才添加
                 self.message_cache.append(message)
                 # 可选：限制 message_cache 的大小，例如只保留最近 N 条
                 # 你可以根据你的需求调整 MAX_CACHE_SIZE
                 # 对于情绪判断，可能不需要太长的历史，例如 5-10 条可能就足够了
                 # 但 ChatObserver 的 get_cached_messages 也可能被其他地方用于获取更长的历史
                 # 所以这里的 MAX_CACHE_SIZE 需要权衡，或者让调用者自己决定 limit
-                MAX_CACHE_SIZE = 30 # 例如，保留最近30条作为通用缓存
+                MAX_CACHE_SIZE = 30  # 例如，保留最近30条作为通用缓存
                 if len(self.message_cache) > MAX_CACHE_SIZE:
                     self.message_cache = self.message_cache[-MAX_CACHE_SIZE:]
-                logger.debug(f"[私聊][{self.private_name}] 消息已添加到 ChatObserver 缓存，当前缓存大小: {len(self.message_cache)}")
+                logger.debug(
+                    f"[私聊][{self.private_name}] 消息已添加到 ChatObserver 缓存，当前缓存大小: {len(self.message_cache)}"
+                )
             else:
                 logger.warning(f"[私聊][{self.private_name}] 尝试向 message_cache 添加非字典类型消息: {type(message)}")
 

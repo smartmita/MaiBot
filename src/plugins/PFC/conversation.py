@@ -6,7 +6,7 @@ from typing import Dict, Any, Optional
 from src.common.logger_manager import get_logger
 from maim_message import UserInfo
 from src.plugins.chat.chat_stream import chat_manager, ChatStream
-from ..chat.message import Message # 假设 Message 类型被 _convert_to_message 使用
+from ..chat.message import Message  # 假设 Message 类型被 _convert_to_message 使用
 from src.config.config import global_config
 from ..person_info.person_info import person_info_manager
 from ..person_info.relationship_manager import relationship_manager
@@ -30,9 +30,10 @@ from .waiter import Waiter
 from .reply_checker import ReplyChecker
 
 # >>> 新增导入 <<<
-from .conversation_loop import run_conversation_loop # 导入新的循环函数
+from .conversation_loop import run_conversation_loop  # 导入新的循环函数
 
 from rich.traceback import install
+
 install(extra_lines=3)
 
 logger = get_logger("pfc_conversation")
@@ -43,6 +44,7 @@ logger = get_logger("pfc_conversation")
 # if TIME_ZONE is None:
 #     logger.error(f"配置的时区 '{configured_tz}' 无效，将使用默认时区 'Asia/Shanghai'")
 #     TIME_ZONE = tz.gettz('Asia/Shanghai')
+
 
 class Conversation:
     """
@@ -57,7 +59,7 @@ class Conversation:
         self.stream_id: str = stream_id
         self.private_name: str = private_name
         self.state: ConversationState = ConversationState.INIT
-        self.should_continue: bool = False # Manager 会在初始化后设置
+        self.should_continue: bool = False  # Manager 会在初始化后设置
         self.ignore_until_timestamp: Optional[float] = None
         self.generated_reply: str = ""
         self.chat_stream: Optional[ChatStream] = None
@@ -81,7 +83,7 @@ class Conversation:
         self.conversation_info: Optional[ConversationInfo] = None
         self.reply_checker: Optional[ReplyChecker] = None
 
-        self._initialized: bool = False # Manager 会在初始化成功后设为 True
+        self._initialized: bool = False  # Manager 会在初始化成功后设为 True
 
         self.bot_qq_str: Optional[str] = str(global_config.BOT_QQ) if global_config.BOT_QQ else None
         if not self.bot_qq_str:
@@ -98,9 +100,7 @@ class Conversation:
             return
 
         if not self.should_continue:
-            logger.warning(
-                f"[私聊][{self.private_name}] 对话实例已被 Manager 标记为不应继续，无法启动规划循环。"
-            )
+            logger.warning(f"[私聊][{self.private_name}] 对话实例已被 Manager 标记为不应继续，无法启动规划循环。")
             return
 
         logger.info(f"[私聊][{self.private_name}] 对话系统启动，准备创建规划循环任务...")
@@ -120,14 +120,19 @@ class Conversation:
         self.should_continue = False
 
         # 最终关系评估
-        if self._initialized and self.relationship_updater and self.conversation_info and \
-            self.observation_info and self.chat_observer:
+        if (
+            self._initialized
+            and self.relationship_updater
+            and self.conversation_info
+            and self.observation_info
+            and self.chat_observer
+        ):
             try:
                 logger.info(f"[私聊][{self.private_name}] 准备执行最终关系评估...")
                 await self.relationship_updater.update_relationship_final(
                     conversation_info=self.conversation_info,
                     observation_info=self.observation_info,
-                    chat_observer_for_history=self.chat_observer
+                    chat_observer_for_history=self.chat_observer,
                 )
                 logger.info(f"[私聊][{self.private_name}] 最终关系评估已调用。")
             except Exception as e_final_rel:
@@ -141,11 +146,11 @@ class Conversation:
             self.idle_conversation_starter.stop()
         if self.observation_info and self.chat_observer:
             self.observation_info.unbind_from_chat_observer()
-        if self.mood_mng and hasattr(self.mood_mng, 'stop_mood_update') and self.mood_mng._running: # type: ignore
-            self.mood_mng.stop_mood_update() # type: ignore
+        if self.mood_mng and hasattr(self.mood_mng, "stop_mood_update") and self.mood_mng._running:  # type: ignore
+            self.mood_mng.stop_mood_update()  # type: ignore
             logger.info(f"[私聊][{self.private_name}] MoodManager 后台更新已停止。")
 
-        self._initialized = False # 标记为未初始化
+        self._initialized = False  # 标记为未初始化
         logger.info(f"[私聊][{self.private_name}] 对话实例 {self.stream_id} 已停止。")
 
     # _plan_and_action_loop 方法已被移除
@@ -156,7 +161,9 @@ class Conversation:
         try:
             chat_stream_to_use = self.chat_stream or chat_manager.get_stream(self.stream_id)
             if not chat_stream_to_use:
-                logger.error(f"[私聊][{self.private_name}] 无法确定 ChatStream for stream_id {self.stream_id}，无法转换消息。")
+                logger.error(
+                    f"[私聊][{self.private_name}] 无法确定 ChatStream for stream_id {self.stream_id}，无法转换消息。"
+                )
                 return None
 
             user_info_dict = msg_dict.get("user_info", {})
@@ -165,9 +172,13 @@ class Conversation:
                 try:
                     user_info = UserInfo.from_dict(user_info_dict)
                 except Exception as e:
-                    logger.warning(f"[私聊][{self.private_name}] 从字典创建 UserInfo 时出错: {e}, dict: {user_info_dict}")
+                    logger.warning(
+                        f"[私聊][{self.private_name}] 从字典创建 UserInfo 时出错: {e}, dict: {user_info_dict}"
+                    )
             if not user_info:
-                logger.warning(f"[私聊][{self.private_name}] 消息缺少有效的 UserInfo，无法转换。 msg_id: {msg_dict.get('message_id')}")
+                logger.warning(
+                    f"[私聊][{self.private_name}] 消息缺少有效的 UserInfo，无法转换。 msg_id: {msg_dict.get('message_id')}"
+                )
                 return None
 
             return Message(
