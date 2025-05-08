@@ -139,7 +139,9 @@ class PfcRelationshipUpdater:
                 raw_adjustment_val = self.REL_INCREMENTAL_DEFAULT_CHANGE
             else:
                 raw_adjustment_val = float(raw_adjustment)
-            raw_adjustment_val = max(-self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val))
+            raw_adjustment_val = max(
+                -self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val)
+            )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}] 增量关系评估LLM调用或解析失败: {e}")
 
@@ -222,10 +224,11 @@ class PfcRelationshipUpdater:
                 raw_adjustment_val = self.REL_FINAL_DEFAULT_CHANGE
             else:
                 raw_adjustment_val = float(raw_adjustment)
-            raw_adjustment_val = max(-self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val))
+            raw_adjustment_val = max(
+                -self.REL_INCREMENTAL_MAX_CHANGE, min(self.REL_INCREMENTAL_MAX_CHANGE, raw_adjustment_val)
+            )
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}] 最终关系评估LLM调用或解析失败: {e}")
-
 
         adjustment_val = await adjust_relationship_value_nonlinear(current_relationship_value, raw_adjustment_val)
 
