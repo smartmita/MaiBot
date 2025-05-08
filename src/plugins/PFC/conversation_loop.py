@@ -69,10 +69,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             conversation_instance.ignore_until_timestamp
             and loop_iter_start_time < conversation_instance.ignore_until_timestamp
         ):
-            if (
-                conversation_instance.idle_chat
-                and conversation_instance.idle_chat._running
-            ):
+            if conversation_instance.idle_chat and conversation_instance.idle_chat._running:
                 # 不直接停止服务，改为暂时忽略此用户
                 # 虽然我们仍然可以通过active_instances_count来决定是否触发主动聊天
                 # 但为了安全起见，我们只记录一个日志

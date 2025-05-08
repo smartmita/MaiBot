@@ -27,6 +27,7 @@ install(extra_lines=3)
 # 获取当前模块的日志记录器
 logger = get_logger("idle_conversation_starter")
 
+
 class IdleConversationStarter:
     """长时间无对话主动发起对话的组件
 
@@ -239,7 +240,7 @@ class IdleConversationStarter:
 
             # 在函数内部导入PFCManager，避免循环导入
             from ..pfc_manager import PFCManager
-            
+
             # 获取当前实例 - 注意这是同步方法，不需要await
             pfc_manager = PFCManager.get_instance()
 
