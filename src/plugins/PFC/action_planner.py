@@ -6,10 +6,10 @@ from src.common.logger_manager import get_logger
 # from src.individuality.individuality import Individuality
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from ..models.utils_model import LLMRequest
-from ...config.config import global_config
+from src.config.config import global_config
 
 # 确保导入路径正确
-from .pfc_utils import get_items_from_json, retrieve_contextual_info
+from .pfc_utils import get_items_from_json
 from .chat_observer import ChatObserver
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
@@ -191,7 +191,7 @@ class ActionPlanner:
         observation_info: ObservationInfo,
         conversation_info: ConversationInfo,
         last_successful_reply_action: Optional[str],
-        use_reflect_prompt: bool = False # 新增参数，用于指示是否使用PROMPT_REFLECT_AND_ACT
+        use_reflect_prompt: bool = False,  # 新增参数，用于指示是否使用PROMPT_REFLECT_AND_ACT
     ) -> Tuple[str, str]:
         """
         规划下一步行动。
@@ -223,12 +223,12 @@ class ActionPlanner:
 
             persona_text = f"{self.name}。"
             action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
-            retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
-                chat_history_text, self.private_name
-            )
-            logger.info(
-                f"[私聊][{self.private_name}] (ActionPlanner) 检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and '出错' not in retrieved_knowledge_str else '无'}"
-            )
+            # retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
+            #     chat_history_text, self.private_name
+            # )
+            # logger.info(
+            #     f"[私聊][{self.private_name}] (ActionPlanner) 检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and '出错' not in retrieved_knowledge_str else '无'}"
+            # )
         except Exception as prep_err:
             logger.error(f"[私聊][{self.private_name}] 准备 Prompt 输入时出错: {prep_err}")
             logger.error(traceback.format_exc())
@@ -278,8 +278,8 @@ class ActionPlanner:
                 time_since_last_bot_message_info=time_since_last_bot_message_info,
                 timeout_context=timeout_context,
                 chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
-                retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
+                # retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
+                # retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
                 current_time_str=current_time_value,
                 spam_warning_info=spam_warning_message,
                 sender_name=sender_name_str,
@@ -324,10 +324,18 @@ class ActionPlanner:
         if initial_action == "end_conversation":
             try:
                 time_str_for_end_decision = "获取时间失败"
-                if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
+                if (
+                    observation_info
+                    and hasattr(observation_info, "current_time_str")
+                    and observation_info.current_time_str
+                ):
                     time_str_for_end_decision = observation_info.current_time_str
                 final_action, final_reason = await self._handle_end_conversation_decision(
-                    persona_text, chat_history_text, initial_reason,time_str_for_end_decision
+                    persona_text,
+                    chat_history_text, initial_reason, 
+                    time_str_for_end_decision, 
+                    sender_name_str=sender_name_str,
+                    relationship_text_str=relationship_text_str
                 )
             except Exception as end_dec_err:
                 logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
@@ -553,11 +561,11 @@ class ActionPlanner:
     # --- Helper method for handling end_conversation decision  ---
 
     async def _handle_end_conversation_decision(
-        self, persona_text: str, chat_history_text: str, initial_reason: str, current_time_str: str
+        self, persona_text: str, chat_history_text: str, initial_reason: str, current_time_str: str, sender_name_str: str, relationship_text_str: str
     ) -> Tuple[str, str]:
         """处理结束对话前的告别决策"""
         logger.info(f"[私聊][{self.private_name}] 初步规划结束对话，进入告别决策...")
-        end_decision_prompt = PROMPT_END_DECISION.format(persona_text=persona_text, chat_history_text=chat_history_text,current_time_str=current_time_str)
+        end_decision_prompt = PROMPT_END_DECISION.format(persona_text=persona_text, chat_history_text=chat_history_text,current_time_str=current_time_str,sender_name = sender_name_str, relationship_text = relationship_text_str)
         logger.debug(f"[私聊][{self.private_name}] 发送到LLM的结束决策提示词:\n------\n{end_decision_prompt}\n------")
         llm_start_time = time.time()
         end_content, _ = await self.llm.generate_response_async(end_decision_prompt)
