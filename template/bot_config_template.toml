@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.5"
+version = "1.6.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -191,7 +191,7 @@ pfc_chatting = false # 是否启用PFC聊天，该功能仅作用于私聊，与
 enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 
 [idle_conversation]
-enable_idle_conversation = false
+enable_idle_conversation = false # 是否启用 pfc 主动发言
 idle_check_interval = 10  # 检查间隔，10分钟检查一次
 min_idle_time = 7200      # 最短无活动时间，2小时 (7200秒)
 max_idle_time = 18000     # 最长无活动时间，5小时 (18000秒)
@@ -288,13 +288,6 @@ pri_out = 8
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-pri_in = 2
-pri_out = 8
-
-#PFC检查模型
-[model.llm_PFC_reply_checker]
-name = "Pro/deepseek-ai/DeepSeek-V3"
-provider = "SILICONFLOW"
 pri_in = 2
 pri_out = 8
 
