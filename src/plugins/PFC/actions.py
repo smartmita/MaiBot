@@ -361,7 +361,7 @@ async def handle_action(
                             observation_info.chat_history_str = "[构建聊天记录出错]"
                     # --- 新增结束 ---
 
-                    # 更新 idle_conversation_starter 的最后消息时间
+                    # 更新 idle_chat 的最后消息时间
                     # (避免在发送消息后很快触发主动聊天)
                     if conversation_instance.idle_chat:
                         await conversation_instance.idle_chat.update_last_message_time(send_end_time)
@@ -506,7 +506,7 @@ async def handle_action(
                     action_successful = True  # 标记成功
                     # final_status 和 final_reason 会在 finally 中设置
                     logger.info(f"[私聊][{conversation_instance.private_name}] 成功发送告别语，即将停止对话实例。")
-                    # 更新 idle_conversation_starter 的最后消息时间
+                    # 更新 idle_chat 的最后消息时间
                     # (避免在发送消息后很快触发主动聊天)
                     if conversation_instance.idle_chat:
                         await conversation_instance.idle_chat.update_last_message_time(send_end_time)
