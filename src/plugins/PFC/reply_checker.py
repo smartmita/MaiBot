@@ -1,13 +1,7 @@
-
-import json
 from typing import Tuple, List, Dict, Any
 from src.common.logger import get_module_logger
-# LLMRequest 和 global_config 不再需要直接在此文件中使用（除非 ReplyChecker 以后有其他功能）
-# from ..models.utils_model import LLMRequest # <--- 移除
-# from ...config.config import global_config # <--- 移除，但下面会用到 bot_id
-from ...config.config import global_config # 为了获取 BOT_QQ
+from src.config.config import global_config # 为了获取 BOT_QQ
 from .chat_observer import ChatObserver
-from maim_message import UserInfo # 保持，可能用于未来扩展，但当前逻辑不直接使用
 
 logger = get_module_logger("reply_checker")
 

@@ -1,5 +1,4 @@
 import time
-import asyncio
 import traceback
 from typing import TYPE_CHECKING
 

@@ -141,7 +141,8 @@ def get_items_from_json(
                             valid_item = False
                             break # 这个元素无效
 
-                    if not valid_item: continue
+                    if not valid_item:
+                        continue
 
                     # 验证类型
                     if required_types:
@@ -152,7 +153,8 @@ def get_items_from_json(
                                 valid_item = False
                                 break
 
-                    if not valid_item: continue
+                    if not valid_item:
+                        continue
                     
                     # 验证字符串不为空 (只检查 items 中要求的字段)
                     for field in items:

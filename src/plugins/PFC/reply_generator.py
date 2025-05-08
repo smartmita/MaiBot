@@ -1,12 +1,6 @@
 import random
 from .pfc_utils import retrieve_contextual_info
 
-# 可能用于旧知识库提取主题 (如果需要回退到旧方法)
-# import jieba # 如果报错说找不到 jieba，可能需要安装: pip install jieba
-# import re    # 正则表达式库，通常 Python 自带
-from typing import Tuple, List, Dict, Any
-
-# from src.common.logger import get_module_logger
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -227,15 +221,16 @@ class ReplyGenerator:
             chat_history_text = "还没有聊天记录。"
         else:
             chat_history_text += (
-                f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+                "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
             )
 
         sender_name_str = getattr(observation_info, 'sender_name', '对方')
-        if not sender_name_str: sender_name_str = '对方'
+        if not sender_name_str: 
+            sender_name_str = '对方'
 
         relationship_text_str = getattr(conversation_info, 'relationship_text', '你们还不熟悉。')
         current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
-  
+
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
         retrieval_context = chat_history_text
         retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(

@@ -100,7 +100,7 @@ class GoalAnalyzer:
             chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
         else:
             chat_history_text += (
-                f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+                "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
             )
             # await observation_info.clear_unprocessed_messages()
 
@@ -284,65 +284,3 @@ class GoalAnalyzer:
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]分析对话状态时出错: {str(e)}")
             return False, False, f"分析出错: {str(e)}"
-
-
-# 先注释掉，万一以后出问题了还能开回来（（（
-# class DirectMessageSender:
-#     """直接发送消息到平台的发送器"""
-
-#     def __init__(self, private_name: str):
-#         self.logger = get_module_logger("direct_sender")
-#         self.storage = MessageStorage()
-#         self.private_name = private_name
-
-#     async def send_via_ws(self, message: MessageSending) -> None:
-#         try:
-#             await global_api.send_message(message)
-#         except Exception as e:
-#             raise ValueError(f"未找到平台：{message.message_info.platform} 的url配置，请检查配置文件") from e
-
-#     async def send_message(
-#         self,
-#         chat_stream: ChatStream,
-#         content: str,
-#         reply_to_message: Optional[Message] = None,
-#     ) -> None:
-#         """直接发送消息到平台
-
-#         Args:
-#             chat_stream: 聊天流
-#             content: 消息内容
-#             reply_to_message: 要回复的消息
-#         """
-#         # 构建消息对象
-#         message_segment = Seg(type="text", data=content)
-#         bot_user_info = UserInfo(
-#             user_id=global_config.BOT_QQ,
-#             user_nickname=global_config.BOT_NICKNAME,
-#             platform=chat_stream.platform,
-#         )
-
-#         message = MessageSending(
-#             message_id=f"dm{round(time.time(), 2)}",
-#             chat_stream=chat_stream,
-#             bot_user_info=bot_user_info,
-#             sender_info=reply_to_message.message_info.user_info if reply_to_message else None,
-#             message_segment=message_segment,
-#             reply=reply_to_message,
-#             is_head=True,
-#             is_emoji=False,
-#             thinking_start_time=time.time(),
-#         )
-
-#         # 处理消息
-#         await message.process()
-
-#         _message_json = message.to_dict()
-
-#         # 发送消息
-#         try:
-#             await self.send_via_ws(message)
-#             await self.storage.store_message(message, chat_stream)
-#             logger.success(f"[私聊][{self.private_name}]PFC消息已发送: {content}")
-#         except Exception as e:
-#             logger.error(f"[私聊][{self.private_name}]PFC消息发送失败: {str(e)}")

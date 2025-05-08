@@ -2,7 +2,7 @@ import time
 import asyncio
 import datetime
 import traceback
-from typing import Dict, Any, Optional, Set, List, TYPE_CHECKING
+from typing import Dict, Any, List, TYPE_CHECKING
 from dateutil import tz
 
 from src.common.logger_manager import get_logger
@@ -176,7 +176,8 @@ async def run_conversation_loop(conversation_instance: 'Conversation'):
                 logger.info(f"[私聊][{conversation_instance.private_name}] (Loop) 中断 '{action}'，原因: {interrupt_reason}。重新规划...")
                 cancel_record = { "action": action, "plan_reason": reason, "status": "cancelled_due_to_new_messages", "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"), "final_reason": interrupt_reason, }
                 if conversation_instance.conversation_info:
-                    if not hasattr(conversation_instance.conversation_info, "done_action") or conversation_instance.conversation_info.done_action is None: conversation_instance.conversation_info.done_action = []
+                    if not hasattr(conversation_instance.conversation_info, "done_action") or conversation_instance.conversation_info.done_action is None:
+                        conversation_instance.conversation_info.done_action = []
                     conversation_instance.conversation_info.done_action.append(cancel_record)
                     conversation_instance.conversation_info.last_successful_reply_action = None
                 conversation_instance.state = ConversationState.ANALYZING
@@ -204,7 +205,8 @@ async def run_conversation_loop(conversation_instance: 'Conversation'):
             if conversation_instance.conversation_info and hasattr(conversation_instance.conversation_info, "goal_list") and conversation_instance.conversation_info.goal_list:
                 last_goal_item = conversation_instance.conversation_info.goal_list[-1]
                 current_goal = last_goal_item.get("goal") if isinstance(last_goal_item, dict) else (last_goal_item if isinstance(last_goal_item, str) else None)
-                if current_goal == "结束对话": goal_ended = True
+                if current_goal == "结束对话":
+                    goal_ended = True
 
             last_action_record_for_end_check = {}
             if conversation_instance.conversation_info and conversation_instance.conversation_info.done_action:
