@@ -295,10 +295,9 @@ pri_out = 8
 [model.llm_PFC_relationship_eval]
 name = "Pro/deepseek-ai/DeepSeek-V3" # 或者其他你认为适合判断任务的模型
 provider = "SILICONFLOW"
-temp = 0.4 # 判断任务建议温度稍低
-max_tokens = 512 # 根据Prompt长度和期望输出来调整
-pri_in = 2 # 价格信息（可选）
-pri_out = 8 # 价格信息（可选）
+temp = 0.4
+pri_in = 2
+pri_out = 8
 
 #以下模型暂时没有使用！！
 #以下模型暂时没有使用！！
