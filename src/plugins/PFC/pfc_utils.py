@@ -310,7 +310,7 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
         )
         return None  # 返回 None 表示失败
 
-async def adjust_relationship_value_nonlinear(self, old_value: float, raw_adjustment: float) -> float:
+async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: float) -> float:
     # 限制 old_value 范围
     old_value = max(-1000, min(1000, old_value))
     value = raw_adjustment
