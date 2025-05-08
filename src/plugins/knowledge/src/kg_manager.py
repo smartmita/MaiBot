@@ -31,6 +31,14 @@ from .lpmmconfig import (
 
 from .global_logger import logger
 
+ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+KG_DIR = (
+    os.path.join(ROOT_PATH, "data/rag")
+    if global_config["persistence"]["rag_data_dir"] is None
+    else os.path.join(ROOT_PATH, global_config["persistence"]["rag_data_dir"])
+)
+KG_DIR_STR = str(KG_DIR).replace("\\", "/")
+
 
 class KGManager:
     def __init__(self):
@@ -43,7 +51,7 @@ class KGManager:
         self.graph = di_graph.DiGraph()
 
         # 持久化相关
-        self.dir_path = global_config["persistence"]["rag_data_dir"]
+        self.dir_path = KG_DIR_STR
         self.graph_data_path = self.dir_path + "/" + RAG_GRAPH_NAMESPACE + ".graphml"
         self.ent_cnt_data_path = self.dir_path + "/" + RAG_ENT_CNT_NAMESPACE + ".parquet"
         self.pg_hash_file_path = self.dir_path + "/" + RAG_PG_HASH_NAMESPACE + ".json"

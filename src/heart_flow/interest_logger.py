@@ -158,3 +158,55 @@ class InterestLogger:
         except Exception as e:
             logger.error(f"记录状态时发生意外错误: {e}")
             logger.error(traceback.format_exc())
+
+    async def api_get_all_states(self):
+        """获取主心流和所有子心流的状态。"""
+        try:
+            current_timestamp = time.time()
+
+            # main_mind = self.heartflow.current_mind
+            # 获取 Mai 状态名称
+            mai_state_name = self.heartflow.current_state.get_current_state().name
+
+            all_subflow_states = await self.get_all_subflow_states()
+
+            log_entry_base = {
+                "timestamp": round(current_timestamp, 2),
+                # "main_mind": main_mind,
+                "mai_state": mai_state_name,
+                "subflow_count": len(all_subflow_states),
+                "subflows": [],
+            }
+
+            subflow_details = []
+            items_snapshot = list(all_subflow_states.items())
+            for stream_id, state in items_snapshot:
+                group_name = stream_id
+                try:
+                    chat_stream = chat_manager.get_stream(stream_id)
+                    if chat_stream:
+                        if chat_stream.group_info:
+                            group_name = chat_stream.group_info.group_name
+                        elif chat_stream.user_info:
+                            group_name = f"私聊_{chat_stream.user_info.user_nickname}"
+                except Exception as e:
+                    logger.trace(f"无法获取 stream_id {stream_id} 的群组名: {e}")
+
+                interest_state = state.get("interest_state", {})
+
+                subflow_entry = {
+                    "stream_id": stream_id,
+                    "group_name": group_name,
+                    "sub_mind": state.get("current_mind", "未知"),
+                    "sub_chat_state": state.get("chat_state", "未知"),
+                    "interest_level": interest_state.get("interest_level", 0.0),
+                    "start_hfc_probability": interest_state.get("start_hfc_probability", 0.0),
+                    # "is_above_threshold": interest_state.get("is_above_threshold", False),
+                }
+                subflow_details.append(subflow_entry)
+
+            log_entry_base["subflows"] = subflow_details
+            return subflow_details
+        except Exception as e:
+            logger.error(f"记录状态时发生意外错误: {e}")
+            logger.error(traceback.format_exc())

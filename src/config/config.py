@@ -277,6 +277,13 @@ class BotConfig:
     # enable_think_flow: bool = False  # 是否启用思考流程
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
+    enable_pfc_reply_checker: bool = True  # 是否开启PFC回复检查
+
+    # idle_conversation
+    enable_idle_conversation: bool = False  # 是否启用 pfc 主动发言
+    idle_check_interval: int = 10  # 检查间隔，10分钟检查一次
+    min_idle_time: int = 7200  # 最短无活动时间，2小时 (7200秒)
+    max_idle_time: int = 18000  # 最长无活动时间，5小时 (18000秒)
     api_polling_max_retries: int = 3  # 神秘小功能
 
     # Group Nickname
@@ -528,7 +535,7 @@ class BotConfig:
                 "llm_heartflow",
                 "llm_PFC_action_planner",
                 "llm_PFC_chat",
-                "llm_PFC_reply_checker",
+                "llm_PFC_relationship_eval",
                 "llm_nickname_mapping",
                 "llm_scheduler_all",
                 "llm_scheduler_doing",
@@ -709,6 +716,11 @@ class BotConfig:
                 config.enable_pfc_chatting = experimental_config.get("pfc_chatting", config.enable_pfc_chatting)
             if config.INNER_VERSION in SpecifierSet(">=1.6.1.5"):
                 config.api_polling_max_retries = experimental_config.get("api_polling_max_retries", config.api_polling_max_retries)
+            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+                config.enable_pfc_reply_checker = experimental_config.get(
+                    "enable_pfc_reply_checker", config.enable_pfc_reply_checker
+                )
+                logger.info(f"PFC Reply Checker 状态: {'启用' if config.enable_pfc_reply_checker else '关闭'}")
 
         def idle_conversation(parent: dict):
             idle_conversation_config = parent["idle_conversation"]

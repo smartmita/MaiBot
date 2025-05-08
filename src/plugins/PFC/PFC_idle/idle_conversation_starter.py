@@ -1,21 +1,31 @@
-from typing import TYPE_CHECKING, Optional
-import asyncio
 import time
+import asyncio
 import random
-from src.common.logger import get_module_logger
-from ..models.utils_model import LLMRequest
+import traceback
+from typing import TYPE_CHECKING, Optional
+
+from src.common.logger_manager import get_logger
+from src.plugins.models.utils_model import LLMRequest
 from src.config.config import global_config
-from .chat_observer import ChatObserver
-from .message_sender import DirectMessageSender
-from ..chat.chat_stream import ChatStream
-from maim_message import UserInfo
+from src.plugins.chat.chat_stream import chat_manager, ChatStream
 from src.individuality.individuality import Individuality
 from src.plugins.utils.chat_message_builder import build_readable_messages
+from maim_message import UserInfo
 
+from ..chat_observer import ChatObserver
+from ..message_sender import DirectMessageSender
+
+# 导入富文本回溯，用于更好的错误展示
+from rich.traceback import install
+
+# 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:
-    from .conversation import Conversation
+    from ..conversation import Conversation
 
-logger = get_module_logger("pfc_idle")
+install(extra_lines=3)
+
+# 获取当前模块的日志记录器
+logger = get_logger("idle_conversation_starter")
 
 
 class IdleConversationStarter:
@@ -125,6 +135,7 @@ class IdleConversationStarter:
 
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]重新加载配置时出错: {str(e)}")
+            logger.error(traceback.format_exc())
 
     async def _check_idle_loop(self) -> None:
         """检查空闲状态的循环
@@ -167,6 +178,7 @@ class IdleConversationStarter:
             logger.debug(f"[私聊][{self.private_name}]空闲对话检测任务被取消")
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]空闲对话检测出错: {str(e)}")
+            logger.error(traceback.format_exc())
             # 尝试重新启动检测循环
             if self._running:
                 logger.info(f"[私聊][{self.private_name}]尝试重新启动空闲对话检测")
@@ -175,7 +187,7 @@ class IdleConversationStarter:
     async def _initiate_conversation(self) -> None:
         """生成并发送主动对话内容
 
-        获取聊天历史记录，使用LLM生成合适的开场白，然后发送消息。
+        获取聊天历史记录，使用LLM生成合适的开场白（大概），然后发送消息。
         """
         try:
             # 获取聊天历史记录，用于生成更合适的开场白
@@ -212,6 +224,7 @@ class IdleConversationStarter:
                 return
             except Exception as llm_err:
                 logger.error(f"[私聊][{self.private_name}]生成主动对话内容失败: {str(llm_err)}")
+                logger.error(traceback.format_exc())
                 return
 
             # 清理结果
@@ -225,9 +238,10 @@ class IdleConversationStarter:
             # 统一错误处理，从这里开始所有操作都在同一个try-except块中
             logger.debug(f"[私聊][{self.private_name}]成功生成主动对话内容: {content}，准备发送")
 
-            from .pfc_manager import PFCManager
+            # 在函数内部导入PFCManager，避免循环导入
+            from ..pfc_manager import PFCManager
 
-            # 获取当前实例
+            # 获取当前实例 - 注意这是同步方法，不需要await
             pfc_manager = PFCManager.get_instance()
 
             # 结束当前对话实例（如果存在）
@@ -239,6 +253,7 @@ class IdleConversationStarter:
                     await pfc_manager.remove_conversation(self.stream_id)
                 except Exception as e:
                     logger.warning(f"[私聊][{self.private_name}]结束当前对话实例时出错: {str(e)}，继续创建新实例")
+                    logger.warning(traceback.format_exc())
 
             # 创建新的对话实例
             logger.info(f"[私聊][{self.private_name}]创建新的对话实例以发送主动消息")
@@ -247,6 +262,7 @@ class IdleConversationStarter:
                 new_conversation = await pfc_manager.get_or_create_conversation(self.stream_id, self.private_name)
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]创建新对话实例失败: {str(e)}")
+                logger.error(traceback.format_exc())
                 return
 
             # 确保新对话实例已初始化完成
@@ -269,14 +285,17 @@ class IdleConversationStarter:
                         new_conversation.chat_observer.trigger_update()
                     except Exception as e:
                         logger.warning(f"[私聊][{self.private_name}]触发聊天观察者更新失败: {str(e)}")
+                        logger.warning(traceback.format_exc())
 
-                logger.success(f"[私聊][{self.private_name}]成功主动发起对话: {content}")
+                logger.info(f"[私聊][{self.private_name}]成功主动发起对话: {content}")
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]发送主动对话消息失败: {str(e)}")
+                logger.error(traceback.format_exc())
 
         except Exception as e:
             # 顶级异常处理，确保任何未捕获的异常都不会导致整个进程崩溃
             logger.error(f"[私聊][{self.private_name}]主动发起对话过程中发生未预期的错误: {str(e)}")
+            logger.error(traceback.format_exc())
 
     async def _get_chat_stream(self, conversation: Optional["Conversation"] = None) -> Optional[ChatStream]:
         """获取可用的聊天流
@@ -313,8 +332,6 @@ class IdleConversationStarter:
                 return conversation.chat_stream
 
         # 2. 尝试从聊天管理器获取
-        from src.plugins.chat.chat_stream import chat_manager
-
         try:
             logger.info(f"[私聊][{self.private_name}]尝试从chat_manager获取聊天流")
             chat_stream = chat_manager.get_stream(self.stream_id)
@@ -322,6 +339,7 @@ class IdleConversationStarter:
                 return chat_stream
         except Exception as e:
             logger.warning(f"[私聊][{self.private_name}]从chat_manager获取聊天流失败: {str(e)}")
+            logger.warning(traceback.format_exc())
 
         # 3. 创建新的聊天流
         try:
@@ -332,4 +350,5 @@ class IdleConversationStarter:
             return ChatStream(self.stream_id, "qq", user_info)
         except Exception as e:
             logger.error(f"[私聊][{self.private_name}]创建新聊天流失败: {str(e)}")
+            logger.error(traceback.format_exc())
             return None

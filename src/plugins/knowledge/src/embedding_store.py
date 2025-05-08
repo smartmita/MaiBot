@@ -28,6 +28,12 @@ from rich.progress import (
 
 install(extra_lines=3)
 ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "..", ".."))
+EMBEDDING_DATA_DIR = (
+    os.path.join(ROOT_PATH, "data", "embedding")
+    if global_config["persistence"]["embedding_data_dir"] is None
+    else os.path.join(ROOT_PATH, global_config["persistence"]["embedding_data_dir"])
+)
+EMBEDDING_DATA_DIR_STR = str(EMBEDDING_DATA_DIR).replace("\\", "/")
 TOTAL_EMBEDDING_TIMES = 3  # 统计嵌入次数
 
 # 嵌入模型测试字符串，测试模型一致性，来自开发群的聊天记录
@@ -288,17 +294,17 @@ class EmbeddingManager:
         self.paragraphs_embedding_store = EmbeddingStore(
             llm_client,
             PG_NAMESPACE,
-            global_config["persistence"]["embedding_data_dir"],
+            EMBEDDING_DATA_DIR_STR,
         )
         self.entities_embedding_store = EmbeddingStore(
             llm_client,
             ENT_NAMESPACE,
-            global_config["persistence"]["embedding_data_dir"],
+            EMBEDDING_DATA_DIR_STR,
         )
         self.relation_embedding_store = EmbeddingStore(
             llm_client,
             REL_NAMESPACE,
-            global_config["persistence"]["embedding_data_dir"],
+            EMBEDDING_DATA_DIR_STR,
         )
         self.stored_pg_hashes = set()
 

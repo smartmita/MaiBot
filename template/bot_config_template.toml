@@ -69,7 +69,7 @@ nonebot-qq="http://127.0.0.1:18002/api/message"
 [chat] #麦麦的聊天通用设置
 allow_focus_mode = true # 是否允许专注聊天状态
 # 是否启用heart_flowC(HFC)模式
-# 启用后麦麦会自主选择进入heart_flowC模式(持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
+# 启用后麦麦会自主选择进入heart_flowC模式（持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
 base_normal_chat_num = 8 # 最多允许多少个群进行普通聊天
 base_focused_chat_num = 5 # 最多允许多少个群进行专注聊天
 allow_remove_duplicates = true # 是否开启心流去重（如果发现心流截断问题严重可尝试关闭）
@@ -201,9 +201,10 @@ enable_friend_chat = false # 是否启用好友聊天
 talk_allowed_private = [] # 可以回复消息的QQ号
 pfc_chatting = false # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
 api_polling_max_retries = 3
+enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 
 [idle_conversation]
-enable_idle_conversation = true
+enable_idle_conversation = false # 是否启用 pfc 主动发言
 idle_check_interval = 10  # 检查间隔，10分钟检查一次
 min_idle_time = 7200      # 最短无活动时间，2小时 (7200秒)
 max_idle_time = 18000     # 最长无活动时间，5小时 (18000秒)
@@ -303,10 +304,11 @@ temp = 0.3
 pri_in = 2
 pri_out = 8
 
-#PFC检查模型
-[model.llm_PFC_reply_checker]
-name = "Pro/deepseek-ai/DeepSeek-V3"
+# PFC 关系评估LLM
+[model.llm_PFC_relationship_eval]
+name = "Pro/deepseek-ai/DeepSeek-V3" # 或者其他你认为适合判断任务的模型
 provider = "SILICONFLOW"
+temp = 0.4
 pri_in = 2
 pri_out = 8
 

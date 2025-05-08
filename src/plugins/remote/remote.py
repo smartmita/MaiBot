@@ -5,15 +5,13 @@ import platform
 import os
 import json
 import threading
-from src.common.logger import get_module_logger, LogConfig, REMOTE_STYLE_CONFIG
+import subprocess
+
+# from loguru import logger
+from src.common.logger_manager import get_logger
 from src.config.config import global_config
 
-
-remote_log_config = LogConfig(
-    console_format=REMOTE_STYLE_CONFIG["console_format"],
-    file_format=REMOTE_STYLE_CONFIG["file_format"],
-)
-logger = get_module_logger("remote", config=remote_log_config)
+logger = get_logger("remote")
 
 # --- 使用向上导航的方式定义路径 ---
 
@@ -82,9 +80,76 @@ def get_unique_id():
 
 # 生成客户端唯一ID
 def generate_unique_id():
-    # 结合主机名、系统信息和随机UUID生成唯一ID
+    # 基于机器码生成唯一ID，同一台机器上生成的UUID是固定的，只要机器码不变
+    import hashlib
+
     system_info = platform.system()
-    unique_id = f"{system_info}-{uuid.uuid4()}"
+    machine_code = None
+
+    try:
+        if system_info == "Windows":
+            # 使用wmic命令获取主机UUID（更稳定）
+            result = subprocess.check_output(
+                "wmic csproduct get uuid", shell=True, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL
+            )
+            lines = result.decode(errors="ignore").splitlines()
+            # 过滤掉空行和表头，只取有效UUID
+            uuids = [line.strip() for line in lines if line.strip() and line.strip().lower() != "uuid"]
+            if uuids:
+                uuid_val = uuids[0]
+                # logger.debug(f"主机UUID: {uuid_val}")
+                # 增加无效值判断
+                if uuid_val and uuid_val.lower() not in ["to be filled by o.e.m.", "none", "", "standard"]:
+                    machine_code = uuid_val
+        elif system_info == "Linux":
+            # 优先读取 /etc/machine-id，其次 /var/lib/dbus/machine-id，取第一个非空且内容有效的
+            for path in ["/etc/machine-id", "/var/lib/dbus/machine-id"]:
+                if os.path.exists(path):
+                    with open(path, "r") as f:
+                        code = f.read().strip()
+                        # 只要内容非空且不是全0
+                        if code and set(code) != {"0"}:
+                            machine_code = code
+                            break
+        elif system_info == "Darwin":
+            # macOS: 使用IOPlatformUUID
+            result = subprocess.check_output(
+                "ioreg -rd1 -c IOPlatformExpertDevice | awk '/IOPlatformUUID/'", shell=True
+            )
+            uuid_line = result.decode(errors="ignore")
+            # 解析出 "IOPlatformUUID" = "xxxx-xxxx-xxxx-xxxx"
+            import re
+
+            m = re.search(r'"IOPlatformUUID"\s*=\s*"([^"]+)"', uuid_line)
+            if m:
+                uuid_val = m.group(1)
+                logger.debug(f"IOPlatformUUID: {uuid_val}")
+                if uuid_val and uuid_val.lower() not in ["to be filled by o.e.m.", "none", "", "standard"]:
+                    machine_code = uuid_val
+    except Exception as e:
+        logger.debug(f"获取机器码失败: {e}")
+
+    # 如果主板序列号无效，尝试用MAC地址
+    if not machine_code:
+        try:
+            mac = uuid.getnode()
+            if (mac >> 40) % 2 == 0:  # 不是本地伪造MAC
+                machine_code = str(mac)
+        except Exception as e:
+            logger.debug(f"获取MAC地址失败: {e}")
+
+    def md5_to_uuid(md5hex):
+        # 将32位md5字符串格式化为8-4-4-4-12的UUID格式
+        return f"{md5hex[0:8]}-{md5hex[8:12]}-{md5hex[12:16]}-{md5hex[16:20]}-{md5hex[20:32]}"
+
+    if machine_code:
+        # print(f"machine_code={machine_code!r}")  # 可用于调试
+        md5 = hashlib.md5(machine_code.encode("utf-8")).hexdigest()
+        uuid_str = md5_to_uuid(md5)
+    else:
+        uuid_str = str(uuid.uuid4())
+
+    unique_id = f"{system_info}-{uuid_str}"
     return unique_id
 
 
@@ -175,3 +240,9 @@ def main():
 
         return heartbeat_thread  # 返回线程对象，便于外部控制
     return None
+
+
+# --- 测试用例 ---
+if __name__ == "__main__":
+    print("测试唯一ID生成：")
+    print("唯一ID:", get_unique_id())
