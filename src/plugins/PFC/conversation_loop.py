@@ -28,7 +28,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
     核心的规划与行动循环 (PFC Loop)。
     之前是 Conversation 类中的 _plan_and_action_loop 方法。
     """
-    logger.info(f"[私聊][{conversation_instance.private_name}] 进入 run_conversation_loop 循环。")
+    logger.debug(f"[私聊][{conversation_instance.private_name}] 进入 run_conversation_loop 循环。")
 
     if not conversation_instance._initialized:
         logger.error(f"[私聊][{conversation_instance.private_name}] 尝试在未初始化状态下运行规划循环，退出。")
