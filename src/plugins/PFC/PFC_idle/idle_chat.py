@@ -148,8 +148,8 @@ class IdleChat:
         self.max_cooldown = global_config.max_idle_time  # 最长冷却时间（默认5小时）
         self.check_interval = global_config.idle_check_interval * 60  # 检查间隔（默认10分钟，转换为秒）
         self.active_hours_start = 7  # 活动开始时间
-        self.active_hours_end = 23   # 活动结束时间
-        
+        self.active_hours_end = 23  # 活动结束时间
+
         # 关系值相关
         self.base_trigger_probability = 0.3  # 基础触发概率
         self.relationship_factor = 0.0003  # 关系值影响因子
