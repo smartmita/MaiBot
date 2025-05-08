@@ -103,8 +103,6 @@ PROMPT_SEND_NEW_MESSAGE = """
 
 {last_rejection_info}
 
-{spam_warning_info}
-
 请根据上述信息，判断你是否要继续发一条新消息（例如对之前消息的补充，深入话题，或追问等等）。如果你觉得要发送，该消息应该：
 1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
 2. 符合你的性格特征和身份细节
@@ -280,14 +278,14 @@ class ReplyGenerator:
                 )
 
         # 新增：构建刷屏警告信息 for PROMPT_SEND_NEW_MESSAGE
-        spam_warning_message = ""
-        if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
-            if conversation_info.my_message_count > 5:
-                spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
-            elif conversation_info.my_message_count > 2:
-                spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
-            if spam_warning_message:
-                spam_warning_message = f"\n{spam_warning_message}\n"
+        # spam_warning_message = ""
+        # if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
+            # if conversation_info.my_message_count > 5:
+                # spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
+            # elif conversation_info.my_message_count > 2:
+                # spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
+            # if spam_warning_message:
+                # spam_warning_message = f"\n{spam_warning_message}\n"
 
         # --- 选择 Prompt ---
         if action_type == "send_new_message":
@@ -326,7 +324,7 @@ class ReplyGenerator:
 
             if action_type == "send_new_message":
                 current_format_params = base_format_params.copy()
-                current_format_params["spam_warning_info"] = spam_warning_message
+                # current_format_params["spam_warning_info"] = spam_warning_message
                 prompt = prompt_template.format(**current_format_params)
             elif action_type == "say_goodbye":
                 farewell_params = {

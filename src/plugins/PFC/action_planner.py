@@ -39,7 +39,6 @@ PROMPT_INITIAL_REPLY = """
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
 
-{spam_warning_info}
 
 ------
 可选行动类型以及解释：
@@ -75,8 +74,6 @@ PROMPT_FOLLOW_UP = """
 {time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-
-{spam_warning_info}
 
 ------
 可选行动类型以及解释：
@@ -137,7 +134,6 @@ PROMPT_REFLECT_AND_ACT = """
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
 
-{spam_warning_info}
 
 ------
 可选行动类型以及解释：
@@ -243,27 +239,27 @@ class ActionPlanner:
                 log_msg = "使用 PROMPT_REFLECT_AND_ACT (反思决策)"
                 # 对于 PROMPT_REFLECT_AND_ACT，它不包含 send_new_message 选项，所以 spam_warning_message 中的相关提示可以调整或省略
                 # 但为了保持占位符填充的一致性，我们仍然计算它
-                spam_warning_message = ""
-                if conversation_info.my_message_count > 5:  # 这里的 my_message_count 仍有意义，表示之前连续发送了多少
-                    spam_warning_message = (
-                        f"⚠️【警告】**你之前已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎决策。**"
-                    )
-                elif conversation_info.my_message_count > 2:
-                    spam_warning_message = f"💬【提示】**你之前已连续发送{str(conversation_info.my_message_count)}条消息。请注意保持对话平衡。**"
+                # spam_warning_message = ""
+                # if conversation_info.my_message_count > 5:  # 这里的 my_message_count 仍有意义，表示之前连续发送了多少
+                    # spam_warning_message = (
+                        # f"⚠️【警告】**你之前已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎决策。**"
+                    # )
+                # elif conversation_info.my_message_count > 2:
+                    # spam_warning_message = f"💬【提示】**你之前已连续发送{str(conversation_info.my_message_count)}条消息。请注意保持对话平衡。**"
 
             elif last_successful_reply_action in ["direct_reply", "send_new_message"]:
                 prompt_template = PROMPT_FOLLOW_UP
                 log_msg = "使用 PROMPT_FOLLOW_UP (追问决策)"
-                spam_warning_message = ""
-                if conversation_info.my_message_count > 5:
-                    spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请注意不要再选择send_new_message！以免刷屏对造成对方困扰！**"
-                elif conversation_info.my_message_count > 2:
-                    spam_warning_message = f"💬【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息。请保持理智，如果非必要，请避免选择send_new_message，以免给对方造成困扰。**"
+                # spam_warning_message = ""
+                # if conversation_info.my_message_count > 5:
+                    # spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请注意不要再选择send_new_message！以免刷屏对造成对方困扰！**"
+                # elif conversation_info.my_message_count > 2:
+                    # spam_warning_message = f"💬【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息。请保持理智，如果非必要，请避免选择send_new_message，以免给对方造成困扰。**"
 
             else:
                 prompt_template = PROMPT_INITIAL_REPLY
                 log_msg = "使用 PROMPT_INITIAL_REPLY (首次/非连续回复决策)"
-                spam_warning_message = ""  # 初始回复时通常不需要刷屏警告
+                # spam_warning_message = ""  # 初始回复时通常不需要刷屏警告
 
             logger.debug(f"[私聊][{self.private_name}] {log_msg}")
 
@@ -271,8 +267,8 @@ class ActionPlanner:
             if observation_info and hasattr(observation_info, "current_time_str") and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
 
-            if spam_warning_message:
-                spam_warning_message = f"\n{spam_warning_message}\n"
+            # if spam_warning_message:
+                # spam_warning_message = f"\n{spam_warning_message}\n"
 
             prompt = prompt_template.format(
                 persona_text=persona_text,
@@ -285,7 +281,7 @@ class ActionPlanner:
                 # retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
                 # retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
                 current_time_str=current_time_value,
-                spam_warning_info=spam_warning_message,
+                # spam_warning_info=spam_warning_message,
                 sender_name=sender_name_str,
                 relationship_text=relationship_text_str,
                 current_emotion_text=current_emotion_text_str,
