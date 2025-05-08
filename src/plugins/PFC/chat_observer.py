@@ -114,6 +114,19 @@ class ChatObserver:
                 logger.debug(
                     f"[私聊][{self.private_name}] 消息已添加到 ChatObserver 缓存，当前缓存大小: {len(self.message_cache)}"
                 )
+                
+                # 检查是否用户发送的消息（而非机器人自己）
+                try:
+                    from .PFC_idle.idle_chat import IdleChat
+                    
+                    # 获取消息的发送者
+                    user_info = message.get("user_info", {})
+                    if user_info and str(user_info.get("user_id")) != str(global_config.BOT_QQ):
+                        # 用户发送了消息，通知IdleChat
+                        asyncio.create_task(IdleChat.register_user_response(self.private_name))
+                        logger.debug(f"[私聊][{self.private_name}] 检测到用户消息，已通知IdleChat更新用户响应状态")
+                except Exception as e_idle:
+                    logger.warning(f"[私聊][{self.private_name}] 通知IdleChat用户响应状态失败: {e_idle}")
             else:
                 logger.warning(f"[私聊][{self.private_name}] 尝试向 message_cache 添加非字典类型消息: {type(message)}")
 

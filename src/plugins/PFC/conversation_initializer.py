@@ -17,7 +17,7 @@ from .action_planner import ActionPlanner
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
-from .idle_conversation_starter import IdleConversationStarter
+from .PFC_idle.idle_chat import IdleChat
 from .pfc_KnowledgeFetcher import KnowledgeFetcher  # 修正大小写
 from .waiter import Waiter
 from .pfc_utils import get_person_id
@@ -93,18 +93,18 @@ async def load_initial_history(conversation_instance: "Conversation"):
                 read_mark=0.0,  # read_mark 可能需要根据实际情况调整
             )
 
-            # 更新 ChatObserver 和 IdleStarter 的时间戳
+            # 更新 ChatObserver 和 IdleChat 的时间戳
             if conversation_instance.chat_observer:
                 # 更新观察者的最后消息时间，避免重复处理这些初始消息
                 conversation_instance.chat_observer.last_message_time = (
                     conversation_instance.observation_info.last_message_time
                 )
             if (
-                conversation_instance.idle_conversation_starter
+                conversation_instance.idle_chat
                 and conversation_instance.observation_info.last_message_time
             ):
                 # 更新空闲计时器的起始时间
-                await conversation_instance.idle_conversation_starter.update_last_message_time(
+                await conversation_instance.idle_chat.update_last_message_time(
                     conversation_instance.observation_info.last_message_time
                 )
 
@@ -192,10 +192,12 @@ async def initialize_core_components(conversation_instance: "Conversation"):
             )
             raise ValueError(f"无法获取 stream_id {conversation_instance.stream_id} 的 ChatStream")
 
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 IdleConversationStarter...")
-        conversation_instance.idle_conversation_starter = IdleConversationStarter(
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 IdleChat...")
+        conversation_instance.idle_chat = IdleChat.get_instance(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        await conversation_instance.idle_chat.increment_active_instances()
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已获取并增加活跃计数")
 
         # 2. 初始化信息存储和观察组件
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取 ChatObserver 实例...")
@@ -249,10 +251,10 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         if conversation_instance.chat_observer:  # 确保存在
             conversation_instance.chat_observer.start()
 
-        if conversation_instance.idle_conversation_starter:
-            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 IdleConversationStarter...")
-            conversation_instance.idle_conversation_starter.start()
-            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) 空闲对话检测器已启动")
+        if conversation_instance.idle_chat:
+            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 IdleChat...")
+            # 不需要再次启动，只需确保已初始化
+            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已初始化")
 
         if (
             conversation_instance.mood_mng

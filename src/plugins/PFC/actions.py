@@ -98,7 +98,7 @@ async def handle_action(
     current_action_record = {
         "action": action,
         "plan_reason": reason,  # 记录规划时的原因
-        "status": "start",  # 初始状态为“开始”
+        "status": "start",  # 初始状态为"开始"
         "time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),  # 记录开始时间
         "final_reason": None,  # 最终结果的原因，将在 finally 中设置
     }
@@ -361,9 +361,10 @@ async def handle_action(
                             observation_info.chat_history_str = "[构建聊天记录出错]"
                     # --- 新增结束 ---
 
-                    # 更新空闲对话启动器的时间
-                    if conversation_instance.idle_conversation_starter:
-                        await conversation_instance.idle_conversation_starter.update_last_message_time(send_end_time)
+                    # 更新 idle_conversation_starter 的最后消息时间
+                    # (避免在发送消息后很快触发主动聊天)
+                    if conversation_instance.idle_chat:
+                        await conversation_instance.idle_chat.update_last_message_time(send_end_time)
 
                     # 清理已处理的未读消息 (只清理在发送这条回复之前的、来自他人的消息)
                     current_unprocessed_messages = getattr(observation_info, "unprocessed_messages", [])
@@ -505,9 +506,10 @@ async def handle_action(
                     action_successful = True  # 标记成功
                     # final_status 和 final_reason 会在 finally 中设置
                     logger.info(f"[私聊][{conversation_instance.private_name}] 成功发送告别语，即将停止对话实例。")
-                    # 更新空闲计时器
-                    if conversation_instance.idle_conversation_starter:
-                        await conversation_instance.idle_conversation_starter.update_last_message_time(send_end_time)
+                    # 更新 idle_conversation_starter 的最后消息时间
+                    # (避免在发送消息后很快触发主动聊天)
+                    if conversation_instance.idle_chat:
+                        await conversation_instance.idle_chat.update_last_message_time(send_end_time)
                     # 清理发送前的消息 (虽然通常是最后一条，但保持逻辑一致)
                     current_unprocessed_messages = getattr(observation_info, "unprocessed_messages", [])
                     message_ids_to_clear: Set[str] = set()

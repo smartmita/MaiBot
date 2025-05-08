@@ -70,11 +70,13 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             and loop_iter_start_time < conversation_instance.ignore_until_timestamp
         ):
             if (
-                conversation_instance.idle_conversation_starter
-                and conversation_instance.idle_conversation_starter._running
+                conversation_instance.idle_chat
+                and conversation_instance.idle_chat._running
             ):
-                conversation_instance.idle_conversation_starter.stop()
-                logger.debug(f"[私聊][{conversation_instance.private_name}] 对话被暂时忽略，暂停空闲对话检测")
+                # 不直接停止服务，改为暂时忽略此用户
+                # 虽然我们仍然可以通过active_instances_count来决定是否触发主动聊天
+                # 但为了安全起见，我们只记录一个日志
+                logger.debug(f"[私聊][{conversation_instance.private_name}] 对话被暂时忽略，暂停对该用户的主动聊天")
             sleep_duration = min(30, conversation_instance.ignore_until_timestamp - loop_iter_start_time)
             await asyncio.sleep(sleep_duration)
             continue
@@ -89,12 +91,9 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             await conversation_instance.stop()  # 调用 Conversation 实例的 stop 方法
             continue
         else:
-            if (
-                conversation_instance.idle_conversation_starter
-                and not conversation_instance.idle_conversation_starter._running
-            ):
-                conversation_instance.idle_conversation_starter.start()
-                logger.debug(f"[私聊][{conversation_instance.private_name}] 恢复空闲对话检测")
+            # 忽略状态结束，这里不需要任何特殊处理
+            # IdleChat会通过active_instances_count自动决定是否触发
+            pass
 
         # 核心规划与行动逻辑
         try:
