@@ -99,10 +99,7 @@ async def load_initial_history(conversation_instance: "Conversation"):
                 conversation_instance.chat_observer.last_message_time = (
                     conversation_instance.observation_info.last_message_time
                 )
-            if (
-                conversation_instance.idle_chat
-                and conversation_instance.observation_info.last_message_time
-            ):
+            if conversation_instance.idle_chat and conversation_instance.observation_info.last_message_time:
                 # 更新空闲计时器的起始时间
                 await conversation_instance.idle_chat.update_last_message_time(
                     conversation_instance.observation_info.last_message_time

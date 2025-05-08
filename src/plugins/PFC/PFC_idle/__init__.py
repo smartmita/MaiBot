@@ -12,9 +12,9 @@ from .idle_chat_manager import IdleChatManager
 from .idle_conversation import IdleConversation, get_idle_conversation_instance, initialize_idle_conversation
 
 __all__ = [
-    'IdleChat',
-    'IdleChatManager',
-    'IdleConversation',
-    'get_idle_conversation_instance',
-    'initialize_idle_conversation'
-] 
+    "IdleChat",
+    "IdleChatManager",
+    "IdleConversation",
+    "get_idle_conversation_instance",
+    "initialize_idle_conversation",
+]

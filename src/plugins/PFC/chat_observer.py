@@ -114,11 +114,11 @@ class ChatObserver:
                 logger.debug(
                     f"[私聊][{self.private_name}] 消息已添加到 ChatObserver 缓存，当前缓存大小: {len(self.message_cache)}"
                 )
-                
+
                 # 检查是否用户发送的消息（而非机器人自己）
                 try:
                     from .PFC_idle.idle_chat import IdleChat
-                    
+
                     # 获取消息的发送者
                     user_info = message.get("user_info", {})
                     if user_info and str(user_info.get("user_id")) != str(global_config.BOT_QQ):
