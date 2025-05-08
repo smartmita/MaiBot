@@ -295,7 +295,9 @@ async def handle_action(
                 # 后续的 plan 循环会检测到这个 "done_no_reply" 状态并使用反思 prompt
 
             elif is_suitable:  # 适用于 direct_reply 或 (send_new_message 且 RG决定发送并通过检查)
-                logger.debug(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。")
+                logger.debug(
+                    f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。"
+                )
                 # conversation_info.last_reply_rejection_reason = None # 已在循环内清除
                 # conversation_info.last_rejected_reply_content = None
                 conversation_instance.generated_reply = generated_content_for_check_or_send  # 使用检查通过的内容
