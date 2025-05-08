@@ -219,7 +219,7 @@ class ActionPlanner:
             relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
             current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
 
-            persona_text = f"{self.name}。"
+            persona_text = f"{self.name}"
             action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
             # retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
             #     chat_history_text, self.private_name
