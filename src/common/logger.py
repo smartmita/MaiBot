@@ -80,7 +80,8 @@ _custom_style_handlers: dict[Tuple[str, str], List[int]] = {}  # 记录自定义
 
 # 获取日志存储根地址
 current_file_path = Path(__file__).resolve()
-LOG_ROOT = "logs"
+ROOT_PATH = os.path.abspath(os.path.join(current_file_path, "..", ".."))
+LOG_ROOT = str(ROOT_PATH) + "/" + "logs"
 
 SIMPLE_OUTPUT = os.getenv("SIMPLE_OUTPUT", "false").strip().lower()
 if SIMPLE_OUTPUT == "true":

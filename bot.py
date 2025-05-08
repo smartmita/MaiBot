@@ -33,6 +33,23 @@ driver = None
 app = None
 loop = None
 
+# shutdown_requested = False  # 新增全局变量
+
+
+async def request_shutdown() -> bool:
+    """请求关闭程序"""
+    try:
+        if loop and not loop.is_closed():
+            try:
+                loop.run_until_complete(graceful_shutdown())
+            except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
+                logger.error(f"优雅关闭时发生错误: {ge}")
+                return False
+        return True
+    except Exception as e:
+        logger.error(f"请求关闭程序时发生错误: {e}")
+        return False
+
 
 def easter_egg():
     # 彩蛋
@@ -252,6 +269,8 @@ if __name__ == "__main__":
                     loop.run_until_complete(graceful_shutdown())
                 except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
                     logger.error(f"优雅关闭时发生错误: {ge}")
+        # 新增：检测外部请求关闭
+
         # except Exception as e: # 将主异常捕获移到外层 try...except
         #     logger.error(f"事件循环内发生错误: {str(e)} {str(traceback.format_exc())}")
         #     exit_code = 1
@@ -271,5 +290,5 @@ if __name__ == "__main__":
             loop.close()
             logger.info("事件循环已关闭")
         # 在程序退出前暂停，让你有机会看到输出
-        input("按 Enter 键退出...")  # <--- 添加这行
+        # input("按 Enter 键退出...")  # <--- 添加这行
         sys.exit(exit_code)  # <--- 使用记录的退出码
