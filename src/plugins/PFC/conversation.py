@@ -24,7 +24,7 @@ from .action_planner import ActionPlanner
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
-from .idle_conversation_starter import IdleConversationStarter
+from .PFC_idle.idle_chat import IdleChat
 from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
 from .reply_checker import ReplyChecker
@@ -77,7 +77,7 @@ class Conversation:
         self.knowledge_fetcher: Optional[KnowledgeFetcher] = None
         self.waiter: Optional[Waiter] = None
         self.direct_sender: Optional[DirectMessageSender] = None
-        self.idle_conversation_starter: Optional[IdleConversationStarter] = None
+        self.idle_chat: Optional[IdleChat] = None
         self.chat_observer: Optional[ChatObserver] = None
         self.observation_info: Optional[ObservationInfo] = None
         self.conversation_info: Optional[ConversationInfo] = None
@@ -142,8 +142,10 @@ class Conversation:
             logger.warning(f"[私聊][{self.private_name}] 跳过最终关系评估，实例未完全初始化或缺少组件。")
 
         # 停止其他组件
-        if self.idle_conversation_starter:
-            self.idle_conversation_starter.stop()
+        if self.idle_chat:
+            # 减少活跃实例计数，而不是停止IdleChat
+            await self.idle_chat.decrement_active_instances()
+            logger.info(f"[私聊][{self.private_name}] 已减少IdleChat活跃实例计数")
         if self.observation_info and self.chat_observer:
             self.observation_info.unbind_from_chat_observer()
         if self.mood_mng and hasattr(self.mood_mng, "stop_mood_update") and self.mood_mng._running:  # type: ignore
