@@ -3,7 +3,7 @@ import traceback
 from typing import Tuple, Optional, Dict, Any, List
 
 from src.common.logger_manager import get_logger
-from src.individuality.individuality import Individuality
+# from src.individuality.individuality import Individuality
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -22,26 +22,21 @@ logger = get_logger("pfc_action_planner")
 # Prompt(1): 首次回复或非连续回复时的决策 Prompt
 PROMPT_INITIAL_REPLY = """
 当前时间：{current_time_str}
-{persona_text}
-现在你正在和{sender_name}在QQ上私聊
-你和对方的关系是：{relationship_text}
-你现在的心情是：{current_emotion_text}
-请根据以下【所有信息】审慎且灵活的决策下一步行动，可以回复，可以倾听，可以调取知识，甚至可以屏蔽对方：
+现在{persona_text}正在与{sender_name}在qq上私聊
+他们的关系是：{relationship_text}
+{persona_text}现在的心情是是：{current_emotion_text}
+你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以回复，可以倾听，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
 【最近行动历史概要】
 {action_history_summary}
-【你想起来的相关知识】
-{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
 {time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-【你的回忆】
-{retrieved_memory_str}
 
 {spam_warning_info}
 
@@ -56,7 +51,7 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 请以JSON格式输出你的决策：
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
-    "reason": "选择该行动的详细原因 (必须有解释你是如何根据“上一次行动结果”、“对话记录”和自身设定人设做出合理判断的)"
+    "reason": "选择该行动的原因 "
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
@@ -64,26 +59,21 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 # Prompt(2): 上一次成功回复后，决定继续发言时的决策 Prompt
 PROMPT_FOLLOW_UP = """
 当前时间：{current_time_str}
-{persona_text}
-现在你正在和{sender_name}在QQ上私聊，**并且刚刚你已经回复了对方**
-你与对方的关系是：{relationship_text}
-你现在的心情是：{current_emotion_text}
-请根据以下【所有信息】审慎且灵活的决策下一步行动，可以继续发送新消息，可以等待，可以倾听，可以调取知识，甚至可以屏蔽对方：
+现在{persona_text}正在与{sender_name}在qq上私聊，**并且刚刚{persona_text}已经回复了对方**
+他们的关系是：{relationship_text}
+{persona_text}现在的心情是是：{current_emotion_text}
+你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以发送新消息，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
 【最近行动历史概要】
 {action_history_summary}
-【你想起来的相关知识】
-{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
 {time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-【你的回忆】
-{retrieved_memory_str}
 
 {spam_warning_info}
 
@@ -99,7 +89,7 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 请以JSON格式输出你的决策：
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
-    "reason": "选择该行动的详细原因 (必须有解释你是如何根据“上一次行动结果”、“对话记录”和自身设定人设做出合理判断的。)"
+    "reason": "选择该行动的原因"
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
@@ -107,19 +97,22 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 # 新增：Prompt(3): 决定是否在结束对话前发送告别语
 PROMPT_END_DECISION = """
 当前时间：{current_time_str}
-{persona_text}。刚刚你决定结束一场 QQ 私聊。
+现在{persona_text}与{sender_name}刚刚结束了一场qq私聊
+他们的关系是：{relationship_text}
+你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程：
 
-【你们之前的聊天记录】
+
+【他们之前的聊天记录】
 {chat_history_text}
 
-你觉得你们的对话已经完整结束了吗？有时候，在对话自然结束后再说点什么可能会有点奇怪，但有时也可能需要一条简短的消息来圆满结束。
-如果觉得确实有必要再发一条简短、自然、符合你人设的告别消息（比如 "好，下次再聊~" 或 "嗯，先这样吧"），就输出 "yes"。
+你觉得他们的对话已经完整结束了吗？有时候，在对话自然结束后再说点什么可能会有点奇怪，但有时也可能需要一条简短的消息来圆满结束。
+如果觉得确实有必要再发一条简短、自然的告别消息（比如 "好，下次再聊~" 或 "嗯，先这样吧"），就输出 "yes"。
 如果觉得当前状态下直接结束对话更好，没有必要再发消息，就输出 "no"。
 
 请以 JSON 格式输出你的选择：
 {{
     "say_bye": "yes/no",
-    "reason": "选择 yes 或 no 的原因和内心想法 (简要说明)"
+    "reason": "选择 yes 或 no 的原因和 (简要说明)"
 }}
 
 注意：请严格按照 JSON 格式输出，不要包含任何其他内容。"""
@@ -127,27 +120,21 @@ PROMPT_END_DECISION = """
 # Prompt(4): 当 reply_generator 决定不发送消息后的反思决策 Prompt
 PROMPT_REFLECT_AND_ACT = """
 当前时间：{current_time_str}
-{persona_text}
-现在你正在和{sender_name}在QQ上私聊
-你与对方的关系是：{relationship_text}
-你现在的心情是：{current_emotion_text}
-刚刚你本来想发一条新消息，但是想了想，你决定不发了。
-请根据以下【所有信息】审慎且灵活的决策下一步行动，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
+现在{persona_text}正在与{sender_name}在qq上私聊，刚刚{persona_text}打算发一条新消息，想了想还是不发了
+他们的关系是：{relationship_text}
+{persona_text}现在的心情是是：{current_emotion_text}
+你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
 【最近行动历史概要】
 {action_history_summary}
-【你想起来的相关知识】
-{retrieved_knowledge_str}
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
 {time_since_last_bot_message_info}{timeout_context}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
-【你的回忆】
-{retrieved_memory_str}
 
 {spam_warning_info}
 
@@ -162,11 +149,10 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 请以JSON格式输出你的决策：
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
-    "reason": "选择该行动的详细原因 (必须有解释你是如何根据“上一次行动结果”、“对话记录”和自身设定人设做出合理判断的。)"
+    "reason": "选择该行动的原因"
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
-
 
 class ActionPlanner:
     """行动规划器"""
@@ -195,7 +181,7 @@ class ActionPlanner:
             raise
 
         # 获取个性化信息和机器人名称
-        self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
+        # self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
         self.name = global_config.BOT_NICKNAME
         # 获取 ChatObserver 实例 (单例模式)
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
@@ -205,7 +191,7 @@ class ActionPlanner:
         observation_info: ObservationInfo,
         conversation_info: ConversationInfo,
         last_successful_reply_action: Optional[str],
-        use_reflect_prompt: bool = False,  # 新增参数，用于指示是否使用PROMPT_REFLECT_AND_ACT
+        use_reflect_prompt: bool = False # 新增参数，用于指示是否使用PROMPT_REFLECT_AND_ACT
     ) -> Tuple[str, str]:
         """
         规划下一步行动。
@@ -228,14 +214,14 @@ class ActionPlanner:
             goals_str = self._build_goals_string(conversation_info)
             chat_history_text = await self._build_chat_history_text(observation_info)
             # 获取 sender_name, relationship_text, current_emotion_text
-            sender_name_str = getattr(observation_info, "sender_name", "对方")  # 从 observation_info 获取
-            if not sender_name_str:
-                sender_name_str = "对方"  # 再次确保有默认值
+            sender_name_str = getattr(observation_info, 'sender_name', '对方') # 从 observation_info 获取
+            if not sender_name_str: sender_name_str = '对方' # 再次确保有默认值
 
-            relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
-            current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
+            relationship_text_str = getattr(conversation_info, 'relationship_text', '你们还不熟悉。')
+            current_emotion_text_str = getattr(conversation_info, 'current_emotion_text', '心情平静。')
 
-            persona_text = f"你的名字是{self.name}，{self.personality_info}。"
+
+            persona_text = f"{self.name}。"
             action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
             retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
                 chat_history_text, self.private_name
@@ -250,16 +236,14 @@ class ActionPlanner:
 
         # --- 2. 选择并格式化 Prompt ---
         try:
-            if use_reflect_prompt:  # 新增的判断
+            if use_reflect_prompt: # 新增的判断
                 prompt_template = PROMPT_REFLECT_AND_ACT
                 log_msg = "使用 PROMPT_REFLECT_AND_ACT (反思决策)"
                 # 对于 PROMPT_REFLECT_AND_ACT，它不包含 send_new_message 选项，所以 spam_warning_message 中的相关提示可以调整或省略
                 # 但为了保持占位符填充的一致性，我们仍然计算它
                 spam_warning_message = ""
-                if conversation_info.my_message_count > 5:  # 这里的 my_message_count 仍有意义，表示之前连续发送了多少
-                    spam_warning_message = (
-                        f"⚠️【警告】**你之前已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎决策。**"
-                    )
+                if conversation_info.my_message_count > 5: # 这里的 my_message_count 仍有意义，表示之前连续发送了多少
+                    spam_warning_message = f"⚠️【警告】**你之前已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎决策。**"
                 elif conversation_info.my_message_count > 2:
                     spam_warning_message = f"💬【提示】**你之前已连续发送{str(conversation_info.my_message_count)}条消息。请注意保持对话平衡。**"
 
@@ -275,12 +259,12 @@ class ActionPlanner:
             else:
                 prompt_template = PROMPT_INITIAL_REPLY
                 log_msg = "使用 PROMPT_INITIAL_REPLY (首次/非连续回复决策)"
-                spam_warning_message = ""  # 初始回复时通常不需要刷屏警告
+                spam_warning_message = "" # 初始回复时通常不需要刷屏警告
 
             logger.debug(f"[私聊][{self.private_name}] {log_msg}")
 
             current_time_value = "获取时间失败"
-            if observation_info and hasattr(observation_info, "current_time_str") and observation_info.current_time_str:
+            if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                 current_time_value = observation_info.current_time_str
 
             if spam_warning_message:
@@ -300,7 +284,7 @@ class ActionPlanner:
                 spam_warning_info=spam_warning_message,
                 sender_name=sender_name_str,
                 relationship_text=relationship_text_str,
-                current_emotion_text=current_emotion_text_str,
+                current_emotion_text=current_emotion_text_str
             )
             logger.debug(f"[私聊][{self.private_name}] 发送到LLM的最终提示词:\n------\n{prompt}\n------")
         except KeyError as fmt_key_err:
@@ -340,14 +324,10 @@ class ActionPlanner:
         if initial_action == "end_conversation":
             try:
                 time_str_for_end_decision = "获取时间失败"
-                if (
-                    observation_info
-                    and hasattr(observation_info, "current_time_str")
-                    and observation_info.current_time_str
-                ):
+                if observation_info and hasattr(observation_info, 'current_time_str') and observation_info.current_time_str:
                     time_str_for_end_decision = observation_info.current_time_str
                 final_action, final_reason = await self._handle_end_conversation_decision(
-                    persona_text, chat_history_text, initial_reason, time_str_for_end_decision
+                    persona_text, chat_history_text, initial_reason,time_str_for_end_decision
                 )
             except Exception as end_dec_err:
                 logger.error(f"[私聊][{self.private_name}] 处理结束对话决策时出错: {end_dec_err}")
@@ -372,7 +352,7 @@ class ActionPlanner:
             "block_and_ignore",
             "say_goodbye",
         ]
-        valid_actions_reflect = [  # PROMPT_REFLECT_AND_ACT 的动作
+        valid_actions_reflect = [ # PROMPT_REFLECT_AND_ACT 的动作
             "wait",
             "listening",
             "rethink_goal",
@@ -513,7 +493,9 @@ class ActionPlanner:
                     )
                     logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
                 else:
-                    chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+                    chat_history_text += (
+                        f"\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+                    )
         except AttributeError as e:
             logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}")
             chat_history_text = "[获取聊天记录时出错]\n"
@@ -575,9 +557,7 @@ class ActionPlanner:
     ) -> Tuple[str, str]:
         """处理结束对话前的告别决策"""
         logger.info(f"[私聊][{self.private_name}] 初步规划结束对话，进入告别决策...")
-        end_decision_prompt = PROMPT_END_DECISION.format(
-            persona_text=persona_text, chat_history_text=chat_history_text, current_time_str=current_time_str
-        )
+        end_decision_prompt = PROMPT_END_DECISION.format(persona_text=persona_text, chat_history_text=chat_history_text,current_time_str=current_time_str)
         logger.debug(f"[私聊][{self.private_name}] 发送到LLM的结束决策提示词:\n------\n{end_decision_prompt}\n------")
         llm_start_time = time.time()
         end_content, _ = await self.llm.generate_response_async(end_decision_prompt)
