@@ -7,6 +7,4 @@ PFC_idle 包 - 用于空闲时主动聊天的功能模块
 
 from .idle_chat import IdleChat
 
-__all__ = [
-    'IdleChat'
-]
+__all__ = ["IdleChat"]
