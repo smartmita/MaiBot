@@ -3,7 +3,6 @@ import asyncio
 import random
 import traceback
 from typing import TYPE_CHECKING, Optional
-from datetime import datetime
 
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
@@ -22,7 +21,6 @@ from rich.traceback import install
 # 使用TYPE_CHECKING避免循环导入
 if TYPE_CHECKING:
     from ..conversation import Conversation
-    from ..pfc_manager import PFCManager
 
 install(extra_lines=3)
 

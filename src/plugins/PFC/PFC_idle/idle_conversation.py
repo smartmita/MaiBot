@@ -1,5 +1,4 @@
 import traceback
-import logging
 import asyncio
 from typing import Optional, Dict
 from src.common.logger_manager import get_logger
@@ -210,7 +209,7 @@ class IdleConversation:
                 
         try:
             # 创建IdleChat实例
-            idle_chat = await self._idle_chat_manager.get_or_create_idle_chat(stream_id, private_name)
+            _idle_chat = await self._idle_chat_manager.get_or_create_idle_chat(stream_id, private_name)
             logger.debug(f"[私聊][{private_name}] 已创建或获取IdleChat实例")
             return True
         except Exception as e:
@@ -478,7 +477,7 @@ async def periodic_system_check(instance: IdleConversation):
                         
                         # 如果IdleChatManager记录的计数为0但自己的记录不为0，进行修正
                         if manager_count == 0 and active_streams_count > 0:
-                            logger.warning(f"检测到可能的计数错误，尝试修正：清空IdleConversation的活跃流记录")
+                            logger.warning("检测到可能的计数错误，尝试修正：清空IdleConversation的活跃流记录")
                             async with instance._lock:
                                 instance._active_streams.clear()
                 

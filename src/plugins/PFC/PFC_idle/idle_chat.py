@@ -1,4 +1,4 @@
-from typing import Optional, Dict, List, Set
+from typing import Optional, Dict, Set
 import asyncio
 import time
 import random
@@ -7,11 +7,10 @@ from datetime import datetime
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.plugins.models.utils_model import LLMRequest
-from src.plugins.utils.prompt_builder import Prompt, global_prompt_manager
+from src.plugins.utils.prompt_builder import global_prompt_manager
 from src.plugins.person_info.person_info import person_info_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from ...schedule.schedule_generator import bot_schedule
-from ....config.config import global_config
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from src.plugins.chat.chat_stream import ChatStream
@@ -109,7 +108,7 @@ class IdleChat:
             # 如果所有用户都已尝试过，重置尝试集合，从头开始
             if len(cls._tried_users) >= len(all_users):
                 cls._tried_users.clear()
-                logger.info(f"[私聊]所有用户都已尝试过，重置尝试列表")
+                logger.info("[私聊]所有用户都已尝试过，重置尝试列表")
                 # 随机选择一个不在待回复列表中的用户
                 available_users = all_users - set(cls._pending_replies.keys())
                 if available_users:

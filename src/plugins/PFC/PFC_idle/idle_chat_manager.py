@@ -146,7 +146,7 @@ class IdleChatManager:
             # 检查是否所有对话都结束了，帮助调试
             all_counts = sum(self._active_conversations_count.values())
             if all_counts == 0:
-                logger.info(f"所有对话实例都已结束，当前总活跃计数为0")
+                logger.info("所有对话实例都已结束，当前总活跃计数为0")
         except Exception as e:
             logger.error(f"对话结束通知处理失败: {stream_id}, 错误: {e}")
             logger.error(traceback.format_exc())
