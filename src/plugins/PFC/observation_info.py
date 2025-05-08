@@ -297,7 +297,7 @@ class ObservationInfo:
 
         if new_count < original_count:
             self.new_messages_count = new_count
-            logger.info(
+            logger.debug(
                 f"[私聊][{self.private_name}] 移除了未处理的消息 (ID: {message_id_to_delete}), 当前未处理数: {self.new_messages_count}"
             )
             self.update_changed()
@@ -384,7 +384,7 @@ class ObservationInfo:
         self.new_messages_count = len(self.unprocessed_messages)
         self.chat_history_count = len(self.chat_history)
 
-        logger.info(
+        logger.debug(
             f"[私聊][{self.private_name}] 已清理 {cleared_count} 条消息 (IDs: {message_ids_to_clear})，剩余未处理 {self.new_messages_count} 条，当前历史记录 {self.chat_history_count} 条。"
         )
 

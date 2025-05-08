@@ -24,7 +24,7 @@ class PfcEmotionUpdater:
         # LLM 实例 (根据 global_config.llm_summary 配置)
         llm_config_summary = getattr(global_config, "llm_summary", None)
         if llm_config_summary and isinstance(llm_config_summary, dict):
-            logger.info(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
+            logger.debug(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
             self.llm = LLMRequest(
                 model=llm_config_summary,
                 temperature=llm_config_summary.get(

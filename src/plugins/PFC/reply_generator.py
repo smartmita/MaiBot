@@ -260,7 +260,7 @@ class ReplyGenerator:
                     f"请根据此提示调整你的新回复，确保内容新颖，不要重复你已经说过的话。\n"
                     f"------\n"
                 )
-                logger.info(
+                logger.debug(
                     f"[私聊][{self.private_name}] (ReplyGenerator) 检测到自身复读，将加入特定警告到 Prompt:\n"
                     f"  内容: {last_content}"
                 )
@@ -273,7 +273,7 @@ class ReplyGenerator:
                     f"请根据【消息内容】和【失败原因】调整你的新回复，避免重复之前的错误。\n"
                     f"------\n"
                 )
-                logger.info(
+                logger.debug(
                     f"[私聊][{self.private_name}] (ReplyGenerator) 检测到上次回复失败信息，将加入 Prompt:\n"
                     f"  内容: {last_content}\n"
                     f"  原因: {last_reason}"

@@ -246,7 +246,7 @@ async def handle_action(
                     is_suitable = True
                     check_reason = "ReplyChecker 已通过配置关闭"
                     need_replan_from_checker = False
-                    logger.info(f"{log_prefix} [配置关闭] ReplyChecker 已跳过，默认回复为合适。")
+                    logger.debug(f"{log_prefix} [配置关闭] ReplyChecker 已跳过，默认回复为合适。")
 
                 # 处理检查结果
                 if not is_suitable:
@@ -398,13 +398,13 @@ async def handle_action(
 
                     # 如果是 direct_reply 且规划期间有他人新消息，则下次不追问
                     if other_new_msg_count_during_planning > 0 and action == "direct_reply":
-                        logger.info(
+                        logger.debug(
                             f"[私聊][{conversation_instance.private_name}] 因规划期间收到 {other_new_msg_count_during_planning} 条他人新消息，下一轮强制使用【初始回复】逻辑。"
                         )
                         conversation_info.last_successful_reply_action = None
                         # conversation_info.my_message_count 不在此处重置，因为它刚发了一条
                     elif action == "direct_reply" or action == "send_new_message":  # 成功发送后
-                        logger.info(
+                        logger.debug(
                             f"[私聊][{conversation_instance.private_name}] 成功执行 '{action}', 下一轮【允许】使用追问逻辑。"
                         )
                         conversation_info.last_successful_reply_action = action

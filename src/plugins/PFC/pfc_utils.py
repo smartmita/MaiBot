@@ -274,7 +274,7 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
     if chat_stream.user_info:
         private_user_id_str = str(chat_stream.user_info.user_id)
         private_platform_str = chat_stream.user_info.platform
-        logger.info(
+        logger.debug(
             f"[私聊][{private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_nickname_str}"
         )
     elif chat_stream.group_info is None and private_name:
