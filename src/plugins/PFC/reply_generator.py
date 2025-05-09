@@ -60,6 +60,9 @@ PROMPT_DIRECT_REPLY = """
 {retrieved_knowledge_str}
 请你**记住上面的知识**，在回复中有可能会用到。
 
+你有以下记忆可供参考：
+{retrieved_global_memory_str}
+
 你还想到了一些你们之前的聊天记录：
 {retrieved_historical_chat_str}
 
@@ -98,6 +101,9 @@ PROMPT_SEND_NEW_MESSAGE = """
 你有以下这些知识：
 {retrieved_knowledge_str}
 请你**记住上面的知识**，在发消息时有可能会用到。
+
+你有以下记忆可供参考：
+{retrieved_global_memory_str}
 
 你还想到了一些你们之前的聊天记录：
 {retrieved_historical_chat_str}

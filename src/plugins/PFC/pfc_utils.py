@@ -2,6 +2,7 @@ import traceback
 import json
 import re
 import asyncio # 确保导入 asyncio
+import time
 from typing import Dict, Any, Optional, Tuple, List, Union # 确保导入这些类型
 
 from src.common.logger_manager import get_logger
@@ -29,7 +30,8 @@ logger = get_logger("pfc_utils")
 async def find_most_relevant_historical_message(
     chat_id: str,
     query_text: str,
-    similarity_threshold: float = 0.3 # 相似度阈值，可以根据效果调整
+    similarity_threshold: float = 0.3, # 相似度阈值，可以根据效果调整
+    exclude_recent_seconds: int = 300 # 新增参数：排除最近多少秒内的消息（例如5分钟）
 ) -> Optional[Dict[str, Any]]:
     """
     根据查询文本，在指定 chat_id 的历史消息中查找最相关的消息。
@@ -46,6 +48,8 @@ async def find_most_relevant_historical_message(
     if not query_embedding:
         logger.warning(f"[{chat_id}] (私聊历史)未能为查询文本 '{query_text[:50]}...' 生成嵌入向量。")
         return None
+
+    current_timestamp = time.time() # 获取当前时间戳
 
     pipeline = [
         {
@@ -235,7 +239,8 @@ async def retrieve_contextual_info(
             most_relevant_message_doc = await find_most_relevant_historical_message(
                 chat_id=chat_id,
                 query_text=query_for_historical_chat,
-                similarity_threshold=0.5 # 你可以根据需要调整这个阈值
+                similarity_threshold=0.5, # 你可以根据需要调整这个阈值
+                exclude_recent_seconds=300
             )
             if most_relevant_message_doc:
                 anchor_id = most_relevant_message_doc.get("message_id")
