@@ -274,7 +274,9 @@ class BotConfig:
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
     enable_pfc_reply_checker: bool = True  # 是否开启PFC回复检查
-    pfc_message_buffer_size:int = 2 # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+    pfc_message_buffer_size: int = (
+        2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+    )
 
     # idle_conversation
     enable_idle_conversation: bool = False  # 是否启用 pfc 主动发言
