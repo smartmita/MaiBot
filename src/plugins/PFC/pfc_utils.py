@@ -343,6 +343,7 @@ async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: 
 
     return value
 
+
 async def build_chat_history_text(observation_info: ObservationInfo, private_name: str) -> str:
     """构建聊天历史记录文本 (包含未处理消息)"""
 
