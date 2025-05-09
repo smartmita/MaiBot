@@ -3,6 +3,7 @@ import json
 import re
 import asyncio # 确保导入 asyncio
 import time
+import datetime
 from typing import Dict, Any, Optional, Tuple, List, Union # 确保导入这些类型
 
 from src.common.logger_manager import get_logger
@@ -31,7 +32,7 @@ async def find_most_relevant_historical_message(
     chat_id: str,
     query_text: str,
     similarity_threshold: float = 0.3, # 相似度阈值，可以根据效果调整
-    exclude_recent_seconds: int = 300 # 新增参数：排除最近多少秒内的消息（例如5分钟）
+    exclude_recent_seconds: int = 900 # 新增参数：排除最近多少秒内的消息（例如5分钟）
 ) -> Optional[Dict[str, Any]]:
     """
     根据查询文本，在指定 chat_id 的历史消息中查找最相关的消息。
@@ -88,6 +89,15 @@ async def find_most_relevant_historical_message(
         # --- 确定性修改：同步执行聚合和结果转换 ---
         cursor = db.messages.aggregate(pipeline) # PyMongo 的 aggregate 返回一个 CommandCursor
         results = list(cursor)                   # 直接将 CommandCursor 转换为列表
+        if not results:
+            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {excluded_time_threshold} ({exclude_recent_seconds} 秒前) 之前，未能找到任何与 '{query_text[:30]}...' 相关的历史消息。")
+        else:
+            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {excluded_time_threshold} ({exclude_recent_seconds} 秒前) 之前，找到了 {len(results)} 条候选历史消息。最相关的一条是：")
+            for res_msg in results: # 最多只打印我们 limit 的那几条
+                msg_time_readable = datetime.fromtimestamp(res_msg.get('time',0)).strftime('%Y-%m-%d %H:%M:%S')
+                logger.info(f"  - MsgID: {res_msg.get('message_id')}, Time: {msg_time_readable} (原始: {res_msg.get('time')}), Sim: {res_msg.get('similarity'):.4f}, Text: '{res_msg.get('processed_plain_text','')[:50]}...'")
+    # --- 新增日志结束 ---
+
         # --- 修改结束 ---
         if results and len(results) > 0:
             most_similar_message = results[0]
@@ -104,6 +114,7 @@ async def retrieve_chat_context_window(
     chat_id: str,
     anchor_message_id: str,
     anchor_message_time: float,
+    excluded_time_threshold_for_window: float,
     window_size_before: int = 7,
     window_size_after: int = 7
 ) -> List[Dict[str, Any]]:
@@ -125,11 +136,21 @@ async def retrieve_chat_context_window(
         ).sort("time", -1).limit(window_size_before)
         messages_before = list(messages_before_cursor)
         messages_before.reverse()
+        # --- 新增日志 ---
+        logger.debug(f"[{chat_id}] (私聊历史) retrieve_chat_context_window: Anchor Time: {anchor_message_time}, Excluded Window End Time: {excluded_time_threshold_for_window}")
+        logger.debug(f"[{chat_id}] (私聊历史) retrieve_chat_context_window: Messages BEFORE anchor ({len(messages_before)}):")
+        for msg_b in messages_before:
+            logger.debug(f"  - Time: {datetime.fromtimestamp(msg_b.get('time',0)).strftime('%Y-%m-%d %H:%M:%S')}, Text: '{msg_b.get('processed_plain_text','')[:30]}...'")
 
         messages_after_cursor = db.messages.find(
-            {"chat_id": chat_id, "time": {"$gt": anchor_message_time}}
+            {"chat_id": chat_id, "time": {"$gt": anchor_message_time, "$lt": excluded_time_threshold_for_window}} # <--- 修改这里
         ).sort("time", 1).limit(window_size_after)
         messages_after = list(messages_after_cursor)
+        # --- 新增日志 ---
+        logger.debug(f"[{chat_id}] (私聊历史) retrieve_chat_context_window: Messages AFTER anchor ({len(messages_after)}):")
+        for msg_a in messages_after:
+            logger.debug(f"  - Time: {datetime.fromtimestamp(msg_a.get('time',0)).strftime('%Y-%m-%d %H:%M:%S')}, Text: '{msg_a.get('processed_plain_text','')[:30]}...'")
+
 
         if messages_before:
             context_messages.extend(messages_before)
