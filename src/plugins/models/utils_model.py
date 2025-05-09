@@ -23,7 +23,6 @@ import base64
 from PIL import Image
 import io
 import os
-from dotenv import load_dotenv # 导入 dotenv 用于加载 .env 文件 (如果需要直接加载)
 
 from rich.traceback import install
 
@@ -113,12 +112,12 @@ async def _safely_record(request_content: Dict[str, Any], payload: Dict[str, Any
                         f"{image_base64[:10]}...{image_base64[-10:]}"
                     )
         elif is_gemini_payload and "contents" in safe_payload and len(safe_payload["contents"]) > 0:
-             if isinstance(safe_payload["contents"][0], dict) and "parts" in safe_payload["contents"][0]:
-                 parts = safe_payload["contents"][0]["parts"]
-                 for i, part in enumerate(parts):
-                     if isinstance(part, dict) and "inlineData" in part:
-                         safe_payload["contents"][0]["parts"][i]["inlineData"]["data"] = f"{image_base64[:10]}...{image_base64[-10:]}"
-                         break
+            if isinstance(safe_payload["contents"][0], dict) and "parts" in safe_payload["contents"][0]:
+                parts = safe_payload["contents"][0]["parts"]
+                for i, part in enumerate(parts):
+                    if isinstance(part, dict) and "inlineData" in part:
+                        safe_payload["contents"][0]["parts"][i]["inlineData"]["data"] = f"{image_base64[:10]}...{image_base64[-10:]}"
+                        break
 
     return safe_payload
 
@@ -165,14 +164,14 @@ class LLMRequest:
                     parsed_keys = [loaded_keys]
                 else:
                     raise ValueError(f"Parsed API key for {self.model_key_name} is not a valid list or string.")
-            except (json.JSONDecodeError, TypeError):
+            except (json.JSONDecodeError, TypeError) as e:
                 if isinstance(raw_api_key_config, list):
                     parsed_keys = [str(key) for key in raw_api_key_config if key]
                     is_list_config = True
                 elif isinstance(raw_api_key_config, str) and raw_api_key_config:
                     parsed_keys = [raw_api_key_config]
                 else:
-                    raise ValueError(f"Invalid or empty API key config for {self.model_key_name}: {raw_api_key_config}")
+                    raise ValueError(f"Invalid or empty API key config for {self.model_key_name}: {raw_api_key_config}") from e
 
             if not parsed_keys:
                 raise ValueError(f"No valid API keys found for {self.model_key_name}.")
@@ -238,9 +237,9 @@ class LLMRequest:
                             logger.error(f"解析 PROXY_MODELS ('{proxy_models_str}') 出错: {e}. 代理将不会对特定模型生效。")
                             self.proxy_models_set = set()
                 except ValueError:
-                     logger.error(f"无效的代理端口号: {proxy_port}。代理将不被启用。")
-                     self.proxy_url = None
-                     self.proxy_models_set = set()
+                    logger.error(f"无效的代理端口号: {proxy_port}。代理将不被启用。")
+                    self.proxy_url = None
+                    self.proxy_models_set = set()
                 except Exception as e:
                     logger.error(f"加载代理配置时发生错误: {e}")
                     self.proxy_url = None
@@ -352,7 +351,7 @@ class LLMRequest:
         }
         policy = {**default_retry, **(retry_policy or {})}
 
-        actual_endpoint = endpoint
+        _actual_endpoint = endpoint
         if self.is_gemini:
             action = endpoint.lstrip('/')
             api_url = f"{self.base_url.rstrip('/')}/{self.model_name}{action}"
@@ -486,10 +485,10 @@ class LLMRequest:
                                 keys_failed_429.add(current_key)
                                 logger.info(f"  (因 429 已失败 {len(keys_failed_429)}/{key_switch_limit_429} 个不同 Key)")
                                 if available_keys_pool and len(keys_failed_429) < key_switch_limit_429:
-                                    logger.info(f"  尝试因 429 切换到下一个可用 Key...")
+                                    logger.info("  尝试因 429 切换到下一个可用 Key...")
                                     raise _SwitchKeyException()
                                 else:
-                                    logger.warning(f"  无更多 Key 可因 429 切换或已达上限。")
+                                    logger.warning("  无更多 Key 可因 429 切换或已达上限。")
                             else:
                                 logger.warning(f"  Key ...{current_key[-4:]} 再次遇到 429，按标准重试流程。")
 
@@ -499,12 +498,13 @@ class LLMRequest:
                                 keys_abandoned_runtime.add(current_key)
                                 LLMRequest._abandoned_keys_runtime.add(current_key)
                                 logger.critical(f"  !! Key ...{current_key[-4:]} 已添加到运行时废弃列表。请考虑将其移至配置中的 'abandon_{self.model_key_name}' !!")
-                                if current_key in available_keys_pool: available_keys_pool.remove(current_key)
+                                if current_key in available_keys_pool:
+                                    available_keys_pool.remove(current_key)
                                 if available_keys_pool and len(keys_abandoned_runtime) < key_switch_limit_403:
-                                    logger.info(f"  尝试因 403 切换到下一个可用 Key...")
+                                    logger.info("  尝试因 403 切换到下一个可用 Key...")
                                     raise _SwitchKeyException()
                                 else:
-                                    logger.error(f"  无更多 Key 可因 403 切换或已达上限。将中止请求。")
+                                    logger.error("  无更多 Key 可因 403 切换或已达上限。将中止请求。")
                                     await response.read()
                                     raise PermissionDeniedException(f"Key ...{current_key[-4:]} 权限被拒，且无其他可用 Key 切换。", key_identifier=current_key)
                             else:
@@ -784,7 +784,7 @@ class LLMRequest:
         """处理非 HTTP 错误，支持使用合并后的参数重建 payload"""
         policy = request_content["policy"]
         payload = request_content["payload"]
-        wait_time = policy["base_wait"] * (2**retry_count)
+        _wait_time = policy["base_wait"] * (2**retry_count)
         keep_request = False
         if retry_count < policy["max_retries"] - 1:
             keep_request = True
@@ -944,10 +944,10 @@ class LLMRequest:
                 **params_copy,
             }
             if "max_tokens" not in payload and "max_completion_tokens" not in payload:
-                 if "max_tokens" not in params_copy and "max_completion_tokens" not in params_copy:
-                     payload["max_tokens"] = global_config.model_max_output_length
+                if "max_tokens" not in params_copy and "max_completion_tokens" not in params_copy:
+                    payload["max_tokens"] = global_config.model_max_output_length
             if "max_completion_tokens" in payload:
-                 payload["max_tokens"] = payload.pop("max_completion_tokens")
+                payload["max_tokens"] = payload.pop("max_completion_tokens")
 
         return payload
 
@@ -992,13 +992,13 @@ class LLMRequest:
 
                     finish_reason = candidate.get("finishReason")
                     if finish_reason == "SAFETY":
-                         logger.warning(f"模型 {self.model_name}: Gemini 响应因安全设置被阻止。")
-                         content = "响应内容因安全原因被过滤。"
+                        logger.warning(f"模型 {self.model_name}: Gemini 响应因安全设置被阻止。")
+                        content = "响应内容因安全原因被过滤。"
                     elif finish_reason == "RECITATION":
-                         logger.warning(f"模型 {self.model_name}: Gemini 响应因引用限制被阻止。")
-                         content = "响应内容因引用限制被过滤。"
+                        logger.warning(f"模型 {self.model_name}: Gemini 响应因引用限制被阻止。")
+                        content = "响应内容因引用限制被过滤。"
                     elif finish_reason == "OTHER":
-                         logger.warning(f"模型 {self.model_name}: Gemini 响应因未知原因停止。")
+                        logger.warning(f"模型 {self.model_name}: Gemini 响应因未知原因停止。")
                     # finishReason == "TOOL_CODE" or "FUNCTION_CALL" 是正常情况
 
                 usage = result.get("usageMetadata", {})
@@ -1043,16 +1043,16 @@ class LLMRequest:
         # --- 记录 Token 使用情况 ---
         # (代码不变)
         if prompt_tokens > 0 or completion_tokens > 0 or total_tokens > 0:
-             self._record_usage(
-                 prompt_tokens=prompt_tokens,
-                 completion_tokens=completion_tokens,
-                 total_tokens=total_tokens,
-                 user_id=user_id,
-                 request_type=request_type,
-                 endpoint=endpoint,
-             )
+            self._record_usage(
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                user_id=user_id,
+                request_type=request_type,
+                endpoint=endpoint,
+            )
         else:
-             logger.warning(f"模型 {self.model_name}: 未能从响应中提取有效的 token 使用信息。")
+            logger.warning(f"模型 {self.model_name}: 未能从响应中提取有效的 token 使用信息。")
 
 
         # --- 返回结果 (统一格式) ---
@@ -1111,7 +1111,7 @@ class LLMRequest:
         else:
             if not api_key:
                 logger.error(f"尝试使用无效 (空) 的 API key 为模型 {self.model_name} 构建请求头。")
-                raise ValueError(f"无效的 API key 提供给 _build_headers。")
+                raise ValueError("无效的 API key 提供给 _build_headers。")
 
             if self.is_gemini:
                 return {"x-goog-api-key": api_key, "Content-Type": "application/json"}
