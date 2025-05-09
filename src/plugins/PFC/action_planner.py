@@ -3,14 +3,11 @@ import traceback
 from typing import Tuple, Optional, Dict, Any, List
 
 from src.common.logger_manager import get_logger
-
-# from src.individuality.individuality import Individuality
-from src.plugins.utils.chat_message_builder import build_readable_messages
 from ..models.utils_model import LLMRequest
 from src.config.config import global_config
 
 # 确保导入路径正确
-from .pfc_utils import get_items_from_json
+from .pfc_utils import get_items_from_json, build_chat_history_text
 from .chat_observer import ChatObserver
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
@@ -210,9 +207,9 @@ class ActionPlanner:
             time_since_last_bot_message_info = self._get_bot_last_speak_time_info(observation_info)
             timeout_context = self._get_timeout_context(conversation_info)
             goals_str = self._build_goals_string(conversation_info)
-            chat_history_text = await self._build_chat_history_text(observation_info)
+            chat_history_text = await build_chat_history_text(observation_info, self.private_name)
             # 获取 sender_name, relationship_text, current_emotion_text
-            sender_name_str = getattr(observation_info, "sender_name", "对方")  # 从 observation_info 获取
+            sender_name_str = self.private_name
             if not sender_name_str:
                 sender_name_str = "对方"  # 再次确保有默认值
 
@@ -466,50 +463,6 @@ class ActionPlanner:
             logger.error(f"[私聊][{self.private_name}] 构建对话目标字符串时出错: {e}")
             goals_str = "- 构建对话目标时出错。\n"
         return goals_str
-
-    async def _build_chat_history_text(self, observation_info: ObservationInfo) -> str:
-        """构建聊天历史记录文本 (包含未处理消息)"""
-
-        chat_history_text = ""
-        try:
-            if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
-                chat_history_text = observation_info.chat_history_str
-            elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
-                history_slice = observation_info.chat_history[-20:]
-                chat_history_text = await build_readable_messages(
-                    history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
-                )
-            else:
-                chat_history_text = "还没有聊天记录。\n"
-            unread_count = getattr(observation_info, "new_messages_count", 0)
-            unread_messages = getattr(observation_info, "unprocessed_messages", [])
-            if unread_count > 0 and unread_messages:
-                bot_qq_str = str(global_config.BOT_QQ)
-                other_unread_messages = [
-                    msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str
-                ]
-                other_unread_count = len(other_unread_messages)
-                if other_unread_count > 0:
-                    new_messages_str = await build_readable_messages(
-                        other_unread_messages,
-                        replace_bot_name=True,
-                        merge_messages=False,
-                        timestamp_mode="relative",
-                        read_mark=0.0,
-                    )
-                    chat_history_text += (
-                        f"\n--- 以下是 {other_unread_count} 条你需要处理的新消息 ---\n{new_messages_str}\n------\n"
-                    )
-                    logger.debug(f"[私聊][{self.private_name}] 向 LLM 追加了 {other_unread_count} 条未读消息。")
-                else:
-                    chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
-        except AttributeError as e:
-            logger.warning(f"[私聊][{self.private_name}] 构建聊天记录文本时属性错误: {e}")
-            chat_history_text = "[获取聊天记录时出错]\n"
-        except Exception as e:
-            logger.error(f"[私聊][{self.private_name}] 处理聊天记录时发生未知错误: {e}")
-            chat_history_text = "[处理聊天记录时出错]\n"
-        return chat_history_text
 
     def _build_action_history_context(self, conversation_info: ConversationInfo) -> Tuple[str, str]:
         """构建行动历史概要和上一次行动详细情况"""

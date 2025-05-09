@@ -71,9 +71,7 @@ class PfcEmotionUpdater:
         )
 
         current_mood_text_from_manager = self.mood_mng.current_mood.text  # 从 MoodManager 获取当前情绪文本
-        sender_name_for_prompt = getattr(observation_info, "sender_name", "对方")
-        if not sender_name_for_prompt:
-            sender_name_for_prompt = "对方"
+        sender_name_for_prompt = self.private_name
         relationship_text_for_prompt = getattr(
             conversation_info, "relationship_text", "关系一般。"
         )  # 从 ConversationInfo 获取关系文本

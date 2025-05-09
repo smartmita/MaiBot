@@ -1,4 +1,5 @@
 import random
+
 from .pfc_utils import retrieve_contextual_info
 
 from src.common.logger_manager import get_logger
@@ -9,7 +10,7 @@ from .reply_checker import ReplyChecker
 from src.individuality.individuality import Individuality
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
-from src.plugins.utils.chat_message_builder import build_readable_messages
+from .pfc_utils import build_chat_history_text
 
 logger = get_logger("reply_generator")
 
@@ -214,25 +215,9 @@ class ReplyGenerator:
         else:
             goals_str = "- 目前没有明确对话目标\n"
 
-        chat_history_text = observation_info.chat_history_str
-        if observation_info.new_messages_count > 0 and observation_info.unprocessed_messages:
-            new_messages_list = observation_info.unprocessed_messages
-            new_messages_str = await build_readable_messages(
-                new_messages_list,
-                replace_bot_name=True,
-                merge_messages=False,
-                timestamp_mode="relative",
-                read_mark=0.0,
-            )
-            chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
-        elif not chat_history_text:
-            chat_history_text = "还没有聊天记录。"
-        else:
-            chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+        chat_history_text = await build_chat_history_text(observation_info, self.private_name)
 
-        sender_name_str = getattr(observation_info, "sender_name", "对方")
-        if not sender_name_str:
-            sender_name_str = "对方"
+        sender_name_str = self.private_name
 
         relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
         current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")

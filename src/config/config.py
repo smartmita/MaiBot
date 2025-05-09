@@ -274,6 +274,9 @@ class BotConfig:
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
     enable_pfc_reply_checker: bool = True  # 是否开启PFC回复检查
+    pfc_message_buffer_size: int = (
+        2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+    )
 
     # idle_chat
     enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
@@ -670,6 +673,9 @@ class BotConfig:
                     "enable_pfc_reply_checker", config.enable_pfc_reply_checker
                 )
                 logger.info(f"PFC Reply Checker 状态: {'启用' if config.enable_pfc_reply_checker else '关闭'}")
+                config.pfc_message_buffer_size = experimental_config.get(
+                    "pfc_message_buffer_size", config.pfc_message_buffer_size
+                )
 
         def idle_chat(parent: dict):
             idle_chat_config = parent["idle_chat"]
