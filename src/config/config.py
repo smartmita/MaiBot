@@ -278,13 +278,17 @@ class BotConfig:
     talk_allowed_private = set()
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天
     enable_pfc_reply_checker: bool = True  # 是否开启PFC回复检查
-
-    # idle_conversation
-    enable_idle_conversation: bool = False  # 是否启用 pfc 主动发言
-    idle_check_interval: int = 10  # 检查间隔，10分钟检查一次
-    min_idle_time: int = 7200  # 最短无活动时间，2小时 (7200秒)
-    max_idle_time: int = 18000  # 最长无活动时间，5小时 (18000秒)
+    pfc_message_buffer_size: int = (
+        2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+    )
     api_polling_max_retries: int = 3  # 神秘小功能
+
+    # idle_chat
+    enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
+    idle_check_interval: int = 10  # 检查间隔，10分钟检查一次
+    min_cooldown: int = 7200  # 最短冷却时间，2小时 (7200秒)
+    max_cooldown: int = 18000  # 最长冷却时间，5小时 (18000秒)
+
 
     # Group Nickname
     enable_nickname_mapping: bool = False  # 绰号映射功能总开关
@@ -721,18 +725,17 @@ class BotConfig:
                     "enable_pfc_reply_checker", config.enable_pfc_reply_checker
                 )
                 logger.info(f"PFC Reply Checker 状态: {'启用' if config.enable_pfc_reply_checker else '关闭'}")
+                config.pfc_message_buffer_size = experimental_config.get(
+                    "pfc_message_buffer_size", config.pfc_message_buffer_size
+                )
 
-        def idle_conversation(parent: dict):
-            idle_conversation_config = parent["idle_conversation"]
+        def idle_chat(parent: dict):
+            idle_chat_config = parent["idle_chat"]
             if config.INNER_VERSION in SpecifierSet(">=1.6.1.6"):
-                config.enable_idle_conversation = idle_conversation_config.get(
-                    "enable_idle_conversation", config.enable_idle_conversation
-                )
-                config.idle_check_interval = idle_conversation_config.get(
-                    "idle_check_interval", config.idle_check_interval
-                )
-                config.min_idle_time = idle_conversation_config.get("min_idle_time", config.min_idle_time)
-                config.max_idle_time = idle_conversation_config.get("max_idle_time", config.max_idle_time)
+                config.enable_idle_chat = idle_chat_config.get("enable_idle_chat", config.enable_idle_chat)
+                config.idle_check_interval = idle_chat_config.get("idle_check_interval", config.idle_check_interval)
+                config.min_cooldown = idle_chat_config.get("min_cooldown", config.min_cooldown)
+                config.max_cooldown = idle_chat_config.get("max_cooldown", config.max_cooldown)
 
         # 版本表达式：>=1.0.0,<2.0.0
         # 允许字段：func: method, support: str, notice: str, necessary: bool
@@ -768,7 +771,7 @@ class BotConfig:
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
             "group_nickname": {"func": group_nickname, "support": ">=1.6.1.1", "necessary": False},
-            "idle_conversation": {"func": idle_conversation, "support": ">=1.6.1.6", "necessary": False},
+            "idle_chat": {"func": idle_chat, "support": ">=1.6.1.6", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象

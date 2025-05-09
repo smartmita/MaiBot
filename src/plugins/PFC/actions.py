@@ -295,7 +295,9 @@ async def handle_action(
                 # 后续的 plan 循环会检测到这个 "done_no_reply" 状态并使用反思 prompt
 
             elif is_suitable:  # 适用于 direct_reply 或 (send_new_message 且 RG决定发送并通过检查)
-                logger.debug(f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。")
+                logger.debug(
+                    f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 找到合适的回复，准备发送。"
+                )
                 # conversation_info.last_reply_rejection_reason = None # 已在循环内清除
                 # conversation_info.last_rejected_reply_content = None
                 conversation_instance.generated_reply = generated_content_for_check_or_send  # 使用检查通过的内容
@@ -361,7 +363,7 @@ async def handle_action(
                             observation_info.chat_history_str = "[构建聊天记录出错]"
                     # --- 新增结束 ---
 
-                    # 更新 idle_conversation_starter 的最后消息时间
+                    # 更新 idle_chat 的最后消息时间
                     # (避免在发送消息后很快触发主动聊天)
                     if conversation_instance.idle_chat:
                         await conversation_instance.idle_chat.update_last_message_time(send_end_time)
@@ -506,7 +508,7 @@ async def handle_action(
                     action_successful = True  # 标记成功
                     # final_status 和 final_reason 会在 finally 中设置
                     logger.info(f"[私聊][{conversation_instance.private_name}] 成功发送告别语，即将停止对话实例。")
-                    # 更新 idle_conversation_starter 的最后消息时间
+                    # 更新 idle_chat 的最后消息时间
                     # (避免在发送消息后很快触发主动聊天)
                     if conversation_instance.idle_chat:
                         await conversation_instance.idle_chat.update_last_message_time(send_end_time)

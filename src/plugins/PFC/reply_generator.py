@@ -1,4 +1,5 @@
 import random
+
 from .pfc_utils import retrieve_contextual_info
 
 from src.common.logger_manager import get_logger
@@ -9,7 +10,7 @@ from .reply_checker import ReplyChecker
 from src.individuality.individuality import Individuality
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
-from src.plugins.utils.chat_message_builder import build_readable_messages
+from .pfc_utils import build_chat_history_text
 
 logger = get_logger("reply_generator")
 
@@ -102,8 +103,6 @@ PROMPT_SEND_NEW_MESSAGE = """
 {retrieved_memory_str}
 
 {last_rejection_info}
-
-{spam_warning_info}
 
 请根据上述信息，判断你是否要继续发一条新消息（例如对之前消息的补充，深入话题，或追问等等）。如果你觉得要发送，该消息应该：
 1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
@@ -216,25 +215,9 @@ class ReplyGenerator:
         else:
             goals_str = "- 目前没有明确对话目标\n"
 
-        chat_history_text = observation_info.chat_history_str
-        if observation_info.new_messages_count > 0 and observation_info.unprocessed_messages:
-            new_messages_list = observation_info.unprocessed_messages
-            new_messages_str = await build_readable_messages(
-                new_messages_list,
-                replace_bot_name=True,
-                merge_messages=False,
-                timestamp_mode="relative",
-                read_mark=0.0,
-            )
-            chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
-        elif not chat_history_text:
-            chat_history_text = "还没有聊天记录。"
-        else:
-            chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
+        chat_history_text = await build_chat_history_text(observation_info, self.private_name)
 
-        sender_name_str = getattr(observation_info, "sender_name", "对方")
-        if not sender_name_str:
-            sender_name_str = "对方"
+        sender_name_str = self.private_name
 
         relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
         current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
@@ -280,14 +263,14 @@ class ReplyGenerator:
                 )
 
         # 新增：构建刷屏警告信息 for PROMPT_SEND_NEW_MESSAGE
-        spam_warning_message = ""
-        if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
-            if conversation_info.my_message_count > 5:
-                spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
-            elif conversation_info.my_message_count > 2:
-                spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
-            if spam_warning_message:
-                spam_warning_message = f"\n{spam_warning_message}\n"
+        # spam_warning_message = ""
+        # if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
+        # if conversation_info.my_message_count > 5:
+        # spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
+        # elif conversation_info.my_message_count > 2:
+        # spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
+        # if spam_warning_message:
+        # spam_warning_message = f"\n{spam_warning_message}\n"
 
         # --- 选择 Prompt ---
         if action_type == "send_new_message":
@@ -326,7 +309,7 @@ class ReplyGenerator:
 
             if action_type == "send_new_message":
                 current_format_params = base_format_params.copy()
-                current_format_params["spam_warning_info"] = spam_warning_message
+                # current_format_params["spam_warning_info"] = spam_warning_message
                 prompt = prompt_template.format(**current_format_params)
             elif action_type == "say_goodbye":
                 farewell_params = {

@@ -8,6 +8,9 @@ from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # 
 from src.plugins.chat.chat_stream import ChatStream
 from ..person_info.person_info import person_info_manager
 import math
+from src.plugins.utils.chat_message_builder import build_readable_messages
+from .observation_info import ObservationInfo
+from src.config.config import global_config
 
 logger = get_logger("pfc_utils")
 
@@ -339,3 +342,43 @@ async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: 
             value = 0
 
     return value
+
+
+async def build_chat_history_text(observation_info: ObservationInfo, private_name: str) -> str:
+    """构建聊天历史记录文本 (包含未处理消息)"""
+
+    chat_history_text = ""
+    try:
+        if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
+            chat_history_text = observation_info.chat_history_str
+        elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
+            history_slice = observation_info.chat_history[-20:]
+            chat_history_text = await build_readable_messages(
+                history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
+            )
+        else:
+            chat_history_text = "还没有聊天记录。\n"
+        unread_count = getattr(observation_info, "new_messages_count", 0)
+        unread_messages = getattr(observation_info, "unprocessed_messages", [])
+        if unread_count > 0 and unread_messages:
+            bot_qq_str = str(global_config.BOT_QQ)
+            other_unread_messages = [
+                msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str
+            ]
+            other_unread_count = len(other_unread_messages)
+            if other_unread_count > 0:
+                new_messages_str = await build_readable_messages(
+                    other_unread_messages,
+                    replace_bot_name=True,
+                    merge_messages=False,
+                    timestamp_mode="relative",
+                    read_mark=0.0,
+                )
+                chat_history_text += f"\n{new_messages_str}\n------\n"
+    except AttributeError as e:
+        logger.warning(f"[私聊][{private_name}] 构建聊天记录文本时属性错误: {e}")
+        chat_history_text = "[获取聊天记录时出错]\n"
+    except Exception as e:
+        logger.error(f"[私聊][{private_name}] 处理聊天记录时发生未知错误: {e}")
+        chat_history_text = "[处理聊天记录时出错]\n"
+    return chat_history_text
