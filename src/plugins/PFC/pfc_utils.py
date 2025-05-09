@@ -79,8 +79,10 @@ async def find_most_relevant_historical_message(
     ]
 
     try:
-        # 假设 db.messages 是存储PFC私聊消息并带有embedding_vector的集合
-        results = await db.messages.aggregate(pipeline).to_list(length=1)
+        # --- 确定性修改：同步执行聚合和结果转换 ---
+        cursor = db.messages.aggregate(pipeline) # PyMongo 的 aggregate 返回一个 CommandCursor
+        results = list(cursor)                   # 直接将 CommandCursor 转换为列表
+        # --- 修改结束 ---
         if results and len(results) > 0:
             most_similar_message = results[0]
             logger.info(f"[{chat_id}] (私聊历史)找到最相关消息 ID: {most_similar_message.get('message_id')}, 相似度: {most_similar_message.get('similarity'):.4f}")
@@ -109,19 +111,19 @@ async def retrieve_chat_context_window(
     logger.debug(f"[{chat_id}] (私聊历史)准备以消息 ID '{anchor_message_id}' (时间: {anchor_message_time}) 为锚点，获取上下文窗口...")
 
     try:
-        # 假设 db.messages 是存储PFC私聊消息的集合
-        anchor_message = await db.messages.find_one({"message_id": anchor_message_id, "chat_id": chat_id})
+        # --- 确定性修改：同步执行 find_one 和 find ---
+        anchor_message = db.messages.find_one({"message_id": anchor_message_id, "chat_id": chat_id})
 
         messages_before_cursor = db.messages.find(
             {"chat_id": chat_id, "time": {"$lt": anchor_message_time}}
         ).sort("time", -1).limit(window_size_before)
-        messages_before = await messages_before_cursor.to_list(length=window_size_before)
+        messages_before = list(messages_before_cursor)
         messages_before.reverse()
 
         messages_after_cursor = db.messages.find(
             {"chat_id": chat_id, "time": {"$gt": anchor_message_time}}
         ).sort("time", 1).limit(window_size_after)
-        messages_after = await messages_after_cursor.to_list(length=window_size_after)
+        messages_after = list(messages_after_cursor)
 
         if messages_before:
             context_messages.extend(messages_before)

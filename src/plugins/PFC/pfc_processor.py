@@ -105,7 +105,7 @@ class PFCProcessor:
 
                         # 更新数据库中的对应文档
                         # 确保你有权限访问和操作 db 对象
-                        update_result = await db.messages.update_one(
+                        update_result = db.messages.update_one(
                             {"message_id": message_obj.message_info.message_id, "chat_id": chat.stream_id},
                             {"$set": {"embedding_vector": embedding_vector}}
                         )

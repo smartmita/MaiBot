@@ -66,10 +66,7 @@ PROMPT_DIRECT_REPLY = """
 最近的聊天记录：
 {chat_history_text}
 
-{retrieved_memory_str}
-
 {last_rejection_info}
-
 
 
 
@@ -107,8 +104,6 @@ PROMPT_SEND_NEW_MESSAGE = """
 
 最近的聊天记录：
 {chat_history_text}
-
-{retrieved_memory_str}
 
 {last_rejection_info}
 
