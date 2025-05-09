@@ -492,12 +492,12 @@ class IdleChat:
             else:
                 schedule_prompt = ""
 
-            # 构建提示词
+            # 构建提示词，暂存废弃部分这是你的日程{schedule_prompt}
             current_time = datetime.now().strftime("%H:%M")
             prompt = f"""你是{global_config.BOT_NICKNAME}。
             你正在与用户{self.private_name}进行QQ私聊，你们的关系是{relationship_description}
             现在时间{current_time}
-            这是你的日程{schedule_prompt}
+
             你想要主动发起对话。
             请基于以下之前的对话历史，生成一条自然、友好、符合关系程度的主动对话消息。
             这条消息应能够引起用户的兴趣，重新开始对话。
