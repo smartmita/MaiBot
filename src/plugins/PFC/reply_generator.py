@@ -1,7 +1,8 @@
 import random
 import asyncio
+from datetime import datetime
 from .pfc_utils import retrieve_contextual_info
-
+from typing import Optional
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
@@ -224,6 +225,51 @@ class ReplyGenerator:
         else:
             goals_str = "- 目前没有明确对话目标\n"
 
+        chat_history_for_prompt_builder: list = []
+        recent_history_start_time_for_exclusion: Optional[float] = None
+        
+        # 我们需要知道 build_chat_history_text 函数大致会用 observation_info.chat_history 的多少条记录
+        # 或者 build_chat_history_text 内部的逻辑。
+        # 假设 build_chat_history_text 主要依赖 observation_info.chat_history_str，
+        # 而 observation_info.chat_history_str 是基于 observation_info.chat_history 的最后一部分（比如20条）生成的。
+        # 为了准确，我们应该直接从 observation_info.chat_history 中获取这个片段的起始时间。
+        # 请确保这里的 MAX_RECENT_HISTORY_FOR_PROMPT 与 observation_info.py 或 build_chat_history_text 中
+        # 用于生成 chat_history_str 的消息数量逻辑大致吻合。
+        # 如果 build_chat_history_text 总是用 observation_info.chat_history 的最后 N 条，那么这个 N 就是这里的数字。
+        # 如果 observation_info.chat_history_str 是由 observation_info.py 中的 update_from_message 等方法维护的，
+        # 并且总是代表一个固定长度（比如最后30条）的聊天记录字符串，那么我们就需要从 observation_info.chat_history
+        # 取出这部分原始消息来确定起始时间。
+        
+        # 我们先做一个合理的假设： “最近聊天记录” 字符串 chat_history_text 是基于
+        # observation_info.chat_history 的一个有限的尾部片段生成的。
+        # 假设这个片段的长度由 global_config.pfc_recent_history_display_count 控制，默认为20条。
+        recent_history_display_count = getattr(global_config, "pfc_recent_history_display_count", 20)
+
+        if observation_info and observation_info.chat_history and len(observation_info.chat_history) > 0:
+            # 获取用于生成“最近聊天记录”的实际消息片段
+            # 如果 observation_info.chat_history 长度小于 display_count，则取全部
+            start_index = max(0, len(observation_info.chat_history) - recent_history_display_count)
+            chat_history_for_prompt_builder = observation_info.chat_history[start_index:]
+            
+            if chat_history_for_prompt_builder: # 如果片段不为空
+                try:
+                    first_message_in_display_slice = chat_history_for_prompt_builder[0]
+                    recent_history_start_time_for_exclusion = first_message_in_display_slice.get('time')
+                    if recent_history_start_time_for_exclusion:
+                        # 导入 datetime (如果 reply_generator.py 文件顶部没有的话)
+                        # from datetime import datetime # 通常建议放在文件顶部
+                        logger.debug(f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段(共{len(chat_history_for_prompt_builder)}条)的最早时间戳: "
+                                     f"{recent_history_start_time_for_exclusion} "
+                                     f"(即 {datetime.fromtimestamp(recent_history_start_time_for_exclusion).strftime('%Y-%m-%d %H:%M:%S')})")
+                    else:
+                        logger.warning(f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段的首条消息无时间戳。")
+                except (IndexError, KeyError, TypeError) as e:
+                    logger.warning(f"[{self.private_name}] (ReplyGenerator) 获取“最近聊天记录”起始时间失败: {e}")
+                    recent_history_start_time_for_exclusion = None 
+        else:
+            logger.debug(f"[{self.private_name}] (ReplyGenerator) observation_info.chat_history 为空，无法确定“最近聊天记录”起始时间。")
+        # --- [新代码结束] ---    
+
         chat_history_text = await build_chat_history_text(observation_info, self.private_name)
 
         sender_name_str = self.private_name
@@ -276,7 +322,8 @@ class ReplyGenerator:
                 text=retrieval_context_for_global_and_knowledge, # 用于全局记忆和知识
                 private_name=self.private_name,
                 chat_id=current_chat_id, # << 传递 chat_id
-                historical_chat_query_text=historical_chat_query # << 传递专门的查询文本
+                historical_chat_query_text=historical_chat_query, # << 传递专门的查询文本
+                current_short_term_history_earliest_time=recent_history_start_time_for_exclusion # <--- 新增传递的参数
             )
         # === 调用修改结束 ===
 

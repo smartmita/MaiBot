@@ -32,7 +32,7 @@ async def find_most_relevant_historical_message(
     chat_id: str,
     query_text: str,
     similarity_threshold: float = 0.3, # 相似度阈值，可以根据效果调整
-    exclude_recent_seconds: int = 900 # 新增参数：排除最近多少秒内的消息（例如5分钟）
+    absolute_search_time_limit: Optional[float] = None # 新增参数：排除最近多少秒内的消息（例如5分钟）
 ) -> Optional[Dict[str, Any]]:
     """
     根据查询文本，在指定 chat_id 的历史消息中查找最相关的消息。
@@ -50,15 +50,30 @@ async def find_most_relevant_historical_message(
         logger.warning(f"[{chat_id}] (私聊历史)未能为查询文本 '{query_text[:50]}...' 生成嵌入向量。")
         return None
 
-    current_timestamp = time.time() # 获取当前时间戳
-    excluded_time_threshold = current_timestamp - exclude_recent_seconds
+    effective_search_upper_limit: float
+    log_source_of_limit: str = ""
+    
+    if absolute_search_time_limit is not None:
+        effective_search_upper_limit = absolute_search_time_limit
+        log_source_of_limit = "传入的绝对时间上限"
+    else:
+        # 如果没有传入绝对时间上限，可以设置一个默认的回退逻辑
+        fallback_exclude_seconds = getattr(global_config, "pfc_historical_fallback_exclude_seconds", 7200) # 默认2小时
+        effective_search_upper_limit = time.time() - fallback_exclude_seconds
+        log_source_of_limit = f"回退逻辑 (排除最近 {fallback_exclude_seconds} 秒)"
+    
+    logger.debug(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: "
+                 f"将使用时间上限 {effective_search_upper_limit} "
+                 f"(可读: {datetime.fromtimestamp(effective_search_upper_limit).strftime('%Y-%m-%d %H:%M:%S')}) "
+                 f"进行历史消息锚点搜索。来源: {log_source_of_limit}")
+    # --- [新代码结束] ---
 
     pipeline = [
         {
             "$match": {
                 "chat_id": chat_id,
                 "embedding_vector": {"$exists": True, "$ne": None, "$not": {"$size": 0}},
-                "time": {"$lt": excluded_time_threshold}
+                "time": {"$lt": effective_search_upper_limit} # <--- 使用新的 effective_search_upper_limit
             }
         },
         {
@@ -90,13 +105,13 @@ async def find_most_relevant_historical_message(
         cursor = db.messages.aggregate(pipeline) # PyMongo 的 aggregate 返回一个 CommandCursor
         results = list(cursor)                   # 直接将 CommandCursor 转换为列表
         if not results:
-            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {excluded_time_threshold} ({exclude_recent_seconds} 秒前) 之前，未能找到任何与 '{query_text[:30]}...' 相关的历史消息。")
+            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {effective_search_upper_limit} 之前，未能找到任何与 '{query_text[:30]}...' 相关的历史消息。")
         else:
-            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {excluded_time_threshold} ({exclude_recent_seconds} 秒前) 之前，找到了 {len(results)} 条候选历史消息。最相关的一条是：")
-            for res_msg in results: # 最多只打印我们 limit 的那几条
+            logger.info(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: 在时间点 {effective_search_upper_limit} 之前，找到了 {len(results)} 条候选历史消息。最相关的一条是：")
+            for res_msg in results: 
                 msg_time_readable = datetime.fromtimestamp(res_msg.get('time',0)).strftime('%Y-%m-%d %H:%M:%S')
                 logger.info(f"  - MsgID: {res_msg.get('message_id')}, Time: {msg_time_readable} (原始: {res_msg.get('time')}), Sim: {res_msg.get('similarity'):.4f}, Text: '{res_msg.get('processed_plain_text','')[:50]}...'")
-    # --- 新增日志结束 ---
+        # --- [修改结束] ---
 
         # --- 修改结束 ---
         if results and len(results) > 0:
@@ -182,7 +197,8 @@ async def retrieve_contextual_info(
     text: str,                             # 用于全局记忆和知识检索的主查询文本 (通常是短期聊天记录)
     private_name: str,                     # 用于日志
     chat_id: str,                          # 用于特定私聊历史的检索
-    historical_chat_query_text: Optional[str] = None # 专门为私聊历史检索准备的查询文本 (例如最新的N条消息合并)
+    historical_chat_query_text: Optional[str] = None,
+    current_short_term_history_earliest_time: Optional[float] = None # <--- 新增参数
 ) -> Tuple[str, str, str]:                 # 返回: 全局记忆, 知识, 私聊历史回忆
     """
     检索三种类型的上下文信息：全局压缩记忆、知识库知识、当前私聊的特定历史对话。
@@ -253,38 +269,68 @@ async def retrieve_contextual_info(
         logger.debug(f"[私聊][{private_name}] (retrieve_contextual_info) 无有效主查询文本，跳过知识检索。")
 
 
-    # --- 3. 当前私聊的特定历史对话上下文检索 (新增逻辑) ---
+    # --- 3. 当前私聊的特定历史对话上下文检索 ---
     query_for_historical_chat = historical_chat_query_text if historical_chat_query_text and historical_chat_query_text.strip() else None
-    historical_chat_log_msg = f"开始私聊历史检索 (查询文本: '{str(query_for_historical_chat)[:30]}...')"
+    # historical_chat_log_msg 的初始化可以移到 try 块之后，根据实际情况赋值
 
     if query_for_historical_chat:
         try:
-            # 获取 find_most_relevant_historical_message 调用时实际使用的 exclude_recent_seconds 值
-            actual_exclude_seconds_for_find = 900 # 根据您对 find_most_relevant_historical_message 的调用
+            # ---- [新代码] 计算最终的、严格的搜索时间上限 ----
+            # 1. 设置一个基础的、较大的时间回溯窗口，例如2小时 (7200秒)
+            #    这个值可以从全局配置读取，如果没配置则使用默认值
+            default_search_exclude_seconds = getattr(global_config, "pfc_historical_search_default_exclude_seconds", 7200) # 默认2小时
+            base_excluded_time_limit = time.time() - default_search_exclude_seconds
+            
+            final_search_upper_limit_time = base_excluded_time_limit
+            if current_short_term_history_earliest_time is not None:
+                # 我们希望找到的消息严格早于 short_term_history 的开始，减去一个小量确保不包含边界
+                limit_from_short_term = current_short_term_history_earliest_time - 0.001 
+                final_search_upper_limit_time = min(base_excluded_time_limit, limit_from_short_term)
+            log_earliest_time_str = "未提供"
+            if current_short_term_history_earliest_time is not None:
+                try:
+                    log_earliest_time_str = f"{current_short_term_history_earliest_time} (即 {datetime.fromtimestamp(current_short_term_history_earliest_time).strftime('%Y-%m-%d %H:%M:%S')})"
+                except: 
+                    log_earliest_time_str = str(current_short_term_history_earliest_time)
+            
+            logger.debug(f"[{private_name}] (私聊历史) retrieve_contextual_info: "
+                         f"最终用于历史搜索的时间上限: {final_search_upper_limit_time} "
+                         f"(可读: {datetime.fromtimestamp(final_search_upper_limit_time).strftime('%Y-%m-%d %H:%M:%S')}). "
+                         f"基于默认排除 {default_search_exclude_seconds}s 和 '最近记录'片段开始时间: {log_earliest_time_str}")
+            
 
             most_relevant_message_doc = await find_most_relevant_historical_message(
                 chat_id=chat_id,
                 query_text=query_for_historical_chat,
-                similarity_threshold=0.5,
-                exclude_recent_seconds=actual_exclude_seconds_for_find
+                similarity_threshold=0.5, # 您可以调整这个
+                # exclude_recent_seconds 不再直接使用，而是传递计算好的绝对时间上限
+                absolute_search_time_limit=final_search_upper_limit_time # <--- 传递计算好的绝对时间上限
             )
+            
             if most_relevant_message_doc:
                 anchor_id = most_relevant_message_doc.get("message_id")
-                anchor_time = most_relevant_message_doc.get("time")
-                if anchor_id and anchor_time is not None:
-                    # 计算传递给 retrieve_chat_context_window 的时间上限
-                    # 这个上限应该与 find_most_relevant_historical_message 的排除点一致
-                    time_limit_for_window_after = time.time() - actual_exclude_seconds_for_find
-                    
+                anchor_time = most_relevant_message_doc.get("time") 
+                
+                # 校验锚点时间是否真的符合我们的硬性上限 (理论上 find_most_relevant_historical_message 内部已保证)
+                if anchor_time is not None and anchor_time >= final_search_upper_limit_time:
+                    logger.warning(f"[{private_name}] (私聊历史) find_most_relevant_historical_message 返回的锚点时间 {anchor_time} "
+                                   f"并未严格小于最终搜索上限 {final_search_upper_limit_time}。可能导致重叠。跳过构建上下文。")
+                    historical_chat_log_msg = "检索到的锚点不符合最终时间要求，可能导致重叠。"
+                    # 直接进入下一个分支 (else)，使得 retrieved_historical_chat_str 保持默认值
+                elif anchor_id and anchor_time is not None:
+                    # 构建上下文窗口时，其“未来”消息的上限也应该是 final_search_upper_limit_time
+                    # 因为我们不希望历史回忆的上下文窗口延伸到“最近聊天记录”的范围内或更近
+                    time_limit_for_context_window_after = final_search_upper_limit_time 
+                                        
                     logger.debug(f"[{private_name}] (私聊历史) 调用 retrieve_chat_context_window "
                                  f"with anchor_time: {anchor_time}, "
-                                 f"excluded_time_threshold_for_window: {time_limit_for_window_after}")
+                                 f"excluded_time_threshold_for_window: {time_limit_for_context_window_after}")
 
                     context_window_messages = await retrieve_chat_context_window(
                         chat_id=chat_id,
                         anchor_message_id=anchor_id,
-                        anchor_message_time=anchor_time,
-                        excluded_time_threshold_for_window=time_limit_for_window_after, # <--- 传递这个值
+                        anchor_message_time=anchor_time, 
+                        excluded_time_threshold_for_window=time_limit_for_context_window_after,
                         window_size_before=7,
                         window_size_after=7
                     )
