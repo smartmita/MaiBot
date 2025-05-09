@@ -680,12 +680,8 @@ class BotConfig:
         def idle_chat(parent: dict):
             idle_chat_config = parent["idle_chat"]
             if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
-                config.enable_idle_chat = idle_chat_config.get(
-                    "enable_idle_chat", config.enable_idle_chat
-                )
-                config.idle_check_interval = idle_chat_config.get(
-                    "idle_check_interval", config.idle_check_interval
-                )
+                config.enable_idle_chat = idle_chat_config.get("enable_idle_chat", config.enable_idle_chat)
+                config.idle_check_interval = idle_chat_config.get("idle_check_interval", config.idle_check_interval)
                 config.min_cooldown = idle_chat_config.get("min_cooldown", config.min_cooldown)
                 config.max_cooldown = idle_chat_config.get("max_cooldown", config.max_cooldown)
 
