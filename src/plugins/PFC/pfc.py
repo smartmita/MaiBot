@@ -3,7 +3,7 @@ from src.common.logger import get_module_logger
 from ..models.utils_model import LLMRequest
 from ...config.config import global_config
 from .chat_observer import ChatObserver
-from .pfc_utils import get_items_from_json
+from .pfc_utils import get_items_from_json, build_chat_history_text
 from src.individuality.individuality import Individuality
 from .conversation_info import ConversationInfo
 from .observation_info import ObservationInfo
@@ -86,21 +86,7 @@ class GoalAnalyzer:
             goals_str = f"目标：{goal}，产生该对话目标的原因：{reasoning}\n"
 
         # 获取聊天历史记录
-        chat_history_text = observation_info.chat_history_str
-
-        if observation_info.new_messages_count > 0:
-            new_messages_list = observation_info.unprocessed_messages
-            new_messages_str = await build_readable_messages(
-                new_messages_list,
-                replace_bot_name=True,
-                merge_messages=False,
-                timestamp_mode="relative",
-                read_mark=0.0,
-            )
-            chat_history_text += f"\n--- 以下是 {observation_info.new_messages_count} 条新消息 ---\n{new_messages_str}"
-        else:
-            chat_history_text += "\n--- 以上均为已读消息，未读消息均已处理完毕 ---\n"
-            # await observation_info.clear_unprocessed_messages()
+        chat_history_text = await build_chat_history_text(observation_info, self.private_name)
 
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
         # 构建action历史文本
