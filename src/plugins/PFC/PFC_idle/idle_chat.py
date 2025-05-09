@@ -144,8 +144,8 @@ class IdleChat:
         self._task: Optional[asyncio.Task] = None
 
         # 配置参数 - 从global_config加载
-        self.min_cooldown = global_config.min_idle_time  # 最短冷却时间（默认2小时）
-        self.max_cooldown = global_config.max_idle_time  # 最长冷却时间（默认5小时）
+        self.min_cooldown = global_config.min_cooldown  # 最短冷却时间（默认2小时）
+        self.max_cooldown = global_config.max_cooldown  # 最长冷却时间（默认5小时）
         self.check_interval = global_config.idle_check_interval * 60  # 检查间隔（默认10分钟，转换为秒）
         self.active_hours_start = 7  # 活动开始时间
         self.active_hours_end = 23  # 活动结束时间
@@ -157,8 +157,8 @@ class IdleChat:
     def start(self) -> None:
         """启动主动聊天检测"""
         # 检查是否启用了主动聊天功能
-        if not global_config.enable_idle_conversation:
-            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置ENABLE_IDLE_CONVERSATION=False）")
+        if not global_config.enable_idle_chat:
+            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置ENABLE_IDLE_CHAT=False）")
             return
 
         if self._running:
@@ -350,7 +350,7 @@ class IdleChat:
         try:
             while self._running:
                 # 检查是否启用了主动聊天功能
-                if not global_config.enable_idle_conversation:
+                if not global_config.enable_idle_chat:
                     # 如果禁用了功能，等待一段时间后再次检查配置
                     await asyncio.sleep(60)  # 每分钟检查一次配置变更
                     continue
@@ -492,12 +492,12 @@ class IdleChat:
             else:
                 schedule_prompt = ""
 
-            # 构建提示词
+            # 构建提示词，暂存废弃部分这是你的日程{schedule_prompt}
             current_time = datetime.now().strftime("%H:%M")
             prompt = f"""你是{global_config.BOT_NICKNAME}。
             你正在与用户{self.private_name}进行QQ私聊，你们的关系是{relationship_description}
             现在时间{current_time}
-            这是你的日程{schedule_prompt}
+
             你想要主动发起对话。
             请基于以下之前的对话历史，生成一条自然、友好、符合关系程度的主动对话消息。
             这条消息应能够引起用户的兴趣，重新开始对话。
