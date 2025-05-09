@@ -25,7 +25,6 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
 from .PFC_idle.idle_chat import IdleChat
-from .pfc_KnowledgeFetcher import KnowledgeFetcher
 from .waiter import Waiter
 from .reply_checker import ReplyChecker
 
@@ -74,7 +73,6 @@ class Conversation:
         self.action_planner: Optional[ActionPlanner] = None
         self.goal_analyzer: Optional[GoalAnalyzer] = None
         self.reply_generator: Optional[ReplyGenerator] = None
-        self.knowledge_fetcher: Optional[KnowledgeFetcher] = None
         self.waiter: Optional[Waiter] = None
         self.direct_sender: Optional[DirectMessageSender] = None
         self.idle_chat: Optional[IdleChat] = None

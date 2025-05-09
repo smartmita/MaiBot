@@ -18,7 +18,6 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
 from .PFC_idle.idle_chat import IdleChat
-from .pfc_KnowledgeFetcher import KnowledgeFetcher  # 修正大小写
 from .waiter import Waiter
 from .pfc_utils import get_person_id
 from .reply_checker import ReplyChecker
@@ -165,9 +164,6 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         conversation_instance.reply_generator = ReplyGenerator(
             conversation_instance.stream_id, conversation_instance.private_name
         )
-
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 KnowledgeFetcher...")
-        conversation_instance.knowledge_fetcher = KnowledgeFetcher(conversation_instance.private_name)
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 Waiter...")
         conversation_instance.waiter = Waiter(conversation_instance.stream_id, conversation_instance.private_name)
