@@ -1,6 +1,5 @@
 import random
 
-from networkx import bull_graph
 from .pfc_utils import retrieve_contextual_info
 
 from src.common.logger_manager import get_logger

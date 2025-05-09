@@ -3,9 +3,6 @@ import traceback
 from typing import Tuple, Optional, Dict, Any, List
 
 from src.common.logger_manager import get_logger
-
-# from src.individuality.individuality import Individuality
-from src.plugins.utils.chat_message_builder import build_readable_messages
 from ..models.utils_model import LLMRequest
 from src.config.config import global_config
 
