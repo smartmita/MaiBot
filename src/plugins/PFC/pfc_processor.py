@@ -2,7 +2,8 @@ import traceback
 import re
 from typing import Any, Dict
 from datetime import datetime # 确保导入 datetime
-from maim_message import UserInfo, MessageRecv # 从 maim_message 导入 MessageRecv
+from maim_message import UserInfo # UserInfo 来自 maim_message 包 # 从 maim_message 导入 MessageRecv
+from src.plugins.chat.message import MessageRecv # MessageRecv 来自message.py
 from src.config.config import global_config
 from src.common.logger_manager import get_logger
 from ..chat.chat_stream import chat_manager 
