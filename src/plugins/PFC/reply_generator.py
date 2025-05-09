@@ -1,5 +1,5 @@
 import random
-
+import asyncio
 from .pfc_utils import retrieve_contextual_info
 
 from src.common.logger_manager import get_logger
@@ -60,12 +60,17 @@ PROMPT_DIRECT_REPLY = """
 {retrieved_knowledge_str}
 请你**记住上面的知识**，在回复中有可能会用到。
 
+你还想到了一些你们之前的聊天记录：
+{retrieved_historical_chat_str}
+
 最近的聊天记录：
 {chat_history_text}
 
 {retrieved_memory_str}
 
 {last_rejection_info}
+
+
 
 
 请根据上述信息，结合聊天记录，回复对方。该回复应该：
@@ -96,6 +101,9 @@ PROMPT_SEND_NEW_MESSAGE = """
 你有以下这些知识：
 {retrieved_knowledge_str}
 请你**记住上面的知识**，在发消息时有可能会用到。
+
+你还想到了一些你们之前的聊天记录：
+{retrieved_historical_chat_str}
 
 最近的聊天记录：
 {chat_history_text}
@@ -223,12 +231,59 @@ class ReplyGenerator:
         current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
 
         persona_text = f"你的名字是{self.name}，{self.personality_info}。"
-        retrieval_context = chat_history_text
-        retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
-            retrieval_context, self.private_name
-        )
+        historical_chat_query = ""
+        num_recent_messages_for_query = 3 # 例如，取最近3条作为查询引子
+        if observation_info.chat_history and len(observation_info.chat_history) > 0:
+            # 从 chat_history (已处理并存入 ObservationInfo 的历史) 中取最新N条
+            # 或者，如果 observation_info.unprocessed_messages 更能代表“当前上下文”，也可以考虑用它
+            # 我们先用 chat_history，因为它包含了双方的对话历史，可能更稳定
+            recent_messages_for_query_list = observation_info.chat_history[-num_recent_messages_for_query:]
+            
+            # 将这些消息的文本内容合并
+            query_texts_list = []
+            for msg_dict in recent_messages_for_query_list:
+                text_content = msg_dict.get("processed_plain_text", "")
+                if text_content.strip(): # 只添加有内容的文本
+                    # 可以选择是否添加发送者信息到查询文本中，例如：
+                    # sender_nickname = msg_dict.get("user_info", {}).get("user_nickname", "用户")
+                    # query_texts_list.append(f"{sender_nickname}: {text_content}")
+                    query_texts_list.append(text_content) # 简单合并文本内容
+            
+            if query_texts_list:
+                historical_chat_query = " ".join(query_texts_list).strip()
+                logger.debug(f"[私聊][{self.private_name}] (ReplyGenerator) 生成的私聊历史查询文本 (最近{num_recent_messages_for_query}条): '{historical_chat_query[:100]}...'")
+            else:
+                logger.debug(f"[私聊][{self.private_name}] (ReplyGenerator) 最近{num_recent_messages_for_query}条消息无有效文本内容，不进行私聊历史查询。")
+        else:
+            logger.debug(f"[私聊][{self.private_name}] (ReplyGenerator) 无聊天历史可用于生成私聊历史查询文本。")
+
+        current_chat_id = self.chat_observer.stream_id if self.chat_observer else None
+        if not current_chat_id:
+            logger.error(f"[私聊][{self.private_name}] (ReplyGenerator) 无法获取 current_chat_id，跳过所有上下文检索！")
+            retrieved_global_memory_str = "[获取全局记忆出错：chat_id 未知]"
+            retrieved_knowledge_str = "[获取知识出错：chat_id 未知]"
+            retrieved_historical_chat_str = "[获取私聊历史回忆出错：chat_id 未知]"
+        else:
+            # retrieval_context 之前是用 chat_history_text，现在也用它作为全局记忆和知识的检索上下文
+            retrieval_context_for_global_and_knowledge = chat_history_text
+
+            (
+                retrieved_global_memory_str,
+                retrieved_knowledge_str,
+                retrieved_historical_chat_str # << 新增接收私聊历史回忆
+            ) = await retrieve_contextual_info(
+                text=retrieval_context_for_global_and_knowledge, # 用于全局记忆和知识
+                private_name=self.private_name,
+                chat_id=current_chat_id, # << 传递 chat_id
+                historical_chat_query_text=historical_chat_query # << 传递专门的查询文本
+            )
+        # === 调用修改结束 ===
+
         logger.info(
-            f"[私聊][{self.private_name}] (ReplyGenerator) 统一检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str else '无'}"
+            f"[私聊][{self.private_name}] (ReplyGenerator) 上下文检索完成。\n"
+            f"  全局记忆: {'有内容' if '回忆起' in retrieved_global_memory_str else '无或出错'}\n"
+            f"  知识: {'有内容' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and retrieved_knowledge_str.strip() else '无或出错'}\n"
+            f"  私聊历史回忆: {'有内容' if '回忆起一段相关的历史聊天' in retrieved_historical_chat_str else '无或出错'}"
         )
 
         last_rejection_info_str = ""
@@ -292,11 +347,10 @@ class ReplyGenerator:
             base_format_params = {
                 "persona_text": persona_text,
                 "goals_str": goals_str,
-                "chat_history_text": chat_history_text,
-                "retrieved_memory_str": retrieved_memory_str if retrieved_memory_str else "无相关记忆。",  # 确保已定义
-                "retrieved_knowledge_str": retrieved_knowledge_str
-                if retrieved_knowledge_str
-                else "无相关知识。",  # 确保已定义
+                "chat_history_text": chat_history_text if chat_history_text.strip() else "还没有聊天记录。", # 当前短期历史
+                "retrieved_global_memory_str": retrieved_global_memory_str if retrieved_global_memory_str.strip() else "无相关全局记忆。",
+                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str.strip() else "无相关知识。",
+                "retrieved_historical_chat_str": retrieved_historical_chat_str if retrieved_historical_chat_str.strip() else "无相关私聊历史回忆。", # << 新增
                 "last_rejection_info": last_rejection_info_str,
                 "current_time_str": current_time_value,
                 "sender_name": sender_name_str,
