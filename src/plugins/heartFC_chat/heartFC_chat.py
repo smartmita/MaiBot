@@ -926,7 +926,7 @@ class HeartFChatting:
                             response_content = json_match.group(0)
                         else:
                             logger.warning(f"LLM 响应似乎不包含有效的 JSON 对象。响应: {response_content}")
-                    
+
                     cleaned_content = response_content
                     if not cleaned_content:
                         raise json.JSONDecodeError("Cleaned content is empty", cleaned_content, 0)

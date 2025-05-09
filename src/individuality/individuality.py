@@ -212,7 +212,7 @@ class Individuality:
             level = 2
         elif global_config.personality_detail_level == 3:
             level = 3
-        else: # level = 0
+        else:  # level = 0
             pass
 
         # 调用新的独立方法
