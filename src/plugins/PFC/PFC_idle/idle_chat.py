@@ -485,12 +485,13 @@ class IdleChat:
             if "：" in full_relationship_text:
                 relationship_description = full_relationship_text.split("：")[1].replace("。", "")
 
-            if global_config.ENABLE_SCHEDULE_GEN:
-                schedule_prompt = await global_prompt_manager.format_prompt(
-                    "schedule_prompt", schedule_info=bot_schedule.get_current_num_task(num=1, time_info=False)
-                )
-            else:
-                schedule_prompt = ""
+            # 暂不使用
+            # if global_config.ENABLE_SCHEDULE_GEN:
+            #     schedule_prompt = await global_prompt_manager.format_prompt(
+            #         "schedule_prompt", schedule_info=bot_schedule.get_current_num_task(num=1, time_info=False)
+            #     )
+            # else:
+            #     schedule_prompt = ""
 
             # 构建提示词，暂存废弃部分这是你的日程{schedule_prompt}
             current_time = datetime.now().strftime("%H:%M")
