@@ -790,7 +790,7 @@ class HeartFChatting:
                 )
                 return current_mind
         except Exception as e:
-            logger.error(f"{self.log_prefix}[SubMind] 思考失败: {e}")
+            logger.error(f"{self.log_prefix}子心流 思考失败: {e}")
             logger.error(traceback.format_exc())
             return "[思考时出错]"
 
