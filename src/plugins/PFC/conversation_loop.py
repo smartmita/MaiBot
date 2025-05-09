@@ -33,19 +33,15 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
         logger.error(f"[私聊][{conversation_instance.private_name}] 尝试在未初始化状态下运行规划循环，退出。")
         return
 
-    # 注意：force_reflect_and_act 是在主循环的每次迭代开始前确定的，
-    # 它在 action_planner.plan 使用后会被重置为 False。
-    # 如果在一次迭代中被设为 True (例如因为LLM任务中断)，它会影响下一次迭代的 plan 调用。
     _force_reflect_and_act_next_iter = False
 
     while conversation_instance.should_continue:
         loop_iter_start_time = time.time()
         current_force_reflect_and_act = _force_reflect_and_act_next_iter
-        _force_reflect_and_act_next_iter = False # 默认下一轮迭代不强制反思
+        _force_reflect_and_act_next_iter = False 
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] 开始新一轮循环迭代 ({loop_iter_start_time:.2f}), force_reflect_next_iter: {current_force_reflect_and_act}")
 
-        # 更新当前时间
         try:
             global TIME_ZONE
             if TIME_ZONE is None:
@@ -68,7 +64,6 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                 f"[私聊][{conversation_instance.private_name}] 更新 ObservationInfo 当前时间时出错: {time_update_err}"
             )
 
-        # 处理忽略状态
         if (
             conversation_instance.ignore_until_timestamp
             and loop_iter_start_time < conversation_instance.ignore_until_timestamp
@@ -91,7 +86,6 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
         else:
             pass
 
-        # 核心规划与行动逻辑
         try:
             if conversation_instance.conversation_info and conversation_instance._initialized:
                 if (
@@ -148,9 +142,8 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                 conversation_instance.conversation_info.last_successful_reply_action
                 if conversation_instance.conversation_info
                 else None,
-                use_reflect_prompt=current_force_reflect_and_act, # 使用当前迭代的强制反思标志
+                use_reflect_prompt=current_force_reflect_and_act,
             )
-            # current_force_reflect_and_act 已经被用于本次plan, _force_reflect_and_act_next_iter 默认为 False
 
             logger.debug(
                 f"[私聊][{conversation_instance.private_name}] (Loop) ActionPlanner.plan 完成，初步规划动作: {action}"
@@ -173,7 +166,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             other_new_msg_count_action_planning = len(other_new_messages_during_action_planning)
 
             if conversation_instance.conversation_info and other_new_msg_count_action_planning > 0:
-                pass # 计数更新等通常在消息实际处理后
+                pass 
 
             should_interrupt_action_planning: bool = False
             interrupt_reason_action_planning: str = ""
@@ -244,7 +237,9 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                             is_new_enough = msg_time_llm and msg_time_llm >= llm_call_start_time
                             is_other_sender = sender_id_llm != conversation_instance.bot_qq_str
                             
-                            logger.debug(f"  - Msg ID: {msg_llm.get('message_id')}, Time: {msg_time_llm:.2f if msg_time_llm else 'N/A'}, Sender: {sender_id_llm}. New enough? {is_new_enough}. Other sender? {is_other_sender}.")
+                            # *** Fix for ValueError ***
+                            time_str_for_log = f"{msg_time_llm:.2f}" if msg_time_llm is not None else "N/A"
+                            logger.debug(f"  - Msg ID: {msg_llm.get('message_id')}, Time: {time_str_for_log}, Sender: {sender_id_llm}. New enough? {is_new_enough}. Other sender? {is_other_sender}.")
 
                             if is_new_enough and is_other_sender:
                                 other_new_messages_this_check.append(msg_llm)
@@ -258,30 +253,21 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                             if not llm_action_task.done():
                                 llm_action_task.cancel()
                                 llm_task_cancelled_by_us = True
-                            break # 从监控循环中断
-                    # except asyncio.CancelledError: # 这个由外部的 await llm_action_task 捕获
-                    #     pass
-
-                # 监控循环结束后，等待任务的最终结果
+                            break 
                 try:
                     await llm_action_task
                     logger.debug(f"[私聊][{conversation_instance.private_name}] (Loop) LLM动作 '{action}' 任务最终完成 (未被取消或未发生错误)。")
                 except asyncio.CancelledError:
                     logger.info(f"[私聊][{conversation_instance.private_name}] (Loop) LLM动作 '{action}' 任务最终确认被取消。")
                     interrupted_during_llm = True 
-                    # actions.handle_action 内部的finally块会更新done_action状态为cancelled
                 except Exception as e_llm_final:
                     logger.error(f"[私聊][{conversation_instance.private_name}] (Loop) LLM动作 '{action}' 任务执行时发生最终错误: {e_llm_final}")
                     logger.error(traceback.format_exc())
                     interrupted_during_llm = True
                     conversation_instance.state = ConversationState.ERROR
-                    # actions.handle_action 内部的finally块会更新done_action状态为error
 
                 if interrupted_during_llm:
                     conversation_instance.state = ConversationState.ANALYZING
-                    # 如果是我们因为新消息主动取消的，下一轮不强制反思，正常规划
-                    # 如果是其他原因（例如LLM内部错误导致任务提前结束并被视为中断），也可以考虑不强制反思
-                    # _force_reflect_and_act_next_iter 保持其默认的 False
                     logger.info(f"[私聊][{conversation_instance.private_name}] (Loop) LLM动作中断，准备重新规划。llm_task_cancelled_by_us: {llm_task_cancelled_by_us}")
                     await asyncio.sleep(0.1)
                     continue
@@ -305,7 +291,6 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             if conversation_instance.conversation_info and conversation_instance.conversation_info.done_action:
                 last_action_record = conversation_instance.conversation_info.done_action[-1]
             
-            # 只有当 ReplyGenerator 明确决定不发送时，才强制下一轮反思
             if (
                 last_action_record.get("action") == "send_new_message"
                 and last_action_record.get("status") == "done_no_reply" 
@@ -329,7 +314,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                 if current_goal == "结束对话":
                     goal_ended = True
 
-            last_action_record_for_end_check = {} # 重新获取最新的记录
+            last_action_record_for_end_check = {} 
             if conversation_instance.conversation_info and conversation_instance.conversation_info.done_action:
                 last_action_record_for_end_check = conversation_instance.conversation_info.done_action[-1]
             action_ended: bool = (
