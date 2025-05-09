@@ -20,10 +20,10 @@ logger = get_logger("pfc_action_planner")
 # Prompt(1): 首次回复或非连续回复时的决策 Prompt
 PROMPT_INITIAL_REPLY = """
 当前时间：{current_time_str}
-现在{persona_text}正在与{sender_name}在qq上私聊
+现在[{persona_text}]正在与[{sender_name}]在qq上私聊
 他们的关系是：{relationship_text}
-{persona_text}现在的心情是是：{current_emotion_text}
-你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以回复，可以倾听，甚至可以屏蔽对方：
+[{persona_text}]现在的心情是：{current_emotion_text}
+你现在需要操控[{persona_text}]，判断当前氛围和双方的意图，并根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以回复，可以倾听，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -40,10 +40,10 @@ PROMPT_INITIAL_REPLY = """
 ------
 可选行动类型以及解释：
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
-direct_reply: 直接回复对方 (当有新消息需要处理时，通常应选择此项)
+direct_reply: 直接回复对方
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
 end_conversation: 结束对话，对方长时间没回复，繁忙，或者当你觉得对话告一段落时可以选择
-block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当对话让你感到十分不适，或你遭到各类骚扰时选择
+block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当你觉得对话让[{persona_text}]感到十分不适，或[{persona_text}]遭到各类骚扰时选择
 
 请以JSON格式输出你的决策：
 {{
@@ -56,10 +56,10 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 # Prompt(2): 上一次成功回复后，决定继续发言时的决策 Prompt
 PROMPT_FOLLOW_UP = """
 当前时间：{current_time_str}
-现在{persona_text}正在与{sender_name}在qq上私聊，**并且刚刚{persona_text}已经回复了对方**
+现在[{persona_text}]正在与[{sender_name}]在qq上私聊，**并且刚刚[{persona_text}]已经回复了对方**
 他们的关系是：{relationship_text}
-{persona_text}现在的心情是是：{current_emotion_text}
-你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以发送新消息，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
+{persona_text}现在的心情是：{current_emotion_text}
+你现在需要操控[{persona_text}]，判断当前氛围和双方的意图，并根据以下【所有信息】灵活，合理的决策[{persona_text}]的下一步行动，需要符合正常人的社交流程，可以发送新消息，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
 
 【当前对话目标】
 {goals_str}
@@ -76,10 +76,10 @@ PROMPT_FOLLOW_UP = """
 可选行动类型以及解释：
 wait: 暂时不说话，留给对方交互空间，等待对方回复。
 listening: 倾听对方发言（虽然你刚发过言，但如果对方立刻回复且明显话没说完，可以选择这个）
-send_new_message: 发送一条新消息继续对话，允许适当的追问、补充、深入话题，或开启相关新话题（但是注意看对话记录，如果对方已经没有回复你，end_conversation或wait可能更合适）。
+send_new_message: 发送一条新消息，当你觉得[{persona_text}]还有话要说，或现在适合/需要发送消息时可以选择
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
-end_conversation: 安全和平的结束对话，对方长时间没回复、繁忙、已经不再回复你消息、明显暗示或表达想结束聊天时，可以果断选择
-block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当对话让你感到十分不适，或你遭到各类骚扰时选择
+end_conversation: 安全和平的结束对话，对方长时间没回复、繁忙、或你觉得对话告一段落时可以选择
+block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当你觉得对话让[{persona_text}]感到十分不适，或[{persona_text}]遭到各类骚扰时选择
 
 请以JSON格式输出你的决策：
 {{
