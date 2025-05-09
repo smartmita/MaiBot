@@ -1,5 +1,6 @@
 import asyncio
 import threading
+import random
 import time
 import json
 import re
@@ -199,6 +200,10 @@ class NicknameManager:
         (现在调用异步的 _add_to_queue)
         """
         if not self.is_enabled:
+            return
+
+        if random.random() > 0.9:
+            logger.debug("跳过绰号分析：随机概率未命中。")
             return
 
         current_chat_stream = chat_stream or anchor_message.chat_stream
