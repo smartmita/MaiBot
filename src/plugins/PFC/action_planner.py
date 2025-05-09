@@ -212,7 +212,7 @@ class ActionPlanner:
             goals_str = self._build_goals_string(conversation_info)
             chat_history_text = await build_chat_history_text(observation_info, self.private_name)
             # 获取 sender_name, relationship_text, current_emotion_text
-            sender_name_str = getattr(observation_info, "sender_name", "对方")  # 从 observation_info 获取
+            sender_name_str = self.private_name
             if not sender_name_str:
                 sender_name_str = "对方"  # 再次确保有默认值
 

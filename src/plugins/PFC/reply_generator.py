@@ -218,9 +218,7 @@ class ReplyGenerator:
 
         chat_history_text = await build_chat_history_text(observation_info, self.private_name)
 
-        sender_name_str = getattr(observation_info, "sender_name", "对方")
-        if not sender_name_str:
-            sender_name_str = "对方"
+        sender_name_str = self.private_name
 
         relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
         current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")

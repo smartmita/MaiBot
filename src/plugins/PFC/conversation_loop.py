@@ -200,7 +200,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                 ):
                     last_user_msg = other_new_messages_during_planning[-1]
                     last_user_msg_text = last_user_msg.get("processed_plain_text", "用户发了新消息")
-                    sender_name_for_event = getattr(conversation_instance.observation_info, "sender_name", "对方")
+                    sender_name_for_event = conversation_instance.private_name
                     event_desc = f"用户【{sender_name_for_event}】发送了新消息: '{last_user_msg_text[:30]}...'"
                     await conversation_instance.emotion_updater.update_emotion_based_on_context(
                         conversation_info=conversation_instance.conversation_info,

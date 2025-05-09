@@ -114,8 +114,6 @@ class ObservationInfo:
         """初始化 ObservationInfo"""
         self.private_name: str = private_name
 
-        # 新增：发信人信息
-        self.sender_name: Optional[str] = None
         self.sender_user_id: Optional[str] = None  # 存储为字符串
         self.sender_platform: Optional[str] = None
 
@@ -232,23 +230,20 @@ class ObservationInfo:
         if user_info:
             try:
                 self.sender_user_id = str(user_info.user_id)  # 确保是字符串
-                self.sender_name = user_info.user_nickname  # 或者 user_info.card 如果私聊时card更准
                 self.sender_platform = user_info.platform
                 current_message_sender_id = self.sender_user_id  # 用于后续逻辑
                 logger.debug(
-                    f"[私聊][{self.private_name}] 更新发信人信息: ID={self.sender_user_id}, Name={self.sender_name}, Platform={self.sender_platform}"
+                    f"[私聊][{self.private_name}] 更新发信人信息: ID={self.sender_user_id}, Name={self.private_name}, Platform={self.sender_platform}"
                 )
             except AttributeError as e:
                 logger.error(f"[私聊][{self.private_name}] 从 UserInfo 对象提取信息时出错: {e}, UserInfo: {user_info}")
                 # 如果提取失败，将这些新字段设为 None，避免使用旧数据
                 self.sender_user_id = None
-                self.sender_name = None
                 self.sender_platform = None
         else:
             logger.warning(f"[私聊][{self.private_name}] 处理消息更新时缺少有效的 UserInfo, message_id: {message_id}")
             # 如果没有 UserInfo，也将这些新字段设为 None
             self.sender_user_id = None
-            self.sender_name = None
             self.sender_platform = None
         # --- 新增/修改结束 ---
 
