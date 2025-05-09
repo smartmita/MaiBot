@@ -128,7 +128,7 @@ async def retrieve_chat_context_window(
     logger.debug(f"[{chat_id}] (私聊历史)准备以消息 ID '{anchor_message_id}' (时间: {anchor_message_time}) 为锚点，获取上下文窗口...")
 
     try:
-        # --- 确定性修改：同步执行 find_one 和 find ---
+        # --- 同步执行 find_one 和 find ---
         anchor_message = db.messages.find_one({"message_id": anchor_message_id, "chat_id": chat_id})
 
         messages_before_cursor = db.messages.find(
@@ -143,7 +143,7 @@ async def retrieve_chat_context_window(
             logger.debug(f"  - Time: {datetime.fromtimestamp(msg_b.get('time',0)).strftime('%Y-%m-%d %H:%M:%S')}, Text: '{msg_b.get('processed_plain_text','')[:30]}...'")
 
         messages_after_cursor = db.messages.find(
-            {"chat_id": chat_id, "time": {"$gt": anchor_message_time, "$lt": excluded_time_threshold_for_window}} # <--- 修改这里
+            {"chat_id": chat_id, "time": {"$gt": anchor_message_time, "$lt": excluded_time_threshold_for_window}} 
         ).sort("time", 1).limit(window_size_after)
         messages_after = list(messages_after_cursor)
         # --- 新增日志 ---
@@ -200,9 +200,9 @@ async def retrieve_contextual_info(
             related_memory = await HippocampusManager.get_instance().get_memory_from_text(
                 text=text,
                 max_memory_num=2,
-                max_memory_length=2, # 你原始代码中这里是2，不是200
+                max_memory_length=2, 
                 max_depth=3,
-                fast_retrieval=False, # 你原始代码中这里是False
+                fast_retrieval=False, 
             )
             if related_memory:
                 temp_global_memory_info = ""
@@ -259,22 +259,34 @@ async def retrieve_contextual_info(
 
     if query_for_historical_chat:
         try:
+            # 获取 find_most_relevant_historical_message 调用时实际使用的 exclude_recent_seconds 值
+            actual_exclude_seconds_for_find = 900 # 根据您对 find_most_relevant_historical_message 的调用
+
             most_relevant_message_doc = await find_most_relevant_historical_message(
                 chat_id=chat_id,
                 query_text=query_for_historical_chat,
-                similarity_threshold=0.5, # 你可以根据需要调整这个阈值
-                exclude_recent_seconds=300
+                similarity_threshold=0.5,
+                exclude_recent_seconds=actual_exclude_seconds_for_find
             )
             if most_relevant_message_doc:
                 anchor_id = most_relevant_message_doc.get("message_id")
                 anchor_time = most_relevant_message_doc.get("time")
                 if anchor_id and anchor_time is not None:
+                    # 计算传递给 retrieve_chat_context_window 的时间上限
+                    # 这个上限应该与 find_most_relevant_historical_message 的排除点一致
+                    time_limit_for_window_after = time.time() - actual_exclude_seconds_for_find
+                    
+                    logger.debug(f"[{private_name}] (私聊历史) 调用 retrieve_chat_context_window "
+                                 f"with anchor_time: {anchor_time}, "
+                                 f"excluded_time_threshold_for_window: {time_limit_for_window_after}")
+
                     context_window_messages = await retrieve_chat_context_window(
                         chat_id=chat_id,
                         anchor_message_id=anchor_id,
                         anchor_message_time=anchor_time,
-                        window_size_before=7, # 我们的目标：上7条
-                        window_size_after=7  # 我们的目标：下7条 (共15条，包括锚点)
+                        excluded_time_threshold_for_window=time_limit_for_window_after, # <--- 传递这个值
+                        window_size_before=7,
+                        window_size_after=7
                     )
                     if context_window_messages:
                         formatted_window_str = await build_readable_messages(
