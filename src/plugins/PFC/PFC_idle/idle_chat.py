@@ -7,10 +7,10 @@ from datetime import datetime
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.plugins.models.utils_model import LLMRequest
-from src.plugins.utils.prompt_builder import global_prompt_manager
+# from src.plugins.utils.prompt_builder import global_prompt_manager
 from src.plugins.person_info.person_info import person_info_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages
-from ...schedule.schedule_generator import bot_schedule
+# from ...schedule.schedule_generator import bot_schedule
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from src.plugins.chat.chat_stream import ChatStream
