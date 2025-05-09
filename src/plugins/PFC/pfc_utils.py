@@ -50,12 +50,14 @@ async def find_most_relevant_historical_message(
         return None
 
     current_timestamp = time.time() # 获取当前时间戳
+    excluded_time_threshold = current_timestamp - exclude_recent_seconds
 
     pipeline = [
         {
             "$match": {
                 "chat_id": chat_id,
-                "embedding_vector": {"$exists": True, "$ne": None, "$not": {"$size": 0}}
+                "embedding_vector": {"$exists": True, "$ne": None, "$not": {"$size": 0}},
+                "time": {"$lt": excluded_time_threshold}
             }
         },
         {
