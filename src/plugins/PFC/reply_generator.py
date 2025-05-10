@@ -15,7 +15,7 @@ from .pfc_utils import build_chat_history_text
 logger = get_logger("reply_generator")
 
 PROMPT_GER_VARIATIONS = [
-    ("不用输出或提及提及对方的网名或绰号", 0.50),
+    ("不用输出或提及对方的网名或绰号", 0.50),
     ("如果当前对话比较轻松，可以尝试用轻松幽默或者略带调侃的语气回应，但要注意分寸", 0.8),
     ("避免使用过于正式或书面化的词语，多用生活化的口语表达", 0.8),
     ("如果对方的发言比较跳跃或难以理解，可以尝试用猜测或确认的语气回应", 0.8),
@@ -63,7 +63,6 @@ PROMPT_DIRECT_REPLY = """
 你有以下记忆可供参考：
 {retrieved_global_memory_str}
 
-你还想到了一些你们之前的聊天记录：
 {retrieved_historical_chat_str}
 
 最近的聊天记录：
@@ -105,7 +104,6 @@ PROMPT_SEND_NEW_MESSAGE = """
 你有以下记忆可供参考：
 {retrieved_global_memory_str}
 
-你还想到了一些你们之前的聊天记录：
 {retrieved_historical_chat_str}
 
 最近的聊天记录：
@@ -136,7 +134,7 @@ PROMPT_SEND_NEW_MESSAGE = """
 PROMPT_FAREWELL = """
 当前时间：{current_time_str}
 {persona_text}。
-你正在和{sender_name}私聊，在QQ上私聊，现在你们的对话似乎已经结束。
+你正在和{sender_name}在QQ上私聊，现在你们的对话似乎已经结束。
 你与对方的关系是：{relationship_text}
 你现在的心情是：{current_emotion_text}
 现在你决定再发一条最后的消息来圆满结束。

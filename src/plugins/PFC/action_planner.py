@@ -1,12 +1,9 @@
 import time
 import traceback
 from typing import Tuple, Optional, Dict, Any, List
-
 from src.common.logger_manager import get_logger
 from ..models.utils_model import LLMRequest
 from src.config.config import global_config
-
-# 确保导入路径正确
 from .pfc_utils import get_items_from_json, build_chat_history_text
 from .chat_observer import ChatObserver
 from .observation_info import ObservationInfo

@@ -309,7 +309,7 @@ async def retrieve_contextual_info(
                         temp_global_memory_info += memory_item + "\n"
 
                 if temp_global_memory_info.strip():
-                    retrieved_global_memory_str = f"你回忆起一些相关的全局记忆：\n{temp_global_memory_info.strip()}\n(以上是你的全局记忆，供参考)\n"
+                    retrieved_global_memory_str = f"你回忆起一些相关的记忆：\n{temp_global_memory_info.strip()}\n(以上是你的一些回忆，不一定是跟对方有关的，回忆里的人说的也不一定是事实，供参考)\n"
                     global_memory_log_msg = f"自动检索到全局压缩记忆: {temp_global_memory_info.strip()[:100]}..."
                 else:
                     global_memory_log_msg = "全局压缩记忆检索返回为空或格式不符。"
@@ -430,7 +430,7 @@ async def retrieve_contextual_info(
                             read_mark=0.0,
                         )
                         if formatted_window_str and formatted_window_str.strip():
-                            retrieved_historical_chat_str = f"你回忆起一段与当前对话相关的历史聊天：\n------\n{formatted_window_str.strip()}\n------\n(以上是针对本次私聊的回忆，供参考)\n"
+                            retrieved_historical_chat_str = f"你还想到了一些你们之前的聊天记录：\n------\n{formatted_window_str.strip()}\n------\n(以上是你们之前的聊天记录，供参考)\n"
                             historical_chat_log_msg = f"自动检索到相关私聊历史片段 (锚点ID: {anchor_id}, 相似度: {most_relevant_message_doc.get('similarity'):.3f})"
                             return retrieved_global_memory_str, retrieved_knowledge_str, retrieved_historical_chat_str
                         else:
