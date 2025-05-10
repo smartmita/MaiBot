@@ -432,6 +432,7 @@ async def retrieve_contextual_info(
                         if formatted_window_str and formatted_window_str.strip():
                             retrieved_historical_chat_str = f"你回忆起一段与当前对话相关的历史聊天：\n------\n{formatted_window_str.strip()}\n------\n(以上是针对本次私聊的回忆，供参考)\n"
                             historical_chat_log_msg = f"自动检索到相关私聊历史片段 (锚点ID: {anchor_id}, 相似度: {most_relevant_message_doc.get('similarity'):.3f})"
+                            return retrieved_global_memory_str, retrieved_knowledge_str, retrieved_historical_chat_str
                         else:
                             historical_chat_log_msg = "检索到的私聊历史对话窗口格式化后为空。"
                     else:
