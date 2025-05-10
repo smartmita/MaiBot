@@ -259,8 +259,8 @@ class ReplyGenerator:
                         # 导入 datetime (如果 reply_generator.py 文件顶部没有的话)
                         # from datetime import datetime # 通常建议放在文件顶部
                         logger.debug(f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段(共{len(chat_history_for_prompt_builder)}条)的最早时间戳: "
-                                     f"{recent_history_start_time_for_exclusion} "
-                                     f"(即 {datetime.fromtimestamp(recent_history_start_time_for_exclusion).strftime('%Y-%m-%d %H:%M:%S')})")
+                                    f"{recent_history_start_time_for_exclusion} "
+                                    f"(即 {datetime.fromtimestamp(recent_history_start_time_for_exclusion).strftime('%Y-%m-%d %H:%M:%S')})")
                     else:
                         logger.warning(f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段的首条消息无时间戳。")
                 except (IndexError, KeyError, TypeError) as e:
