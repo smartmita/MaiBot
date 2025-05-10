@@ -25,7 +25,7 @@ logger = get_logger("config")
 # 考虑到，实际上配置文件中的mai_version是不会自动更新的,所以采用硬编码
 is_test = False
 mai_version_main = "0.6.3"
-mai_version_fix = "fix-2"
+mai_version_fix = "fix-3"
 
 if mai_version_fix:
     if is_test:

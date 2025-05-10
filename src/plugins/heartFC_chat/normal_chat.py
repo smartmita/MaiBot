@@ -27,7 +27,7 @@ logger = get_logger("chat")
 
 
 class NormalChat:
-    def __init__(self, chat_stream: ChatStream, interest_dict: dict):
+    def __init__(self, chat_stream: ChatStream, interest_dict: dict = None):
         """初始化 NormalChat 实例。只进行同步操作。"""
 
         # Basic info from chat_stream (sync)

@@ -110,7 +110,7 @@ class SubHeartflow:
                 logger.error(f"{self.log_prefix} 停止 NormalChat 监控任务时出错: {e}")
                 logger.error(traceback.format_exc())
 
-    async def _start_normal_chat(self) -> bool:
+    async def _start_normal_chat(self, rewind=False) -> bool:
         """
         启动 NormalChat 实例，并进行异步初始化。
         进入 CHAT 状态时使用。
@@ -125,8 +125,10 @@ class SubHeartflow:
             if not chat_stream:
                 logger.error(f"{log_prefix} 无法获取 chat_stream，无法启动 NormalChat。")
                 return False
-
-            self.normal_chat_instance = NormalChat(chat_stream=chat_stream, interest_dict=self.get_interest_dict())
+            if rewind:
+                self.normal_chat_instance = NormalChat(chat_stream=chat_stream, interest_dict=self.get_interest_dict())
+            else:
+                self.normal_chat_instance = NormalChat(chat_stream=chat_stream)
 
             # 进行异步初始化
             await self.normal_chat_instance.initialize()
@@ -218,13 +220,22 @@ class SubHeartflow:
         if new_state == ChatState.CHAT:
             # 移除限额检查逻辑
             logger.debug(f"{log_prefix} 准备进入或保持 聊天 状态")
-            if await self._start_normal_chat():
-                # logger.info(f"{log_prefix} 成功进入或保持 NormalChat 状态。")
-                state_changed = True
+            if current_state == ChatState.FOCUSED:
+                if await self._start_normal_chat(rewind=False):
+                    # logger.info(f"{log_prefix} 成功进入或保持 NormalChat 状态。")
+                    state_changed = True
+                else:
+                    logger.error(f"{log_prefix} 从FOCUSED状态启动 NormalChat 失败，无法进入 CHAT 状态。")
+                    # 考虑是否需要回滚状态或采取其他措施
+                    return  # 启动失败，不改变状态
             else:
-                logger.error(f"{log_prefix} 启动 NormalChat 失败，无法进入 CHAT 状态。")
-                # 考虑是否需要回滚状态或采取其他措施
-                return  # 启动失败，不改变状态
+                if await self._start_normal_chat(rewind=True):
+                    # logger.info(f"{log_prefix} 成功进入或保持 NormalChat 状态。")
+                    state_changed = True
+                else:
+                    logger.error(f"{log_prefix} 从ABSENT状态启动 NormalChat 失败，无法进入 CHAT 状态。")
+                    # 考虑是否需要回滚状态或采取其他措施
+                    return  # 启动失败，不改变状态
 
         elif new_state == ChatState.FOCUSED:
             # 移除限额检查逻辑
@@ -239,6 +250,8 @@ class SubHeartflow:
 
         elif new_state == ChatState.ABSENT:
             logger.info(f"{log_prefix} 进入 ABSENT 状态，停止所有聊天活动...")
+            await self.clear_interest_dict()
+
             await self._stop_normal_chat()
             await self._stop_heart_fc_chat()
             state_changed = True  # 总是可以成功转换到 ABSENT
