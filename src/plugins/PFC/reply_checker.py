@@ -75,7 +75,6 @@ class ReplyChecker:
                         )
                         match_found = True  # <--- 标记找到
                         return (False, "机器人尝试发送重复消息", False)
-          
 
             if not match_found:  # <--- 根据标记判断
                 logger.debug(f"[私聊][{self.private_name}] ReplyChecker: 未找到重复。")  # <--- 新增日志
