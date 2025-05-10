@@ -16,8 +16,11 @@ services:
       - maim_bot
   core:
     container_name: maim-bot-core
-    image: sengokucola/maimbot:main
-    # image: infinitycat/maimbot:main
+    image: sengokucola/maibot:latest
+    # image: infinitycat/maibot:latest
+    # dev
+    # image: sengokucola/maibot:dev
+    # image: infinitycat/maibot:dev
     environment:
       - TZ=Asia/Shanghai
 #      - EULA_AGREE=35362b6ea30f12891d46ef545122e84a  # 同意EULA

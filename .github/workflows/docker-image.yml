@@ -6,20 +6,21 @@ on:
       - main
       - classical
       - dev
-      - new_knowledge
     tags:
-      - 'v*'
-  workflow_dispatch:
+      - "v*.*.*"
+      - "v*"
 
 jobs:
-  build-and-push:
+  build-amd64:
+    name: Build AMD64 Image
     runs-on: ubuntu-latest
     env:
       DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
-      DATE_TAG: $(date -u +'%Y-%m-%dT%H-%M-%S')
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Clone maim_message
         run: git clone https://github.com/MaiM-with-u/maim_message maim_message
@@ -29,6 +30,8 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
 
       - name: Login to Docker Hub
         uses: docker/login-action@v3
@@ -36,31 +39,131 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Determine Image Tags
-        id: tags
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:${{ github.ref_name }},${{ secrets.DOCKERHUB_USERNAME }}/maimbot:latest" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:main,${{ secrets.DOCKERHUB_USERNAME }}/maimbot:main-$(date -u +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/classical" ]; then
-            echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:classical,${{ secrets.DOCKERHUB_USERNAME }}/maimbot:classical-$(date -u +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/dev" ]; then
-            echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:dev,${{ secrets.DOCKERHUB_USERNAME }}/maimbot:dev-$(date -u +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-          elif [ "${{ github.ref }}" == "refs/heads/new_knowledge" ]; then 
-            echo "tags=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:knowledge,${{ secrets.DOCKERHUB_USERNAME }}/maimbot:knowledge-$(date -u +'%Y%m%d%H%M%S')" >> $GITHUB_OUTPUT
-          fi
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/maibot
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
 
-      - name: Build and Push Docker Image
+      - name: Build and Push AMD64 Docker Image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          tags: ${{ steps.tags.outputs.tags }}
+          platforms: linux/amd64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-${{ github.sha }}
           push: true
-          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:buildcache
-          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maimbot:buildcache,mode=max
-          labels: |
-            org.opencontainers.image.created=${{ steps.tags.outputs.date_tag }}
-            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-buildcache,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          build-args: |
+            BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            VCS_REF=${{ github.sha }}
+          outputs: type=image,push=true
+
+  build-arm64:
+    name: Build ARM64 Image
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Clone maim_message
+        run: git clone https://github.com/MaiM-with-u/maim_message maim_message
+
+      - name: Clone lpmm
+        run: git clone https://github.com/MaiM-with-u/MaiMBot-LPMM.git MaiMBot-LPMM
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          buildkitd-flags: --debug
+
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/maibot
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Build and Push ARM64 Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: linux/arm64
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/maibot:arm64-${{ github.sha }}
+          push: true
+          cache-from: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:arm64-buildcache
+          cache-to: type=registry,ref=${{ secrets.DOCKERHUB_USERNAME }}/maibot:arm64-buildcache,mode=max
+          labels: ${{ steps.meta.outputs.labels }}
+          provenance: true
+          sbom: true
+          build-args: |
+            BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
+            VCS_REF=${{ github.sha }}
+          outputs: type=image,push=true
+
+  create-manifest:
+    name: Create Multi-Arch Manifest
+    runs-on: ubuntu-latest
+    needs:
+      - build-amd64
+      - build-arm64
+    steps:
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ secrets.DOCKERHUB_USERNAME }}/maibot
+          tags: |
+            type=ref,event=branch
+            type=ref,event=tag
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Create and Push Manifest
+        run: |
+          # 为每个标签创建多架构镜像
+          for tag in $(echo "${{ steps.meta.outputs.tags }}" | tr '\n' ' '); do
+            echo "Creating manifest for $tag"
+            docker buildx imagetools create -t $tag \
+              ${{ secrets.DOCKERHUB_USERNAME }}/maibot:amd64-${{ github.sha }} \
+              ${{ secrets.DOCKERHUB_USERNAME }}/maibot:arm64-${{ github.sha }}
+          done
