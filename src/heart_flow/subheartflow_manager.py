@@ -284,7 +284,7 @@ class SubHeartflowManager:
                 return  # 如果不允许，直接返回
             # --- 结束新增 ---
 
-            logger.info(f"当前状态 ({current_state.value}) 可以在{focused_limit}个群 专注聊天")
+            logger.debug(f"当前状态 ({current_state.value}) 可以在{focused_limit}个群 专注聊天")
 
             if focused_limit <= 0:
                 # logger.debug(f"{log_prefix} 当前状态 ({current_state.value}) 不允许 FOCUSED 子心流")
