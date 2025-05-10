@@ -296,7 +296,7 @@ async def retrieve_contextual_info(
             if current_short_term_history_earliest_time is not None:
                 try:
                     log_earliest_time_str = f"{current_short_term_history_earliest_time} (即 {datetime.fromtimestamp(current_short_term_history_earliest_time).strftime('%Y-%m-%d %H:%M:%S')})"
-                except:
+                except Exception:
                     log_earliest_time_str = str(current_short_term_history_earliest_time)
             
             logger.debug(f"[{private_name}] (私聊历史) retrieve_contextual_info: "
