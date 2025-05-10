@@ -80,7 +80,7 @@ class PFCProcessor:
             await self._update_embedding_vector(message_obj, chat)  # 明确传递 message_obj
 
             # 4. 创建 PFC 聊天流
-            await self._create_pfc_chat(message_obj, chat)
+            await self._create_pfc_chat(message_obj)
 
             # 5. 日志记录
             # 确保 message_obj.message_info.time 是 float 类型的时间戳
