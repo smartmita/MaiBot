@@ -451,7 +451,6 @@ async def retrieve_contextual_info(
     return retrieved_global_memory_str, retrieved_knowledge_str, retrieved_historical_chat_str
 
 
-
 def get_items_from_json(
     content: str,
     private_name: str,
