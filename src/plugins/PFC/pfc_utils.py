@@ -3,30 +3,25 @@ import json
 import re
 import time
 from datetime import datetime
-from typing import Dict, Any, Optional, Tuple, List, Union  # 确保导入这些类型
-
+from typing import Dict, Any, Optional, Tuple, List, Union
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
-from src.common.database import db  # << 确认此路径
-
-# --- 依赖于你项目结构的导入，请务必仔细检查并根据你的实际情况调整 ---
-from src.plugins.memory_system.Hippocampus import HippocampusManager  # << 确认此路径
-from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # << 确认此路径
-from src.plugins.chat.utils import get_embedding  # << 确认此路径
-from src.plugins.utils.chat_message_builder import build_readable_messages  # << 确认此路径
-# --- 依赖导入结束 ---
-
-from src.plugins.chat.chat_stream import ChatStream  # 来自原始 pfc_utils.py
-from ..person_info.person_info import person_info_manager  # 来自原始 pfc_utils.py (相对导入)
-import math  # 来自原始 pfc_utils.py
-from .observation_info import ObservationInfo  # 来自原始 pfc_utils.py (相对导入)
+from src.common.database import db
+from src.plugins.memory_system.Hippocampus import HippocampusManager
+from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder
+from src.plugins.chat.utils import get_embedding
+from src.plugins.utils.chat_message_builder import build_readable_messages
+from src.plugins.chat.chat_stream import ChatStream
+from ..person_info.person_info import person_info_manager
+import math
+from .observation_info import ObservationInfo
 
 
 logger = get_logger("pfc_utils")
 
 
 # ==============================================================================
-# 新增：专门用于检索 PFC 私聊历史对话上下文的函数
+# 专门用于检索 PFC 私聊历史对话上下文的函数
 # ==============================================================================
 async def find_most_relevant_historical_message(
     chat_id: str,
@@ -325,7 +320,6 @@ async def retrieve_contextual_info(
         logger.debug(f"[私聊][{private_name}] (retrieve_contextual_info) 无有效主查询文本，跳过全局压缩记忆检索。")
 
     # --- 2. 相关知识检索 (来自 prompt_builder) ---
-    # (保持你原始 pfc_utils.py 中这部分的逻辑基本不变)
     knowledge_log_msg = f"开始知识检索 (基于文本: '{text[:30]}...')"
     if text and text.strip() and text != "还没有聊天记录。" and text != "[构建聊天记录出错]":
         try:
@@ -355,7 +349,7 @@ async def retrieve_contextual_info(
 
     if query_for_historical_chat:
         try:
-            # ---- [新代码] 计算最终的、严格的搜索时间上限 ----
+            # ---- 计算最终的、严格的搜索时间上限 ----
             # 1. 设置一个基础的、较大的时间回溯窗口，例如2小时 (7200秒)
             #    这个值可以从全局配置读取，如果没配置则使用默认值
             default_search_exclude_seconds = getattr(
@@ -387,7 +381,7 @@ async def retrieve_contextual_info(
                 query_text=query_for_historical_chat,
                 similarity_threshold=0.5,  # 您可以调整这个
                 # exclude_recent_seconds 不再直接使用，而是传递计算好的绝对时间上限
-                absolute_search_time_limit=final_search_upper_limit_time,  # <--- 传递计算好的绝对时间上限
+                absolute_search_time_limit=final_search_upper_limit_time,
             )
 
             if most_relevant_message_doc:
@@ -457,9 +451,7 @@ async def retrieve_contextual_info(
     return retrieved_global_memory_str, retrieved_knowledge_str, retrieved_historical_chat_str
 
 
-# ==============================================================================
-# 你原始 pfc_utils.py 中的其他函数保持不变
-# ==============================================================================
+
 def get_items_from_json(
     content: str,
     private_name: str,
@@ -496,13 +488,13 @@ def get_items_from_json(
             json_array = json.loads(cleaned_content)
             if isinstance(json_array, list):
                 valid_items_list: List[Dict[str, Any]] = []
-                for item_json in json_array:  # Renamed item to item_json to avoid conflict
+                for item_json in json_array:
                     if not isinstance(item_json, dict):
                         logger.warning(f"[私聊][{private_name}] JSON数组中的元素不是字典: {item_json}")
                         continue
                     current_item_result = default_result.copy()
                     valid_item = True
-                    for field in items:  # items is args from function signature
+                    for field in items:
                         if field in item_json:
                             current_item_result[field] = item_json[field]
                         elif field not in default_result:
@@ -610,16 +602,13 @@ async def get_person_id(private_name: str, chat_stream: ChatStream):
     """(保持你原始 pfc_utils.py 中的此函数代码不变)"""
     private_user_id_str: Optional[str] = None
     private_platform_str: Optional[str] = None
-    # private_nickname_str = private_name # 这行在你提供的代码中没有被使用，可以考虑移除
 
     if chat_stream.user_info:
         private_user_id_str = str(chat_stream.user_info.user_id)
         private_platform_str = chat_stream.user_info.platform
         logger.debug(
-            f"[私聊][{private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_name}"  # 使用 private_name
+            f"[私聊][{private_name}] 从 ChatStream 获取到私聊对象信息: ID={private_user_id_str}, Platform={private_platform_str}, Name={private_name}"
         )
-    # elif chat_stream.group_info is None and private_name: # 这个 elif 条件体为空，可以移除
-    #     pass
 
     if private_user_id_str and private_platform_str:
         try:
@@ -693,7 +682,7 @@ async def build_chat_history_text(observation_info: ObservationInfo, private_nam
         unread_messages = getattr(observation_info, "unprocessed_messages", [])
         if unread_count > 0 and unread_messages:
             bot_qq_str = str(global_config.BOT_QQ) if global_config.BOT_QQ else None  # 安全获取
-            if bot_qq_str:  # 仅当 bot_qq_str 有效时进行过滤
+            if bot_qq_str:
                 other_unread_messages = [
                     msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str
                 ]
@@ -701,12 +690,12 @@ async def build_chat_history_text(observation_info: ObservationInfo, private_nam
                 if other_unread_count > 0:
                     new_messages_str = await build_readable_messages(
                         other_unread_messages,
-                        replace_bot_name=True,  # 这里是未处理消息，可能不需要替换机器人名字
+                        replace_bot_name=True,
                         merge_messages=False,
                         timestamp_mode="relative",
                         read_mark=0.0,
                     )
-                    chat_history_text += f"\n{new_messages_str}\n------\n"  # 原始代码是加在末尾的
+                    chat_history_text += f"\n{new_messages_str}\n------\n"
             else:
                 logger.warning(f"[私聊][{private_name}] BOT_QQ 未配置，无法准确过滤未读消息中的机器人自身消息。")
 
