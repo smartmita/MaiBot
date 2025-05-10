@@ -33,11 +33,11 @@ class ReplyChecker:
     async def check(
         self,
         reply: str,
-        goal: str, # 当前逻辑未使用
+        goal: str,  # 当前逻辑未使用
         chat_history: List[Dict[str, Any]],
-        chat_history_text: str, # 当前逻辑未使用
-        current_time_str: str, # 当前逻辑未使用
-        retry_count: int = 0, # 当前逻辑未使用
+        chat_history_text: str,  # 当前逻辑未使用
+        current_time_str: str,  # 当前逻辑未使用
+        retry_count: int = 0,  # 当前逻辑未使用
     ) -> Tuple[bool, str, bool]:
         """检查生成的回复是否与机器人之前的发言完全一致（长度大于4）
 
@@ -54,7 +54,7 @@ class ReplyChecker:
                 f"[私聊][{self.private_name}] ReplyChecker: BOT_QQ 未配置，无法检查{global_config.BOT_NICKNAME}自身消息。"
             )
             return True, "BOT_QQ未配置，跳过重复检查。", False  # 无法检查则默认通过
-        
+
         # 对当前待发送的回复进行规范化
         normalized_reply = self._normalize_text(reply)
 
@@ -82,10 +82,10 @@ class ReplyChecker:
                         f"[私聊][{self.private_name}] ReplyChecker: 历史记录 (反向索引 {i}) ({global_config.BOT_NICKNAME}): "
                         f"原始='{historical_message_text[:50]}...', 规范化后='{normalized_historical_text[:50]}...'"
                     )
-                    if normalized_reply == normalized_historical_text and len(normalized_reply) > 0: # 确保规范化后不为空串才比较
-                        logger.warning(
-                            f"[私聊][{self.private_name}] ReplyChecker: !!! 成功拦截一次复读 !!!"
-                        )
+                    if (
+                        normalized_reply == normalized_historical_text and len(normalized_reply) > 0
+                    ):  # 确保规范化后不为空串才比较
+                        logger.warning(f"[私聊][{self.private_name}] ReplyChecker: !!! 成功拦截一次复读 !!!")
                         logger.warning(
                             f"[私聊][{self.private_name}] ReplyChecker 检测到{global_config.BOT_NICKNAME}自身重复消息 (规范化后内容相同): '{normalized_reply[:50]}...'"
                         )
