@@ -1,5 +1,4 @@
 import random
-import asyncio
 from datetime import datetime
 from .pfc_utils import retrieve_contextual_info
 from typing import Optional

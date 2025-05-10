@@ -1,7 +1,6 @@
 import traceback
 import json
 import re
-import asyncio # 确保导入 asyncio
 import time
 from datetime import datetime
 from typing import Dict, Any, Optional, Tuple, List, Union # 确保导入这些类型
@@ -297,7 +296,7 @@ async def retrieve_contextual_info(
             if current_short_term_history_earliest_time is not None:
                 try:
                     log_earliest_time_str = f"{current_short_term_history_earliest_time} (即 {datetime.fromtimestamp(current_short_term_history_earliest_time).strftime('%Y-%m-%d %H:%M:%S')})"
-                except: 
+                except:
                     log_earliest_time_str = str(current_short_term_history_earliest_time)
             
             logger.debug(f"[{private_name}] (私聊历史) retrieve_contextual_info: "
@@ -422,19 +421,25 @@ def get_items_from_json(
                             current_item_result[field] = item_json[field]
                         elif field not in default_result:
                             logger.warning(f"[私聊][{private_name}] JSON数组元素缺少必要字段 '{field}': {item_json}")
-                            valid_item = False; break
-                    if not valid_item: continue
+                            valid_item = False
+                            break
+                    if not valid_item:
+                        continue
                     if required_types:
                         for field, expected_type in required_types.items():
                             if field in current_item_result and not isinstance(current_item_result[field], expected_type):
                                 logger.warning(f"[私聊][{private_name}] JSON数组元素字段 '{field}' 类型错误 (应为 {expected_type.__name__}, 实际为 {type(current_item_result[field]).__name__}): {item_json}")
-                                valid_item = False; break
-                    if not valid_item: continue
+                                valid_item = False
+                                break
+                    if not valid_item:
+                        continue
                     for field in items:
                         if field in current_item_result and isinstance(current_item_result[field], str) and not current_item_result[field].strip():
                             logger.warning(f"[私聊][{private_name}] JSON数组元素字段 '{field}' 不能为空字符串: {item_json}")
-                            valid_item = False; break
-                    if valid_item: valid_items_list.append(current_item_result)
+                            valid_item = False
+                            break
+                    if valid_item:
+                        valid_items_list.append(current_item_result)
                 if valid_items_list:
                     logger.debug(f"[私聊][{private_name}] 成功解析JSON数组，包含 {len(valid_items_list)} 个有效项目。")
                     return True, valid_items_list
@@ -469,24 +474,31 @@ def get_items_from_json(
         else:
             logger.error(f"[私聊][{private_name}] 无法在返回内容中找到有效的JSON对象部分。原始内容: {cleaned_content[:100]}...")
             return False, default_result
-    if not isinstance(result, dict): result = default_result.copy()
+    if not isinstance(result, dict):
+        result = default_result.copy()
     valid_single_object = True
     for item_field in items: # Renamed item to item_field
-        if item_field in json_data: result[item_field] = json_data[item_field]
+        if item_field in json_data:
+            result[item_field] = json_data[item_field]
         elif item_field not in default_result:
             logger.error(f"[私聊][{private_name}] JSON对象缺少必要字段 '{item_field}'。JSON内容: {json_data}")
-            valid_single_object = False; break
-    if not valid_single_object: return False, default_result
+            valid_single_object = False
+            break
+    if not valid_single_object:
+        return False, default_result
     if required_types:
         for field, expected_type in required_types.items():
             if field in result and not isinstance(result[field], expected_type):
                 logger.error(f"[私聊][{private_name}] JSON对象字段 '{field}' 类型错误 (应为 {expected_type.__name__}, 实际为 {type(result[field]).__name__})")
-                valid_single_object = False; break
-    if not valid_single_object: return False, default_result
+                valid_single_object = False
+                break
+    if not valid_single_object:
+        return False, default_result
     for field in items:
         if field in result and isinstance(result[field], str) and not result[field].strip():
             logger.error(f"[私聊][{private_name}] JSON对象字段 '{field}' 不能为空字符串")
-            valid_single_object = False; break
+            valid_single_object = False
+            break
     if valid_single_object:
         logger.debug(f"[私聊][{private_name}] 成功解析并验证了单个JSON对象。")
         return True, result
@@ -545,13 +557,18 @@ async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: 
                 # 确保 person_info_manager.get_specific_value_list 是异步的，如果是同步则需要调整
                 rdict = await person_info_manager.get_specific_value_list("relationship_value", lambda x: x > 700 if isinstance(x, (int, float)) else False)
                 high_value_count = len(rdict)
-                if old_value > 700: value *= 3 / (high_value_count + 2)
-                else: value *= 3 / (high_value_count + 3)
-        elif value < 0: value = value * math.exp(old_value / 2000)
+                if old_value > 700:
+                    value *= 3 / (high_value_count + 2)
+                else:
+                    value *= 3 / (high_value_count + 3)
+        elif value < 0:
+            value = value * math.exp(old_value / 2000)
         # else: value = 0 # 你原始代码中没有这句，如果value为0，保持为0
     else: # old_value < 0
-        if value >= 0: value = value * math.exp(old_value / 2000)
-        elif value < 0: value = value * math.cos(math.pi * old_value / 2000)
+        if value >= 0:
+            value = value * math.exp(old_value / 2000)
+        elif value < 0:
+            value = value * math.cos(math.pi * old_value / 2000)
         # else: value = 0 # 你原始代码中没有这句
     return value
 
