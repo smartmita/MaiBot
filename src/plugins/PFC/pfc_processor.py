@@ -77,7 +77,7 @@ class PFCProcessor:
             await self.storage.store_message(message_obj, chat)
             logger.trace(f"存储成功 (初步): {message_obj.processed_plain_text}")
 
-            await self._update_embedding_vector(message_obj)  # 明确传递 message_obj
+            await self._update_embedding_vector(message_obj, chat)  # 明确传递 message_obj
 
             # 4. 创建 PFC 聊天流
             await self._create_pfc_chat(message_obj, chat)
