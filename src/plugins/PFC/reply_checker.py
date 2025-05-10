@@ -64,7 +64,7 @@ class ReplyChecker:
 
                 if sender_id == self.bot_qq_str:
                     historical_message_text = msg_dict.get("processed_plain_text", "")
-                    # <--- 新增详细对比日志 --- START --->
+                    # 日志
                     logger.debug(
                         f"[私聊][{self.private_name}] ReplyChecker: 历史记录 #{i} ({global_config.BOT_NICKNAME}): '{historical_message_text}' (长度 {len(historical_message_text)})"
                     )
@@ -75,7 +75,7 @@ class ReplyChecker:
                         )
                         match_found = True  # <--- 标记找到
                         return (False, "机器人尝试发送重复消息", False)
-                    # <--- 新增详细对比日志 --- END --->
+          
 
             if not match_found:  # <--- 根据标记判断
                 logger.debug(f"[私聊][{self.private_name}] ReplyChecker: 未找到重复。")  # <--- 新增日志
