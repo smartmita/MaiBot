@@ -63,9 +63,9 @@ async def find_most_relevant_historical_message(
         log_source_of_limit = f"回退逻辑 (排除最近 {fallback_exclude_seconds} 秒)"
     
     logger.debug(f"[{chat_id}] (私聊历史) find_most_relevant_historical_message: "
-                 f"将使用时间上限 {effective_search_upper_limit} "
-                 f"(可读: {datetime.fromtimestamp(effective_search_upper_limit).strftime('%Y-%m-%d %H:%M:%S')}) "
-                 f"进行历史消息锚点搜索。来源: {log_source_of_limit}")
+                f"将使用时间上限 {effective_search_upper_limit} "
+                f"(可读: {datetime.fromtimestamp(effective_search_upper_limit).strftime('%Y-%m-%d %H:%M:%S')}) "
+                f"进行历史消息锚点搜索。来源: {log_source_of_limit}")
     # --- [新代码结束] ---
 
     pipeline = [
@@ -202,6 +202,13 @@ async def retrieve_contextual_info(
 ) -> Tuple[str, str, str]:                 # 返回: 全局记忆, 知识, 私聊历史回忆
     """
     检索三种类型的上下文信息：全局压缩记忆、知识库知识、当前私聊的特定历史对话。
+
+    Args:
+        text: 用于检索的上下文文本 (例如聊天记录)。
+        private_name: 私聊对象的名称，用于日志记录。
+
+    Returns:
+        Tuple[str, str]: (检索到的记忆字符串, 检索到的知识字符串)
     """
     # 初始化返回值
     retrieved_global_memory_str = "无相关全局记忆。"
@@ -294,9 +301,9 @@ async def retrieve_contextual_info(
                     log_earliest_time_str = str(current_short_term_history_earliest_time)
             
             logger.debug(f"[{private_name}] (私聊历史) retrieve_contextual_info: "
-                         f"最终用于历史搜索的时间上限: {final_search_upper_limit_time} "
-                         f"(可读: {datetime.fromtimestamp(final_search_upper_limit_time).strftime('%Y-%m-%d %H:%M:%S')}). "
-                         f"基于默认排除 {default_search_exclude_seconds}s 和 '最近记录'片段开始时间: {log_earliest_time_str}")
+                        f"最终用于历史搜索的时间上限: {final_search_upper_limit_time} "
+                        f"(可读: {datetime.fromtimestamp(final_search_upper_limit_time).strftime('%Y-%m-%d %H:%M:%S')}). "
+                        f"基于默认排除 {default_search_exclude_seconds}s 和 '最近记录'片段开始时间: {log_earliest_time_str}")
             
 
             most_relevant_message_doc = await find_most_relevant_historical_message(
@@ -314,7 +321,7 @@ async def retrieve_contextual_info(
                 # 校验锚点时间是否真的符合我们的硬性上限 (理论上 find_most_relevant_historical_message 内部已保证)
                 if anchor_time is not None and anchor_time >= final_search_upper_limit_time:
                     logger.warning(f"[{private_name}] (私聊历史) find_most_relevant_historical_message 返回的锚点时间 {anchor_time} "
-                                   f"并未严格小于最终搜索上限 {final_search_upper_limit_time}。可能导致重叠。跳过构建上下文。")
+                        f"并未严格小于最终搜索上限 {final_search_upper_limit_time}。可能导致重叠。跳过构建上下文。")
                     historical_chat_log_msg = "检索到的锚点不符合最终时间要求，可能导致重叠。"
                     # 直接进入下一个分支 (else)，使得 retrieved_historical_chat_str 保持默认值
                 elif anchor_id and anchor_time is not None:
@@ -323,8 +330,8 @@ async def retrieve_contextual_info(
                     time_limit_for_context_window_after = final_search_upper_limit_time 
                                         
                     logger.debug(f"[{private_name}] (私聊历史) 调用 retrieve_chat_context_window "
-                                 f"with anchor_time: {anchor_time}, "
-                                 f"excluded_time_threshold_for_window: {time_limit_for_context_window_after}")
+                                f"with anchor_time: {anchor_time}, "
+                                f"excluded_time_threshold_for_window: {time_limit_for_context_window_after}")
 
                     context_window_messages = await retrieve_chat_context_window(
                         chat_id=chat_id,
@@ -377,7 +384,17 @@ def get_items_from_json(
     allow_array: bool = True,
 ) -> Tuple[bool, Union[Dict[str, Any], List[Dict[str, Any]]]]:
     """从文本中提取JSON内容并获取指定字段
-    (保持你原始 pfc_utils.py 中的此函数代码不变)
+
+    Args:
+        content: 包含JSON的文本
+        private_name: 私聊名称
+        *items: 要提取的字段名
+        default_values: 字段的默认值，格式为 {字段名: 默认值}
+        required_types: 字段的必需类型，格式为 {字段名: 类型}
+        allow_array: 是否允许解析JSON数组
+
+    Returns:
+        Tuple[bool, Union[Dict[str, Any], List[Dict[str, Any]]]]: (是否成功, 提取的字段字典或字典列表)
     """
     cleaned_content = content.strip()
     result: Union[Dict[str, Any], List[Dict[str, Any]]] = {}
@@ -540,7 +557,7 @@ async def adjust_relationship_value_nonlinear(old_value: float, raw_adjustment: 
 
 
 async def build_chat_history_text(observation_info: ObservationInfo, private_name: str) -> str:
-    """ (保持你原始 pfc_utils.py 中的此函数代码不变) """
+    """构建聊天历史记录文本 (包含未处理消息)"""
     chat_history_text = ""
     try:
         if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
