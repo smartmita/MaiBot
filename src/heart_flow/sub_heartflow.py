@@ -250,7 +250,7 @@ class SubHeartflow:
 
         elif new_state == ChatState.ABSENT:
             logger.info(f"{log_prefix} 进入 ABSENT 状态，停止所有聊天活动...")
-            await self.clear_interest_dict()
+            self.clear_interest_dict()
 
             await self._stop_normal_chat()
             await self._stop_heart_fc_chat()
