@@ -104,4 +104,4 @@ class RenamePersonTool(BaseTool):
 
 
 # 注册工具
-register_tool(RenamePersonTool)
+# register_tool(RenamePersonTool)
