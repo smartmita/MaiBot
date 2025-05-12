@@ -95,7 +95,7 @@ class ChattingObservation(Observation):
         if ids:
             mid_memory_str = ""
             for id in ids:
-                print(f"id：{id}")
+                # print(f"id：{id}")
                 try:
                     for mid_memory in self.mid_memorys:
                         if mid_memory["id"] == id:

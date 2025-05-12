@@ -111,7 +111,7 @@ def init_prompt():
     Prompt(last_loop_t, "last_loop")
 
 
-def parse_knowledge_and_get_max_relevance(knowledge_str: str) -> (str, float):
+def parse_knowledge_and_get_max_relevance(knowledge_str: str) -> (str | float):
     """
     解析 qa_manager.get_knowledge 返回的字符串，提取所有知识的文本和最高的相关性得分。
     返回: (原始知识字符串, 最高相关性得分)，如果无有效相关性则返回 (原始知识字符串, 0.0)
