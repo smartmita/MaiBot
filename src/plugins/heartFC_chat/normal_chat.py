@@ -354,6 +354,8 @@ class NormalChat:
     # --- 新增：处理初始高兴趣消息的私有方法 ---
     async def _process_initial_interest_messages(self):
         """处理启动时存在于 interest_dict 中的高兴趣消息。"""
+        if not self.interest_dict:
+            return  # 当 self.interset_dict 的值为 None 时，直接返回，防止进入 Chat 状态错误
         items_to_process = list(self.interest_dict.items())
         if not items_to_process:
             return  # 没有初始消息，直接返回
