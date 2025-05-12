@@ -66,7 +66,7 @@ def register_tool(tool_class: Type[BaseTool]):
         raise ValueError(f"工具类 {tool_class.__name__} 没有定义 name 属性")
 
     if not global_config.rename_person and tool_name == "rename_person":
-        logger.info(f"改名功能已关闭，改名工具未注册")
+        logger.info("改名功能已关闭，改名工具未注册")
         return
 
     TOOL_REGISTRY[tool_name] = tool_class
