@@ -808,37 +808,37 @@ class HeartFChatting:
 
         actions_to_remove_temporarily = []
         # --- 检查历史动作并决定临时移除动作 (逻辑保持不变) ---
-        lian_xu_wen_ben_hui_fu = 0
-        probability_roll = random.random()
-        for cycle in reversed(self._cycle_history):
-            if cycle.action_taken:
-                if cycle.action_type == "text_reply":
-                    lian_xu_wen_ben_hui_fu += 1
-                else:
-                    break
-            if len(self._cycle_history) > 0 and cycle.cycle_id <= self._cycle_history[0].cycle_id + (
-                len(self._cycle_history) - 4
-            ):
-                break
-        logger.debug(f"{self.log_prefix}[Planner] 检测到连续文本回复次数: {lian_xu_wen_ben_hui_fu}")
+        # lian_xu_wen_ben_hui_fu = 0
+        # probability_roll = random.random()
+        # for cycle in reversed(self._cycle_history):
+        #     if cycle.action_taken:
+        #         if cycle.action_type == "text_reply":
+        #             lian_xu_wen_ben_hui_fu += 1
+        #         else:
+        #             break
+        #     if len(self._cycle_history) > 0 and cycle.cycle_id <= self._cycle_history[0].cycle_id + (
+        #         len(self._cycle_history) - 4
+        #     ):
+        #         break
+        # logger.debug(f"{self.log_prefix}[Planner] 检测到连续文本回复次数: {lian_xu_wen_ben_hui_fu}")
 
-        if lian_xu_wen_ben_hui_fu >= 3:
-            logger.info(f"{self.log_prefix}[Planner] 连续回复 >= 3 次，强制移除 text_reply 和 emoji_reply")
-            actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
-        elif lian_xu_wen_ben_hui_fu == 2:
-            if probability_roll < 0.8:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (触发)")
-                actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
-            else:
-                logger.info(
-                    f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (未触发)"
-                )
-        elif lian_xu_wen_ben_hui_fu == 1:
-            if probability_roll < 0.4:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (触发)")
-                actions_to_remove_temporarily.append("text_reply")
-            else:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (未触发)")
+        # if lian_xu_wen_ben_hui_fu >= 3:
+        #     logger.info(f"{self.log_prefix}[Planner] 连续回复 >= 3 次，强制移除 text_reply 和 emoji_reply")
+        #     actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
+        # elif lian_xu_wen_ben_hui_fu == 2:
+        #     if probability_roll < 0.8:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (触发)")
+        #         actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
+        #     else:
+        #         logger.info(
+        #             f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (未触发)"
+        #         )
+        # elif lian_xu_wen_ben_hui_fu == 1:
+        #     if probability_roll < 0.4:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (触发)")
+        #         actions_to_remove_temporarily.append("text_reply")
+        #     else:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (未触发)")
         # --- 结束检查历史动作 ---
 
         # 获取观察信息
