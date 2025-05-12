@@ -16,6 +16,7 @@ from src.api.apiforgui import (
     get_all_states,
 )
 from src.heart_flow.sub_heartflow import ChatState
+from src.api.basic_info_api import get_all_basic_info  # 新增导入
 
 # import uvicorn
 # import os
@@ -95,6 +96,18 @@ async def get_all_states_api():
     else:
         logger.warning("获取所有状态失败")
         return {"status": "failed", "reason": "failed to get all states"}
+
+
+@router.get("/info")
+async def get_system_basic_info():
+    """获取系统基本信息"""
+    logger.info("请求系统基本信息")
+    try:
+        info = get_all_basic_info()
+        return {"status": "success", "data": info}
+    except Exception as e:
+        logger.error(f"获取系统基本信息失败: {e}")
+        return {"status": "failed", "reason": str(e)}
 
 
 def start_api_server():
