@@ -1,7 +1,10 @@
 from .observation import ChattingObservation
+from src.plugins.knowledge.knowledge_lib import qa_manager
 from src.plugins.models.utils_model import LLMRequest
 from src.config.config import global_config
+from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat,build_readable_messages
 import time
+import re 
 import traceback
 from src.common.logger_manager import get_logger
 from src.individuality.individuality import Individuality
@@ -24,18 +27,35 @@ logger = get_logger("sub_heartflow")
 def init_prompt():
     # --- Group Chat Prompt ---
     group_prompt = """
-{extra_info}
-{relation_prompt}
-你的名字是{bot_name},{prompt_personality}
-{last_loop_prompt}
-{cycle_info_block}
-现在是{time_now}，你正在上网，和qq群里的网友们聊天，以下是正在进行的聊天内容：
-{chat_observe_info}
+<identity>
+    <bot_name>你的名字是{bot_name}。</bot_name>
+    <personality_profile>{prompt_personality}</personality_profile>
+</identity>
 
-你现在{mood_info}
-请仔细阅读当前群聊内容，分析讨论话题和群成员关系，分析你刚刚发言和别人对你的发言的反应，思考你要不要回复或发言。然后思考你是否需要使用函数工具。
-思考并输出你的内心想法
-输出要求：
+<knowledge_base>
+    <structured_information>{extra_info}</structured_information>
+    <social_relationships>{relation_prompt}</social_relationships>
+</knowledge_base>
+
+<recent_internal_state>
+    <previous_thoughts_and_actions>{last_loop_prompt}</previous_thoughts_and_actions>
+    <recent_reply_history>{cycle_info_block}</recent_reply_history>
+    <current_mood>你现在{mood_info}</current_mood>
+</recent_internal_state>
+
+<live_chat_context>
+    <timestamp>现在是{time_now}。</timestamp>
+    <chat_log>你正在上网，和qq群里的网友们聊天，以下是正在进行的聊天内容：
+{chat_observe_info}</chat_log>
+</live_chat_context>
+
+<thinking_guidance>
+请仔细阅读当前聊天内容，分析讨论话题和群成员关系，分析你刚刚发言和别人对你的发言的反应，思考你要不要回复或发言。然后思考你是否需要使用函数工具。
+思考并输出你真实的内心想法。
+</thinking_guidance>
+
+
+<output_requirements_for_inner_thought>
 1. 根据聊天内容生成你的想法，{hf_do_next}
 2. 不要分点、不要使用表情符号
 3. 避免多余符号(冒号、引号、括号等)
@@ -43,11 +63,17 @@ def init_prompt():
 5. 如果你刚发言，并且没有人回复你，请谨慎考虑要不要继续发消息
 6. 不要把注意力放在别人发的表情包上，它们只是一种辅助表达方式
 7. 注意分辨群里谁在跟谁说话，你不一定是当前聊天的主角，消息中的“你”不一定指的是你（{bot_name}），也可能是别人
-8. 思考要不要回复或发言，如果要，需要思考一下具体说什么。
-工具使用说明：
+8. 思考要不要回复或发言，如果要，必须思考一下具体说什么，怎么说
+9. 默认使用中文
+</output_requirements_for_inner_thought>
+
+<tool_usage_instructions>
 1. 输出想法后考虑是否需要使用工具
 2. 工具可获取信息或执行操作
-3. 如需处理消息或回复，请使用工具。"""
+3. 如需处理消息或回复，请使用工具。
+</tool_usage_instructions>
+
+"""
     Prompt(group_prompt, "sub_heartflow_prompt_before")
 
     # --- Private Chat Prompt ---
@@ -85,6 +111,35 @@ def init_prompt():
     Prompt(last_loop_t, "last_loop")
 
 
+def parse_knowledge_and_get_max_relevance(knowledge_str: str) -> (str, float):
+    """
+    解析 qa_manager.get_knowledge 返回的字符串，提取所有知识的文本和最高的相关性得分。
+    返回: (原始知识字符串, 最高相关性得分)，如果无有效相关性则返回 (原始知识字符串, 0.0)
+    """
+    if not knowledge_str:
+        return None, 0.0
+
+    max_relevance = 0.0
+    # 正则表达式匹配 "该条知识对于问题的相关性：数字"
+    # 我们需要捕获数字部分
+    relevance_scores = re.findall(r"该条知识对于问题的相关性：([0-9.]+)", knowledge_str)
+
+    if relevance_scores:
+        try:
+            max_relevance = max(float(score) for score in relevance_scores)
+        except ValueError:
+            logger.warning(f"解析相关性得分时出错: {relevance_scores}")
+            return knowledge_str, 0.0 # 出错时返回0.0
+    else:
+        # 如果没有找到 "该条知识对于问题的相关性：" 这样的模式，
+        # 说明可能 qa_manager 返回的格式有变，或者没有有效的知识。
+        # 在这种情况下，我们无法确定相关性，保守起见返回0.0
+        logger.debug(f"在知识字符串中未找到明确的相关性得分标记: '{knowledge_str[:100]}...'")
+        return knowledge_str, 0.0
+
+    return knowledge_str, max_relevance
+
+
 def calculate_similarity(text_a: str, text_b: str) -> float:
     """
     计算两个文本字符串的相似度。
@@ -117,6 +172,8 @@ def calculate_replacement_probability(similarity: float) -> float:
         # p = s + 0.1
         probability = similarity + 0.1
         return min(1.0, max(0.0, probability))
+    
+    
 
 
 class SubMind:
@@ -127,7 +184,7 @@ class SubMind:
         self.llm_model = LLMRequest(
             model=global_config.llm_sub_heartflow,
             temperature=global_config.llm_sub_heartflow["temp"],
-            max_tokens=800,
+            max_tokens=1000,
             request_type="sub_heart_flow",
         )
 
@@ -142,6 +199,14 @@ class SubMind:
         name = chat_manager.get_stream_name(self.subheartflow_id)
         self.log_prefix = f"[{name}] "
         self._update_structured_info_str()
+        # 阶梯式筛选 
+        self.knowledge_retrieval_steps = self.knowledge_retrieval_steps = [
+            {"name": "latest_1_msg", "limit": 1, "relevance_threshold": 0.75}, # 新增：最新1条，极高阈值
+            {"name": "latest_2_msgs", "limit": 2, "relevance_threshold": 0.65}, # 新增：最新2条，较高阈值
+            {"name": "short_window_3_msgs", "limit": 3, "relevance_threshold": 0.50}, # 原有的3条，阈值可保持或微调
+            {"name": "medium_window_8_msgs", "limit": 8, "relevance_threshold": 0.30}, # 原有的8条，阈值可保持或微调
+            # 完整窗口的回退逻辑保持不变
+        ]
 
     def _update_structured_info_str(self):
         """根据 structured_info 更新 structured_info_str"""
@@ -184,23 +249,26 @@ class SubMind:
         # ---------- 0. 更新和清理 structured_info ----------
         if self.structured_info:
             logger.debug(
-                f"{self.log_prefix} 更新前的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
+                f"{self.log_prefix} 清理前 structured_info 中包含的lpmm_knowledge数量: "
+                f"{len([item for item in self.structured_info if item.get('type') == 'lpmm_knowledge'])}"
             )
-            updated_info = []
-            for item in self.structured_info:
+            # 筛选出所有不是 lpmm_knowledge 类型的条目，或者其他需要保留的条目
+            info_to_keep = [item for item in self.structured_info if item.get("type") != "lpmm_knowledge"]
+            
+            # 针对我们仅希望 lpmm_knowledge "用完即弃" 的情况：
+            processed_info_to_keep = []
+            for item in info_to_keep: # info_to_keep 已经不包含 lpmm_knowledge
                 item["ttl"] -= 1
                 if item["ttl"] > 0:
-                    updated_info.append(item)
+                    processed_info_to_keep.append(item)
                 else:
-                    logger.debug(f"{self.log_prefix} 移除过期的 structured_info 项: {item['id']}")
-            self.structured_info = updated_info
+                    logger.debug(f"{self.log_prefix} 移除过期的非lpmm_knowledge项: {item.get('id', '未知ID')}")
+            
+            self.structured_info = processed_info_to_keep
             logger.debug(
-                f"{self.log_prefix} 更新后的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
+                f"{self.log_prefix} 清理后 structured_info (仅保留非lpmm_knowledge且TTL有效项): "
+                f"{safe_json_dumps(self.structured_info, ensure_ascii=False)}"
             )
-            self._update_structured_info_str()
-        logger.debug(
-            f"{self.log_prefix} 当前完整的 structured_info: {safe_json_dumps(self.structured_info, ensure_ascii=False)}"
-        )
 
         # ---------- 1. 准备基础数据 ----------
         # 获取现有想法和情绪状态
@@ -269,6 +337,108 @@ class SubMind:
         except Exception as e:
             logger.error(f"{self.log_prefix} 获取记忆时出错: {e}")
             logger.error(traceback.format_exc())
+
+
+        # ---------- 2.5 阶梯式获取知识库信息 ----------
+        final_knowledge_to_add = None
+        retrieval_source_info = "未进行知识检索"
+
+        # 确保 observation 对象存在且可用
+        if not observation:
+            logger.warning(f"{self.log_prefix} Observation 对象不可用，跳过知识库检索。")
+        else:
+            # 阶段1和阶段2的阶梯检索
+            for step_config in self.knowledge_retrieval_steps:
+                step_name = step_config["name"]
+                limit = step_config["limit"]
+                threshold = step_config["relevance_threshold"]
+                
+                logger.info(f"{self.log_prefix} 尝试阶梯检索 - 阶段: {step_name} (最近{limit}条, 阈值>{threshold})")
+                
+                try:
+                    # 1. 获取当前阶段的聊天记录上下文
+                    # 我们需要从 observation 中获取原始消息列表来构建特定长度的上下文
+                    # get_raw_msg_before_timestamp_with_chat 在 observation.py 中被导入
+                    # from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
+                    
+                    # 需要确保 ChattingObservation 的实例 (self.observations[0]) 能提供 chat_id
+                    # 并且 build_readable_messages 可用
+                    context_messages_dicts = get_raw_msg_before_timestamp_with_chat(
+                        chat_id=observation.chat_id,
+                        timestamp=time.time(),
+                        limit=limit
+                    )
+                    
+                    if not context_messages_dicts:
+                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未获取到聊天记录，跳过此阶段。")
+                        continue
+
+                    current_context_text = await build_readable_messages(
+                        messages=context_messages_dicts,
+                        timestamp_mode="lite" # 或者您认为适合知识检索的模式
+                    )
+
+                    if not current_context_text:
+                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 构建的上下文为空，跳过此阶段。")
+                        continue
+                        
+                    logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 使用上下文: '{current_context_text[:150]}...'")
+                    
+                    # 2. 调用知识库进行检索
+                    raw_knowledge_str = qa_manager.get_knowledge(current_context_text)
+                    
+                    if raw_knowledge_str:
+                        # 3. 解析知识并检查相关性
+                        knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
+                        logger.info(f"{self.log_prefix} 阶段 '{step_name}' 检索到知识，最高相关性: {max_relevance:.4f}")
+                        
+                        if max_relevance >= threshold:
+                            logger.info(f"{self.log_prefix} 阶段 '{step_name}' 满足阈值 ({max_relevance:.4f} >= {threshold})，采纳此知识。")
+                            final_knowledge_to_add = knowledge_content
+                            retrieval_source_info = f"阶段 '{step_name}' (最近{limit}条, 相关性 {max_relevance:.4f})"
+                            break # 找到符合条件的知识，跳出阶梯循环
+                        else:
+                            logger.info(f"{self.log_prefix} 阶段 '{step_name}' 未满足阈值 ({max_relevance:.4f} < {threshold})，继续下一阶段。")
+                    else:
+                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未从知识库检索到任何内容。")
+                
+                except Exception as e_step:
+                    logger.error(f"{self.log_prefix} 阶梯检索阶段 '{step_name}' 发生错误: {e_step}")
+                    logger.error(traceback.format_exc())
+                    continue # 当前阶段出错，尝试下一阶段
+
+            # 阶段3: 如果前面的阶梯都没有成功，则使用完整的 chat_observe_info (即您配置的20条)
+            if not final_knowledge_to_add and chat_observe_info: # 确保 chat_observe_info 可用
+                logger.info(f"{self.log_prefix} 前序阶梯均未满足条件，尝试使用完整观察窗口 ('{observation.max_now_obs_len}'条)进行检索。")
+                try:
+                    raw_knowledge_str = qa_manager.get_knowledge(chat_observe_info)
+                    if raw_knowledge_str:
+                        # 对于完整窗口，我们可能不强制要求阈值，或者使用一个较低的阈值
+                        # 或者，您可以选择在这里仍然应用一个阈值，例如 self.knowledge_retrieval_steps 中最后一个的阈值，或一个特定值
+                        knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
+                        logger.info(f"{self.log_prefix} 完整窗口检索到知识，（此处未设阈值，或相关性: {max_relevance:.4f}）。")
+                        final_knowledge_to_add = knowledge_content # 默认采纳
+                        retrieval_source_info = f"完整窗口 (最多{observation.max_now_obs_len}条, 相关性 {max_relevance:.4f})"
+                    else:
+                        logger.debug(f"{self.log_prefix} 完整窗口检索也未找到知识。")
+                except Exception as e_full:
+                    logger.error(f"{self.log_prefix} 完整窗口知识检索发生错误: {e_full}")
+                    logger.error(traceback.format_exc())
+            
+            # 将最终选定的知识（如果有）添加到 structured_info
+            if final_knowledge_to_add:
+                knowledge_item = {
+                    "type": "lpmm_knowledge",
+                    "id": f"lpmm_knowledge_{time.time()}",
+                    "content": final_knowledge_to_add,
+                    "ttl": 1 # 由于是当轮精心选择的，可以让TTL短一些，下次重新评估（或者按照您的意愿设为3）
+                }
+                # 我们在方法开头已经清理了旧的 lpmm_knowledge，这里直接添加新的
+                self.structured_info.append(knowledge_item)
+                logger.info(f"{self.log_prefix} 添加了来自 '{retrieval_source_info}' 的知识到 structured_info (ID: {knowledge_item['id']})")
+                self._update_structured_info_str() # 更新字符串表示
+            else:
+                logger.info(f"{self.log_prefix} 经过所有阶梯检索后，没有最终采纳的知识。")
 
         # ---------- 3. 准备工具和个性化数据 ----------
         # 初始化工具
