@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.2.2"
+version = "1.6.2.3"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -203,6 +203,7 @@ pfc_chatting = false # 是否启用PFC聊天，该功能仅作用于私聊，与
 api_polling_max_retries = 3
 enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 pfc_message_buffer_size = 2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
 
 [idle_chat]
 enable_idle_chat = false # 是否启用 pfc 主动发言
