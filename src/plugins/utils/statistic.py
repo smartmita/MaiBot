@@ -102,7 +102,7 @@ def _format_online_time(online_seconds: int) -> str:
     :param online_seconds: 在线时间（秒）
     :return: 格式化后的在线时间字符串
     """
-    total_oneline_time = timedelta(seconds=online_seconds)
+    total_oneline_time = timedelta(seconds=int(online_seconds)) #确保是整数
 
     days = total_oneline_time.days
     hours = total_oneline_time.seconds // 3600
@@ -110,7 +110,7 @@ def _format_online_time(online_seconds: int) -> str:
     seconds = total_oneline_time.seconds % 60
     if days > 0:
         # 如果在线时间超过1天，则格式化为“X天X小时X分钟”
-        total_oneline_time_str = f"{total_oneline_time.days}天{hours}小时{minutes}分钟{seconds}秒"
+        total_oneline_time_str = f"{days}天{hours}小时{minutes}分钟{seconds}秒"
     elif hours > 0:
         # 如果在线时间超过1小时，则格式化为“X小时X分钟X秒”
         total_oneline_time_str = f"{hours}小时{minutes}分钟{seconds}秒"
@@ -141,17 +141,17 @@ class StatisticOutputTask(AsyncTask):
         记录文件路径
         """
 
-        now = datetime.now()
+        now_init = datetime.now() # Renamed to avoid conflict with 'now' in methods
         if "deploy_time" in local_storage:
             # 如果存在部署时间，则使用该时间作为全量统计的起始时间
-            deploy_time = datetime.fromtimestamp(local_storage["deploy_time"])
+            deploy_time_init = datetime.fromtimestamp(local_storage["deploy_time"])
         else:
             # 否则，使用最大时间范围，并记录部署时间为当前时间
-            deploy_time = datetime(2000, 1, 1)
-            local_storage["deploy_time"] = now.timestamp()
+            deploy_time_init = datetime(2000, 1, 1)
+            local_storage["deploy_time"] = now_init.timestamp()
 
         self.stat_period: List[Tuple[str, timedelta, str]] = [
-            ("all_time", now - deploy_time, "自部署以来"),  # 必须保留“all_time”
+            ("all_time", now_init - deploy_time_init, "自部署以来"),  # 必须保留“all_time”
             ("last_7_days", timedelta(days=7), "最近7天"),
             ("last_24_hours", timedelta(days=1), "最近24小时"),
             ("last_hour", timedelta(hours=1), "最近1小时"),
@@ -167,16 +167,17 @@ class StatisticOutputTask(AsyncTask):
         :param now: 基准当前时间
         """
         # 输出最近一小时的统计数据
+        last_hour_stats = stats.get("last_hour", {}) # Ensure 'last_hour' key exists
 
         output = [
             self.SEP_LINE,
             f"  最近1小时的统计数据  (自{now.strftime('%Y-%m-%d %H:%M:%S')}开始，详细信息见文件：{self.record_file_path})",
             self.SEP_LINE,
-            self._format_total_stat(stats["last_hour"]),
+            self._format_total_stat(last_hour_stats),
             "",
-            self._format_model_classified_stat(stats["last_hour"]),
+            self._format_model_classified_stat(last_hour_stats),
             "",
-            self._format_chat_stat(stats["last_hour"]),
+            self._format_chat_stat(last_hour_stats),
             self.SEP_LINE,
             "",
         ]
@@ -190,7 +191,10 @@ class StatisticOutputTask(AsyncTask):
             stats = self._collect_all_statistics(now)
 
             # 输出统计数据到控制台
-            self._statistic_console_output(stats, now)
+            if "last_hour" in stats: # Check if stats for last_hour were successfully collected
+                self._statistic_console_output(stats, now)
+            else:
+                logger.warning("无法输出最近一小时统计数据到控制台，因为数据缺失。")
             # 输出统计数据到html文件
             self._generate_html_report(stats, now)
         except Exception as e:
@@ -203,84 +207,85 @@ class StatisticOutputTask(AsyncTask):
         """
         收集指定时间段的LLM请求统计数据
 
-        :param collect_period: 统计时间段
+        :param collect_period: 统计时间段 [(period_key, start_datetime), ...]
         """
-        if len(collect_period) <= 0:
+        if not collect_period: 
             return {}
-        else:
-            # 排序-按照时间段开始时间降序排列（最晚的时间段在前）
-            collect_period.sort(key=lambda x: x[1], reverse=True)
+
+        collect_period.sort(key=lambda x: x[1], reverse=True)
 
         stats = {
             period_key: {
-                # 总LLM请求数
                 TOTAL_REQ_CNT: 0,
-                # 请求次数统计
                 REQ_CNT_BY_TYPE: defaultdict(int),
                 REQ_CNT_BY_USER: defaultdict(int),
                 REQ_CNT_BY_MODEL: defaultdict(int),
-                # 输入Token数
                 IN_TOK_BY_TYPE: defaultdict(int),
                 IN_TOK_BY_USER: defaultdict(int),
                 IN_TOK_BY_MODEL: defaultdict(int),
-                # 输出Token数
                 OUT_TOK_BY_TYPE: defaultdict(int),
                 OUT_TOK_BY_USER: defaultdict(int),
                 OUT_TOK_BY_MODEL: defaultdict(int),
-                # 总Token数
                 TOTAL_TOK_BY_TYPE: defaultdict(int),
                 TOTAL_TOK_BY_USER: defaultdict(int),
                 TOTAL_TOK_BY_MODEL: defaultdict(int),
-                # 总开销
                 TOTAL_COST: 0.0,
-                # 请求开销统计
                 COST_BY_TYPE: defaultdict(float),
                 COST_BY_USER: defaultdict(float),
                 COST_BY_MODEL: defaultdict(float),
             }
             for period_key, _ in collect_period
         }
+        
+        # Determine the overall earliest start time for the database query
+        # This assumes collect_period is not empty, which is checked at the beginning.
+        overall_earliest_start_time = min(p[1] for p in collect_period)
 
-        # 以最早的时间戳为起始时间获取记录
-        for record in db.llm_usage.find({"timestamp": {"$gte": collect_period[-1][1]}}):
+        for record in db.llm_usage.find({"timestamp": {"$gte": overall_earliest_start_time}}):
             record_timestamp = record.get("timestamp")
-            for idx, (_, period_start) in enumerate(collect_period):
-                if record_timestamp >= period_start:
-                    # 如果记录时间在当前时间段内，则它一定在更早的时间段内
-                    # 因此，我们可以直接跳过更早的时间段的判断，直接更新当前以及更早时间段的统计数据
-                    for period_key, _ in collect_period[idx:]:
-                        stats[period_key][TOTAL_REQ_CNT] += 1
+            if not isinstance(record_timestamp, datetime): # Ensure timestamp is a datetime object
+                try: # Attempt conversion if it's a number (e.g. Unix timestamp)
+                    record_timestamp = datetime.fromtimestamp(float(record_timestamp))
+                except (ValueError, TypeError):
+                    logger.warning(f"Skipping LLM usage record with invalid timestamp: {record.get('_id')}")
+                    continue
 
-                        request_type = record.get("request_type", "unknown")  # 请求类型
-                        user_id = str(record.get("user_id", "unknown"))  # 用户ID
-                        model_name = record.get("model_name", "unknown")  # 模型名称
 
-                        stats[period_key][REQ_CNT_BY_TYPE][request_type] += 1
-                        stats[period_key][REQ_CNT_BY_USER][user_id] += 1
-                        stats[period_key][REQ_CNT_BY_MODEL][model_name] += 1
+            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+                if record_timestamp >= period_start_time:
+                    for period_key_to_update, _ in collect_period[idx:]:
+                        stats[period_key_to_update][TOTAL_REQ_CNT] += 1
 
-                        prompt_tokens = record.get("prompt_tokens", 0)  # 输入Token数
-                        completion_tokens = record.get("completion_tokens", 0)  # 输出Token数
-                        total_tokens = prompt_tokens + completion_tokens  # Token总数 = 输入Token数 + 输出Token数
+                        request_type = record.get("request_type", "unknown")
+                        user_id = str(record.get("user_id", "unknown"))
+                        model_name = record.get("model_name", "unknown")
 
-                        stats[period_key][IN_TOK_BY_TYPE][request_type] += prompt_tokens
-                        stats[period_key][IN_TOK_BY_USER][user_id] += prompt_tokens
-                        stats[period_key][IN_TOK_BY_MODEL][model_name] += prompt_tokens
+                        stats[period_key_to_update][REQ_CNT_BY_TYPE][request_type] += 1
+                        stats[period_key_to_update][REQ_CNT_BY_USER][user_id] += 1
+                        stats[period_key_to_update][REQ_CNT_BY_MODEL][model_name] += 1
 
-                        stats[period_key][OUT_TOK_BY_TYPE][request_type] += completion_tokens
-                        stats[period_key][OUT_TOK_BY_USER][user_id] += completion_tokens
-                        stats[period_key][OUT_TOK_BY_MODEL][model_name] += completion_tokens
+                        prompt_tokens = record.get("prompt_tokens", 0)
+                        completion_tokens = record.get("completion_tokens", 0)
+                        total_tokens = prompt_tokens + completion_tokens
 
-                        stats[period_key][TOTAL_TOK_BY_TYPE][request_type] += total_tokens
-                        stats[period_key][TOTAL_TOK_BY_USER][user_id] += total_tokens
-                        stats[period_key][TOTAL_TOK_BY_MODEL][model_name] += total_tokens
+                        stats[period_key_to_update][IN_TOK_BY_TYPE][request_type] += prompt_tokens
+                        stats[period_key_to_update][IN_TOK_BY_USER][user_id] += prompt_tokens
+                        stats[period_key_to_update][IN_TOK_BY_MODEL][model_name] += prompt_tokens
+
+                        stats[period_key_to_update][OUT_TOK_BY_TYPE][request_type] += completion_tokens
+                        stats[period_key_to_update][OUT_TOK_BY_USER][user_id] += completion_tokens
+                        stats[period_key_to_update][OUT_TOK_BY_MODEL][model_name] += completion_tokens
+
+                        stats[period_key_to_update][TOTAL_TOK_BY_TYPE][request_type] += total_tokens
+                        stats[period_key_to_update][TOTAL_TOK_BY_USER][user_id] += total_tokens
+                        stats[period_key_to_update][TOTAL_TOK_BY_MODEL][model_name] += total_tokens
 
                         cost = record.get("cost", 0.0)
-                        stats[period_key][TOTAL_COST] += cost
-                        stats[period_key][COST_BY_TYPE][request_type] += cost
-                        stats[period_key][COST_BY_USER][user_id] += cost
-                        stats[period_key][COST_BY_MODEL][model_name] += cost
-                    break  # 取消更早时间段的判断
+                        stats[period_key_to_update][TOTAL_COST] += cost
+                        stats[period_key_to_update][COST_BY_TYPE][request_type] += cost
+                        stats[period_key_to_update][COST_BY_USER][user_id] += cost
+                        stats[period_key_to_update][COST_BY_MODEL][model_name] += cost
+                    break  
 
         return stats
 
@@ -289,41 +294,43 @@ class StatisticOutputTask(AsyncTask):
         """
         收集指定时间段的在线时间统计数据
 
-        :param collect_period: 统计时间段
+        :param collect_period: 统计时间段 [(period_key, start_datetime), ...]
+        :param now: 当前时间，用于校准end_timestamp
         """
-        if len(collect_period) <= 0:
+        if not collect_period:
             return {}
-        else:
-            # 排序-按照时间段开始时间降序排列（最晚的时间段在前）
-            collect_period.sort(key=lambda x: x[1], reverse=True)
+
+        collect_period.sort(key=lambda x: x[1], reverse=True)
 
         stats = {
             period_key: {
-                # 在线时间统计
                 ONLINE_TIME: 0.0,
             }
             for period_key, _ in collect_period
         }
+        
+        overall_earliest_start_time = min(p[1] for p in collect_period)
 
-        # 统计在线时间
-        for record in db.online_time.find({"end_timestamp": {"$gte": collect_period[-1][1]}}):
-            end_timestamp: datetime = record.get("end_timestamp")
-            for idx, (_, period_start) in enumerate(collect_period):
-                if end_timestamp >= period_start:
-                    # 由于end_timestamp会超前标记时间，所以我们需要判断是否晚于当前时间，如果是，则使用当前时间作为结束时间
-                    if end_timestamp > now:
-                        end_timestamp = now
-                    # 如果记录时间在当前时间段内，则它一定在更早的时间段内
-                    # 因此，我们可以直接跳过更早的时间段的判断，直接更新当前以及更早时间段的统计数据
-                    for period_key, _period_start in collect_period[idx:]:
-                        start_timestamp: datetime = record.get("start_timestamp")
-                        if start_timestamp < _period_start:
-                            # 如果开始时间在查询边界之前，则使用开始时间
-                            stats[period_key][ONLINE_TIME] += (end_timestamp - _period_start).total_seconds()
-                        else:
-                            # 否则，使用开始时间
-                            stats[period_key][ONLINE_TIME] += (end_timestamp - start_timestamp).total_seconds()
-                    break  # 取消更早时间段的判断
+        for record in db.online_time.find({"end_timestamp": {"$gte": overall_earliest_start_time}}):
+            record_end_timestamp: datetime = record.get("end_timestamp")
+            record_start_timestamp: datetime = record.get("start_timestamp")
+
+            if not isinstance(record_end_timestamp, datetime) or not isinstance(record_start_timestamp, datetime):
+                logger.warning(f"Skipping online_time record with invalid timestamps: {record.get('_id')}")
+                continue
+
+            actual_end_timestamp = min(record_end_timestamp, now)
+
+            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+                if record_start_timestamp < now and actual_end_timestamp > period_start_time:
+                    overlap_start = max(record_start_timestamp, period_start_time)
+                    overlap_end = min(actual_end_timestamp, now) 
+
+                    if overlap_end > overlap_start: 
+                        duration_seconds = (overlap_end - overlap_start).total_seconds()
+                        for period_key_to_update, _ in collect_period[idx:]:
+                            stats[period_key_to_update][ONLINE_TIME] += duration_seconds
+                        break 
 
         return stats
 
@@ -331,56 +338,69 @@ class StatisticOutputTask(AsyncTask):
         """
         收集指定时间段的消息统计数据
 
-        :param collect_period: 统计时间段
+        :param collect_period: 统计时间段 [(period_key, start_datetime), ...]
         """
-        if len(collect_period) <= 0:
+        if not collect_period:
             return {}
-        else:
-            # 排序-按照时间段开始时间降序排列（最晚的时间段在前）
-            collect_period.sort(key=lambda x: x[1], reverse=True)
+
+        collect_period.sort(key=lambda x: x[1], reverse=True)
 
         stats = {
             period_key: {
-                # 消息统计
                 TOTAL_MSG_CNT: 0,
                 MSG_CNT_BY_CHAT: defaultdict(int),
             }
             for period_key, _ in collect_period
         }
 
-        # 统计消息量
-        for message in db.messages.find({"time": {"$gte": collect_period[-1][1].timestamp()}}):
-            chat_info = message.get("chat_info", None)  # 聊天信息
-            user_info = message.get("user_info", None)  # 用户信息（消息发送人）
-            message_time = message.get("time", 0)  # 消息时间
+        overall_earliest_start_timestamp_float = min(p[1].timestamp() for p in collect_period)
+        
+        for message in db.messages.find({"time": {"$gte": overall_earliest_start_timestamp_float}}):
+            chat_info = message.get("chat_info", {}) 
+            user_info = message.get("user_info", {}) 
+            message_time_ts = message.get("time")  
 
-            group_info = chat_info.get("group_info") if chat_info else None  # 尝试获取群聊信息
-            if group_info is not None:
-                # 若有群聊信息
-                chat_id = f"g{group_info.get('group_id')}"
-                chat_name = group_info.get("group_name", f"群{group_info.get('group_id')}")
-            elif user_info:
-                # 若没有群聊信息，则尝试获取用户信息
-                chat_id = f"u{user_info['user_id']}"
-                chat_name = user_info["user_nickname"]
+            if message_time_ts is None: 
+                logger.warning(f"Skipping message record with no timestamp: {message.get('_id')}")
+                continue
+            
+            try:
+                message_datetime = datetime.fromtimestamp(float(message_time_ts))
+            except (ValueError, TypeError):
+                logger.warning(f"Skipping message record with invalid time format: {message.get('_id')}")
+                continue
+
+
+            group_info = chat_info.get("group_info")
+            chat_id = None
+            chat_name = None
+
+            if group_info and group_info.get("group_id"):
+                gid = group_info.get('group_id')
+                chat_id = f"g{gid}"
+                chat_name = group_info.get("group_name", f"群聊 {gid}")
+            elif user_info and user_info.get("user_id"):
+                uid = user_info['user_id']
+                chat_id = f"u{uid}"
+                chat_name = user_info.get("user_nickname", f"用户 {uid}")
+            
+            if not chat_id: 
+                continue
+
+            current_mapping = self.name_mapping.get(chat_id)
+            if current_mapping:
+                if chat_name != current_mapping[0] and message_time_ts > current_mapping[1]:
+                    self.name_mapping[chat_id] = (chat_name, message_time_ts)
             else:
-                continue  # 如果没有群组信息也没有用户信息，则跳过
+                self.name_mapping[chat_id] = (chat_name, message_time_ts)
 
-            if chat_id in self.name_mapping:
-                if chat_name != self.name_mapping[chat_id][0] and message_time > self.name_mapping[chat_id][1]:
-                    # 如果用户名称不同，且新消息时间晚于之前记录的时间，则更新用户名称
-                    self.name_mapping[chat_id] = (chat_name, message_time)
-            else:
-                self.name_mapping[chat_id] = (chat_name, message_time)
 
-            for idx, (_, period_start) in enumerate(collect_period):
-                if message_time >= period_start.timestamp():
-                    # 如果记录时间在当前时间段内，则它一定在更早的时间段内
-                    # 因此，我们可以直接跳过更早的时间段的判断，直接更新当前以及更早时间段的统计数据
-                    for period_key, _ in collect_period[idx:]:
-                        stats[period_key][TOTAL_MSG_CNT] += 1
-                        stats[period_key][MSG_CNT_BY_CHAT][chat_id] += 1
-                    break
+            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+                if message_datetime >= period_start_time:
+                    for period_key_to_update, _ in collect_period[idx:]:
+                        stats[period_key_to_update][TOTAL_MSG_CNT] += 1
+                        stats[period_key_to_update][MSG_CNT_BY_CHAT][chat_id] += 1
+                    break 
 
         return stats
 
@@ -389,48 +409,61 @@ class StatisticOutputTask(AsyncTask):
         收集各时间段的统计数据
         :param now: 基准当前时间
         """
+        # Correctly determine deploy_time
+        if "deploy_time" in local_storage:
+            try:
+                deploy_time = datetime.fromtimestamp(local_storage["deploy_time"])
+            except (TypeError, ValueError):
+                logger.error("Invalid deploy_time in local_storage. Resetting.")
+                deploy_time = datetime(2000, 1, 1)
+                local_storage["deploy_time"] = now.timestamp()
+        else:
+            deploy_time = datetime(2000, 1, 1)
+            local_storage["deploy_time"] = now.timestamp()
 
-        last_all_time_stat = None
+        # Rebuild stat_period based on the current 'now' and determined 'deploy_time'
+        current_stat_periods_config = [
+            ("all_time", now - deploy_time if now > deploy_time else timedelta(seconds=0), "自部署以来"),
+            ("last_7_days", timedelta(days=7), "最近7天"),
+            ("last_24_hours", timedelta(days=1), "最近24小时"),
+            ("last_hour", timedelta(hours=1), "最近1小时"),
+        ]
+        self.stat_period = current_stat_periods_config # Update instance's stat_period if needed elsewhere
 
-        if "last_full_statistics_timestamp" in local_storage and "last_full_statistics" in local_storage:
-            # 若存有上次完整统计的时间戳，则使用该时间戳作为"所有时间"的起始时间，进行增量统计
-            last_full_stat_ts: float = local_storage["last_full_statistics_timestamp"]
-            last_all_time_stat = local_storage["last_full_statistics"]
-            self.stat_period = [item for item in self.stat_period if item[0] != "all_time"]  # 删除"所有时间"的统计时段
-            self.stat_period.append(("all_time", now - datetime.fromtimestamp(last_full_stat_ts), "自部署以来的"))
+        stat_start_timestamp_config = []
+        for period_name, delta, _ in current_stat_periods_config:
+            start_dt = deploy_time if period_name == "all_time" else now - delta
+            stat_start_timestamp_config.append((period_name, start_dt))
 
-        stat_start_timestamp = [(period[0], now - period[1]) for period in self.stat_period]
+        # 收集各类数据
+        model_req_stat = self._collect_model_request_for_period(stat_start_timestamp_config)
+        online_time_stat = self._collect_online_time_for_period(stat_start_timestamp_config, now)
+        message_count_stat = self._collect_message_count_for_period(stat_start_timestamp_config)
 
-        stat = {item[0]: {} for item in self.stat_period}
-
-        model_req_stat = self._collect_model_request_for_period(stat_start_timestamp)
-        online_time_stat = self._collect_online_time_for_period(stat_start_timestamp, now)
-        message_count_stat = self._collect_message_count_for_period(stat_start_timestamp)
-
-        # 统计数据合并
-        # 合并三类统计数据
-        for period_key, _ in stat_start_timestamp:
-            stat[period_key].update(model_req_stat[period_key])
-            stat[period_key].update(online_time_stat[period_key])
-            stat[period_key].update(message_count_stat[period_key])
-
-        if last_all_time_stat:
-            # 若存在上次完整统计数据，则将其与当前统计数据合并
-            for key, val in last_all_time_stat.items():
-                if isinstance(val, dict):
-                    # 是字典类型，则进行合并
-                    for sub_key, sub_val in val.items():
-                        stat["all_time"][key][sub_key] += sub_val
-                else:
-                    # 直接合并
-                    stat["all_time"][key] += val
-
-        # 更新上次完整统计数据的时间戳
-        local_storage["last_full_statistics_timestamp"] = now.timestamp()
-        # 更新上次完整统计数据
-        local_storage["last_full_statistics"] = stat["all_time"]
-
-        return stat
+        final_stats = {}
+        for period_key, _ in stat_start_timestamp_config:
+            final_stats[period_key] = {}
+            final_stats[period_key].update(model_req_stat.get(period_key, {}))
+            final_stats[period_key].update(online_time_stat.get(period_key, {}))
+            final_stats[period_key].update(message_count_stat.get(period_key, {}))
+            
+            for stat_field_key in [
+                TOTAL_REQ_CNT, REQ_CNT_BY_TYPE, REQ_CNT_BY_USER, REQ_CNT_BY_MODEL,
+                IN_TOK_BY_TYPE, IN_TOK_BY_USER, IN_TOK_BY_MODEL,
+                OUT_TOK_BY_TYPE, OUT_TOK_BY_USER, OUT_TOK_BY_MODEL,
+                TOTAL_TOK_BY_TYPE, TOTAL_TOK_BY_USER, TOTAL_TOK_BY_MODEL,
+                TOTAL_COST, COST_BY_TYPE, COST_BY_USER, COST_BY_MODEL,
+                ONLINE_TIME, TOTAL_MSG_CNT, MSG_CNT_BY_CHAT
+            ]:
+                if stat_field_key not in final_stats[period_key]:
+                    # Initialize with appropriate default type if key is missing
+                    if "BY_" in stat_field_key: # These are usually defaultdicts
+                        final_stats[period_key][stat_field_key] = defaultdict(int if "CNT" in stat_field_key or "TOK" in stat_field_key else float)
+                    elif "CNT" in stat_field_key or "TOK" in stat_field_key :
+                         final_stats[period_key][stat_field_key] = 0
+                    elif "COST" in stat_field_key or ONLINE_TIME == stat_field_key:
+                         final_stats[period_key][stat_field_key] = 0.0
+        return final_stats
 
     # -- 以下为统计数据格式化方法 --
 
@@ -439,15 +472,13 @@ class StatisticOutputTask(AsyncTask):
         """
         格式化总统计数据
         """
-
         output = [
-            f"总在线时间: {_format_online_time(stats[ONLINE_TIME])}",
-            f"总消息数: {stats[TOTAL_MSG_CNT]}",
-            f"总请求数: {stats[TOTAL_REQ_CNT]}",
-            f"总花费: {stats[TOTAL_COST]:.4f}¥",
+            f"总在线时间: {_format_online_time(stats.get(ONLINE_TIME, 0))}",
+            f"总消息数: {stats.get(TOTAL_MSG_CNT, 0)}",
+            f"总请求数: {stats.get(TOTAL_REQ_CNT, 0)}",
+            f"总花费: {stats.get(TOTAL_COST, 0.0):.4f}¥",
             "",
         ]
-
         return "\n".join(output)
 
     @staticmethod
@@ -455,19 +486,24 @@ class StatisticOutputTask(AsyncTask):
         """
         格式化按模型分类的统计数据
         """
-        if stats[TOTAL_REQ_CNT] > 0:
+        if stats.get(TOTAL_REQ_CNT, 0) > 0:
             data_fmt = "{:<32}  {:>10}  {:>12}  {:>12}  {:>12}  {:>9.4f}¥"
-
             output = [
                 "按模型分类统计:",
                 " 模型名称                          调用次数    输入Token     输出Token     Token总量     累计花费",
             ]
-            for model_name, count in sorted(stats[REQ_CNT_BY_MODEL].items()):
+            req_cnt_by_model = stats.get(REQ_CNT_BY_MODEL, {})
+            in_tok_by_model = stats.get(IN_TOK_BY_MODEL, defaultdict(int))
+            out_tok_by_model = stats.get(OUT_TOK_BY_MODEL, defaultdict(int))
+            total_tok_by_model = stats.get(TOTAL_TOK_BY_MODEL, defaultdict(int))
+            cost_by_model = stats.get(COST_BY_MODEL, defaultdict(float))
+
+            for model_name, count in sorted(req_cnt_by_model.items()):
                 name = model_name[:29] + "..." if len(model_name) > 32 else model_name
-                in_tokens = stats[IN_TOK_BY_MODEL][model_name]
-                out_tokens = stats[OUT_TOK_BY_MODEL][model_name]
-                tokens = stats[TOTAL_TOK_BY_MODEL][model_name]
-                cost = stats[COST_BY_MODEL][model_name]
+                in_tokens = in_tok_by_model[model_name]
+                out_tokens = out_tok_by_model[model_name]
+                tokens = total_tok_by_model[model_name]
+                cost = cost_by_model[model_name]
                 output.append(data_fmt.format(name, count, in_tokens, out_tokens, tokens, cost))
 
             output.append("")
@@ -479,148 +515,148 @@ class StatisticOutputTask(AsyncTask):
         """
         格式化聊天统计数据
         """
-        if stats[TOTAL_MSG_CNT] > 0:
+        if stats.get(TOTAL_MSG_CNT, 0) > 0:
             output = ["聊天消息统计:", " 联系人/群组名称                  消息数量"]
-            for chat_id, count in sorted(stats[MSG_CNT_BY_CHAT].items()):
-                output.append(f"{self.name_mapping[chat_id][0][:32]:<32}  {count:>10}")
+            msg_cnt_by_chat = stats.get(MSG_CNT_BY_CHAT, {}) 
+            for chat_id, count in sorted(msg_cnt_by_chat.items()):
+                chat_name_display = self.name_mapping.get(chat_id, (f"未知 ({chat_id})", None))[0]
+                output.append(f"{chat_name_display[:32]:<32}  {count:>10}")
 
             output.append("")
             return "\n".join(output)
         else:
             return ""
 
-    def _generate_html_report(self, stat: dict[str, Any], now: datetime):
+    def _generate_html_report(self, stat_collection: dict[str, Any], now: datetime):
         """
         生成HTML格式的统计报告
-        :param stat: 统计数据
+        :param stat_collection: 包含所有时间段统计数据的字典 {period_key: stats_dict}
         :param now: 基准当前时间
-        :return: HTML格式的统计报告
         """
+        # Correctly get deploy_time_dt for display purposes
+        if "deploy_time" in local_storage:
+            try:
+                deploy_time_dt = datetime.fromtimestamp(local_storage["deploy_time"])
+            except (TypeError, ValueError):
+                logger.error("Invalid deploy_time in local_storage for HTML report. Using default.")
+                deploy_time_dt = datetime(2000,1,1) # Fallback
+        else:
+            # This should ideally not happen if __init__ or _collect_all_statistics ran
+            logger.warning("deploy_time not found in local_storage for HTML report. Using default.")
+            deploy_time_dt = datetime(2000, 1, 1) # Fallback
 
-        tab_list = [
-            f'<button class="tab-link" onclick="showTab(event, \'{period[0]}\')">{period[2]}</button>'
-            for period in self.stat_period
-        ]
+        tab_list_html = []
+        tab_content_html_list = []
 
-        def _format_stat_data(stat_data: dict[str, Any], div_id: str, start_time: datetime) -> str:
-            """
-            格式化一个时间段的统计数据到html div块
-            :param stat_data: 统计数据
-            :param div_id: div的ID
-            :param start_time: 统计时间段开始时间
-            """
-            # format总在线时间
+        for period_key, period_delta, period_display_name in self.stat_period: # Use self.stat_period as defined by _collect_all_statistics
+            tab_list_html.append(
+                f'<button class="tab-link" onclick="showTab(event, \'{period_key}\')">{period_display_name}</button>'
+            )
 
-            # 生成HTML
-            return f"""
-            <div id="{div_id}" class="tab-content">
+            current_period_stats = stat_collection.get(period_key, {}) 
+
+            if period_key == "all_time":
+                start_time_dt_for_period = deploy_time_dt
+            else:
+                # Ensure period_delta is a timedelta object
+                if isinstance(period_delta, timedelta):
+                    start_time_dt_for_period = now - period_delta
+                else: # Fallback if period_delta is not as expected (e.g. from old self.stat_period)
+                    logger.warning(f"period_delta for {period_key} is not a timedelta. Using 'now'. Type: {type(period_delta)}")
+                    start_time_dt_for_period = now
+
+
+            html_content_for_tab = f"""
+            <div id="{period_key}" class="tab-content">
                 <p class="info-item">
                     <strong>统计时段: </strong>
-                    {start_time.strftime("%Y-%m-%d %H:%M:%S")} ~ {now.strftime("%Y-%m-%d %H:%M:%S")}
+                    {start_time_dt_for_period.strftime("%Y-%m-%d %H:%M:%S")} ~ {now.strftime("%Y-%m-%d %H:%M:%S")}
                 </p>
-                <p class="info-item"><strong>总在线时间: </strong>{_format_online_time(stat_data[ONLINE_TIME])}</p>
-                <p class="info-item"><strong>总消息数: </strong>{stat_data[TOTAL_MSG_CNT]}</p>
-                <p class="info-item"><strong>总请求数: </strong>{stat_data[TOTAL_REQ_CNT]}</p>
-                <p class="info-item"><strong>总花费: </strong>{stat_data[TOTAL_COST]:.4f} ¥</p>
-                
-                <h2>按模型分类统计</h2>
-                <table>
-                    <thead><tr><th>模型名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr></thead>
-                    <tbody>
-                        {
-                "\n".join(
-                    [
+                <p class="info-item"><strong>总在线时间: </strong>{_format_online_time(current_period_stats.get(ONLINE_TIME, 0))}</p>
+                <p class="info-item"><strong>总消息数: </strong>{current_period_stats.get(TOTAL_MSG_CNT, 0)}</p>
+                <p class="info-item"><strong>总请求数: </strong>{current_period_stats.get(TOTAL_REQ_CNT, 0)}</p>
+                <p class="info-item"><strong>总花费: </strong>{current_period_stats.get(TOTAL_COST, 0.0):.4f} ¥</p>
+            """
+
+            html_content_for_tab += "<h2>按模型分类统计</h2><table><thead><tr><th>模型名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr></thead><tbody>"
+            req_cnt_by_model = current_period_stats.get(REQ_CNT_BY_MODEL, {})
+            in_tok_by_model = current_period_stats.get(IN_TOK_BY_MODEL, defaultdict(int))
+            out_tok_by_model = current_period_stats.get(OUT_TOK_BY_MODEL, defaultdict(int))
+            total_tok_by_model = current_period_stats.get(TOTAL_TOK_BY_MODEL, defaultdict(int))
+            cost_by_model = current_period_stats.get(COST_BY_MODEL, defaultdict(float))
+            if req_cnt_by_model:
+                for model_name, count in sorted(req_cnt_by_model.items()):
+                    html_content_for_tab += (
                         f"<tr>"
                         f"<td>{model_name}</td>"
                         f"<td>{count}</td>"
-                        f"<td>{stat_data[IN_TOK_BY_MODEL][model_name]}</td>"
-                        f"<td>{stat_data[OUT_TOK_BY_MODEL][model_name]}</td>"
-                        f"<td>{stat_data[TOTAL_TOK_BY_MODEL][model_name]}</td>"
-                        f"<td>{stat_data[COST_BY_MODEL][model_name]:.4f} ¥</td>"
+                        f"<td>{in_tok_by_model[model_name]}</td>"
+                        f"<td>{out_tok_by_model[model_name]}</td>"
+                        f"<td>{total_tok_by_model[model_name]}</td>"
+                        f"<td>{cost_by_model[model_name]:.4f} ¥</td>"
                         f"</tr>"
-                        for model_name, count in sorted(stat_data[REQ_CNT_BY_MODEL].items())
-                    ]
-                )
-            }
-                    </tbody>
-                </table>
-                
-                <h2>按请求类型分类统计</h2>
-                <table>
-                    <thead>
-                        <tr><th>请求类型</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr>
-                    </thead>
-                    <tbody>
-                    {
-                "\n".join(
-                    [
+                    )
+            else:
+                html_content_for_tab += "<tr><td colspan='6'>无数据</td></tr>"
+            html_content_for_tab += "</tbody></table>"
+
+            html_content_for_tab += "<h2>按请求类型分类统计</h2><table><thead><tr><th>请求类型</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr></thead><tbody>"
+            req_cnt_by_type = current_period_stats.get(REQ_CNT_BY_TYPE, {})
+            in_tok_by_type = current_period_stats.get(IN_TOK_BY_TYPE, defaultdict(int))
+            out_tok_by_type = current_period_stats.get(OUT_TOK_BY_TYPE, defaultdict(int))
+            total_tok_by_type = current_period_stats.get(TOTAL_TOK_BY_TYPE, defaultdict(int))
+            cost_by_type = current_period_stats.get(COST_BY_TYPE, defaultdict(float))
+            if req_cnt_by_type:
+                for req_type, count in sorted(req_cnt_by_type.items()):
+                    html_content_for_tab += (
                         f"<tr>"
                         f"<td>{req_type}</td>"
                         f"<td>{count}</td>"
-                        f"<td>{stat_data[IN_TOK_BY_TYPE][req_type]}</td>"
-                        f"<td>{stat_data[OUT_TOK_BY_TYPE][req_type]}</td>"
-                        f"<td>{stat_data[TOTAL_TOK_BY_TYPE][req_type]}</td>"
-                        f"<td>{stat_data[COST_BY_TYPE][req_type]:.4f} ¥</td>"
+                        f"<td>{in_tok_by_type[req_type]}</td>"
+                        f"<td>{out_tok_by_type[req_type]}</td>"
+                        f"<td>{total_tok_by_type[req_type]}</td>"
+                        f"<td>{cost_by_type[req_type]:.4f} ¥</td>"
                         f"</tr>"
-                        for req_type, count in sorted(stat_data[REQ_CNT_BY_TYPE].items())
-                    ]
-                )
-            }
-                    </tbody>
-                </table>
-    
-                <h2>按用户分类统计</h2>
-                <table>
-                    <thead>
-                        <tr><th>用户名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr>
-                    </thead>
-                    <tbody>
-                    {
-                "\n".join(
-                    [
+                    )
+            else:
+                html_content_for_tab += "<tr><td colspan='6'>无数据</td></tr>"
+            html_content_for_tab += "</tbody></table>"
+
+            html_content_for_tab += "<h2>按用户分类统计</h2><table><thead><tr><th>用户ID/名称</th><th>调用次数</th><th>输入Token</th><th>输出Token</th><th>Token总量</th><th>累计花费</th></tr></thead><tbody>"
+            req_cnt_by_user = current_period_stats.get(REQ_CNT_BY_USER, {})
+            in_tok_by_user = current_period_stats.get(IN_TOK_BY_USER, defaultdict(int))
+            out_tok_by_user = current_period_stats.get(OUT_TOK_BY_USER, defaultdict(int))
+            total_tok_by_user = current_period_stats.get(TOTAL_TOK_BY_USER, defaultdict(int))
+            cost_by_user = current_period_stats.get(COST_BY_USER, defaultdict(float))
+            if req_cnt_by_user:
+                for user_id, count in sorted(req_cnt_by_user.items()):
+                    user_display_name = self.name_mapping.get(user_id, (user_id, None))[0] 
+                    html_content_for_tab += (
                         f"<tr>"
-                        f"<td>{user_id}</td>"
+                        f"<td>{user_display_name}</td>"
                         f"<td>{count}</td>"
-                        f"<td>{stat_data[IN_TOK_BY_USER][user_id]}</td>"
-                        f"<td>{stat_data[OUT_TOK_BY_USER][user_id]}</td>"
-                        f"<td>{stat_data[TOTAL_TOK_BY_USER][user_id]}</td>"
-                        f"<td>{stat_data[COST_BY_USER][user_id]:.4f} ¥</td>"
+                        f"<td>{in_tok_by_user[user_id]}</td>"
+                        f"<td>{out_tok_by_user[user_id]}</td>"
+                        f"<td>{total_tok_by_user[user_id]}</td>"
+                        f"<td>{cost_by_user[user_id]:.4f} ¥</td>"
                         f"</tr>"
-                        for user_id, count in sorted(stat_data[REQ_CNT_BY_USER].items())
-                    ]
-                )
-            }
-                    </tbody>
-                </table>
-    
-                <h2>聊天消息统计</h2>
-                <table>
-                    <thead>
-                        <tr><th>联系人/群组名称</th><th>消息数量</th></tr>
-                    </thead>
-                    <tbody>
-                    {
-                "\n".join(
-                    [
-                        f"<tr><td>{self.name_mapping[chat_id][0]}</td><td>{count}</td></tr>"
-                        for chat_id, count in sorted(stat_data[MSG_CNT_BY_CHAT].items())
-                    ]
-                )
-            }
-                    </tbody>
-                </table>
-            </div>
-            """
+                    )
+            else:
+                html_content_for_tab += "<tr><td colspan='6'>无数据</td></tr>"
+            html_content_for_tab += "</tbody></table>"
 
-        tab_content_list = [
-            _format_stat_data(stat[period[0]], period[0], now - period[1])
-            for period in self.stat_period
-            if period[0] != "all_time"
-        ]
+            html_content_for_tab += "<h2>聊天消息统计</h2><table><thead><tr><th>联系人/群组名称</th><th>消息数量</th></tr></thead><tbody>"
+            msg_cnt_by_chat = current_period_stats.get(MSG_CNT_BY_CHAT, {})
+            if msg_cnt_by_chat:
+                for chat_id, count in sorted(msg_cnt_by_chat.items()):
+                    chat_name_display = self.name_mapping.get(chat_id, (f"未知/归档聊天 ({chat_id})", None))[0]
+                    html_content_for_tab += f"<tr><td>{chat_name_display}</td><td>{count}</td></tr>"
+            else:
+                html_content_for_tab += "<tr><td colspan='2'>无数据</td></tr>"
+            html_content_for_tab += "</tbody></table></div>" 
 
-        tab_content_list.append(
-            _format_stat_data(stat["all_time"], "all_time", datetime.fromtimestamp(local_storage["deploy_time"]))
-        )
+            tab_content_html_list.append(html_content_for_tab)
+
 
         html_template = (
             """
@@ -684,6 +720,7 @@ class StatisticOutputTask(AsyncTask):
             border: 1px solid #ddd;
             padding: 10px;
             text-align: left;
+            word-break: break-all; 
         }
         th {
             background-color: #3498db;
@@ -702,24 +739,38 @@ class StatisticOutputTask(AsyncTask):
         .tabs {
             overflow: hidden;
             background: #ecf0f1;
-            display: flex;
+            display: flex; 
+            flex-wrap: wrap; 
+            margin-bottom: -1px; 
         }
         .tabs button {
-            background: inherit; border: none; outline: none;
-            padding: 14px 16px; cursor: pointer;
-            transition: 0.3s; font-size: 16px;
+            background: inherit; 
+            border: 1px solid #ccc; 
+            border-bottom: none; 
+            outline: none;
+            padding: 14px 16px; 
+            cursor: pointer;
+            transition: 0.3s; 
+            font-size: 16px;
+            margin-right: 2px; 
+            border-radius: 4px 4px 0 0; 
         }
         .tabs button:hover {
             background-color: #d4dbdc;
         }
         .tabs button.active {
-            background-color: #b3bbbd;
+            background-color: #fff; 
+            border-color: #ccc;
+            border-bottom: 1px solid #fff; 
+            position: relative;
+            z-index: 1;
         }
         .tab-content {
             display: none;
             padding: 20px;
             background-color: #fff;
             border: 1px solid #ccc;
+            border-top: none; 
         }
         .tab-content.active {
             display: block;
@@ -734,10 +785,14 @@ class StatisticOutputTask(AsyncTask):
         <p class="info-item"><strong>统计截止时间:</strong> {now.strftime("%Y-%m-%d %H:%M:%S")}</p>
 
         <div class="tabs">
-            {"\n".join(tab_list)}
+            {"".join(tab_list_html)}
         </div>
 
-        {"\n".join(tab_content_list)}
+        {"".join(tab_content_html_list)}
+        
+        <div class="footer">
+            <p>Generated by MaiBot Statistics Module</p>
+        </div>
     </div>
 """
             + """
@@ -746,20 +801,36 @@ class StatisticOutputTask(AsyncTask):
     tab_content = document.getElementsByClassName("tab-content");
     tab_links = document.getElementsByClassName("tab-link");
     
-    tab_content[0].classList.add("active");
-    tab_links[0].classList.add("active");
+    if (tab_content.length > 0 && tab_links.length > 0) { 
+        tab_content[0].classList.add("active");
+        tab_links[0].classList.add("active");
+    }
 
-    function showTab(evt, tabName) {{
-        for (i = 0; i < tab_content.length; i++) tab_content[i].classList.remove("active");
-        for (i = 0; i < tab_links.length; i++) tab_links[i].classList.remove("active");
-        document.getElementById(tabName).classList.add("active");
-        evt.currentTarget.classList.add("active");
-    }}
+    function showTab(evt, tabName) {
+        for (i = 0; i < tab_content.length; i++) {
+            tab_content[i].classList.remove("active");
+        }
+        for (i = 0; i < tab_links.length; i++) {
+            tab_links[i].classList.remove("active");
+        }
+        const currentTabContent = document.getElementById(tabName);
+        if (currentTabContent) { 
+             currentTabContent.classList.add("active");
+        }
+        if (evt.currentTarget) { 
+            evt.currentTarget.classList.add("active");
+        }
+    }
 </script>
 </body>
 </html>
         """
         )
 
-        with open(self.record_file_path, "w", encoding="utf-8") as f:
-            f.write(html_template)
+        try:
+            with open(self.record_file_path, "w", encoding="utf-8") as f:
+                f.write(html_template)
+            logger.info(f"统计报告已生成: {self.record_file_path}")
+        except IOError as e:
+            logger.error(f"无法写入统计报告文件 {self.record_file_path}: {e}")
+

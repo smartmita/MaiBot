@@ -251,7 +251,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     if len_text < 12:
         split_strength = 0.2
     elif len_text < 32:
-        split_strength = 0.6
+        split_strength = 0.5
     else:
         split_strength = 0.7
     # 合并概率与分割强度相反
@@ -370,7 +370,7 @@ def process_llm_response(text: str) -> list[str]:
         else:
             sentences.append(sentence)
 
-    if len(sentences) > max_sentence_num:
+    if len(sentences) > (max_sentence_num * 2):
         logger.warning(f"分割后消息数量过多 ({len(sentences)} 条)，返回默认回复")
         return [f"{global_config.BOT_NICKNAME}不知道哦"]
 
@@ -417,8 +417,8 @@ def calculate_typing_time(
     if chinese_chars == 1 and len(input_string.strip()) == 1:
         return chinese_time * 3 + 0.3  # 加上回车时间
 
+    total_time = 0
     # 正常计算所有字符的输入时间
-    total_time = 0.0
     for char in input_string:
         if "\u4e00" <= char <= "\u9fff":  # 判断是否为中文字符
             total_time += chinese_time
