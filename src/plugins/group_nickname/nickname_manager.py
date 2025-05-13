@@ -1,7 +1,9 @@
 import asyncio
 import threading
+import random
 import time
 import json
+import random
 import re
 from typing import Dict, Optional, List, Any
 from pymongo.errors import OperationFailure, DuplicateKeyError
@@ -143,7 +145,7 @@ class NicknameManager:
             self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
             self._stop_event = threading.Event()  # stop_event 仍然使用 threading.Event，因为它是由另一个线程设置的
             self._nickname_thread: Optional[threading.Thread] = None
-            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 60)  # 超时时间
+            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 5)  # 超时时间
 
             self._initialized = True
             logger.info("NicknameManager 初始化完成。")
@@ -176,6 +178,7 @@ class NicknameManager:
             self._stop_event.set()  # 设置停止事件，_processing_loop 会检测到
             try:
                 # 不需要清空 asyncio.Queue，让循环自然结束或被取消
+                # self.empty_queue(self.nickname_queue)
                 self._nickname_thread.join(timeout=10)  # 等待线程结束
                 if self._nickname_thread.is_alive():
                     logger.warning("绰号处理器线程在超时后仍未停止。")
@@ -188,6 +191,13 @@ class NicknameManager:
         else:
             logger.info("绰号处理器线程未在运行或已被清理。")
 
+    # def empty_queue(self, q: asyncio.Queue):
+    #     while not q.empty():
+    #         # Depending on your program, you may want to
+    #         # catch QueueEmpty
+    #         q.get_nowait()
+    #         q.task_done()
+
     async def trigger_nickname_analysis(
         self,
         anchor_message: MessageRecv,
@@ -199,6 +209,10 @@ class NicknameManager:
         (现在调用异步的 _add_to_queue)
         """
         if not self.is_enabled:
+            return
+
+        if random.random() < global_config.nickname_analysis_probability:
+            logger.debug("跳过绰号分析：随机概率未命中。")
             return
 
         current_chat_stream = chat_stream or anchor_message.chat_stream
@@ -353,7 +367,6 @@ class NicknameManager:
             logger.info(f"{log_prefix} LLM 找到绰号映射，准备更新数据库: {nickname_map_to_update}")
 
             for user_id_str, nickname in nickname_map_to_update.items():
-                # ... (验证和数据库更新逻辑保持不变) ...
                 if not user_id_str or not nickname:
                     logger.warning(f"{log_prefix} 跳过无效条目: user_id='{user_id_str}', nickname='{nickname}'")
                     continue
@@ -389,7 +402,6 @@ class NicknameManager:
         """
         内部方法：调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射。
         """
-        # ... (此方法内部逻辑保持不变) ...
         if not self.llm_mapper:
             logger.error("LLM 映射器未初始化，无法执行分析。")
             return {"is_exist": False}

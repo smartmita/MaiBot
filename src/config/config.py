@@ -279,8 +279,9 @@ class BotConfig:
     max_nicknames_in_prompt: int = 10  # Prompt 中最多注入的绰号数量
     nickname_probability_smoothing: int = 1  # 绰号加权随机选择的平滑因子
     nickname_queue_max_size: int = 100  # 绰号处理队列最大容量
-    nickname_process_sleep_interval: float = 60  # 绰号处理进程休眠间隔（秒）
+    nickname_process_sleep_interval: float = 5  # 绰号处理进程休眠间隔（秒）
     nickname_analysis_history_limit: int = 30  # 绰号处理可见最大上下文
+    nickname_analysis_probability: float = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
 
     # 模型配置
     llm_reasoning: dict[str, str] = field(default_factory=lambda: {})
@@ -431,6 +432,9 @@ class BotConfig:
                 )
                 config.nickname_analysis_history_limit = group_nickname_config.get(
                     "nickname_analysis_history_limit", config.nickname_analysis_history_limit
+                )
+                config.nickname_analysis_probability = group_nickname_config.get(
+                    "nickname_analysis_probability", config.nickname_analysis_probability
                 )
 
         def bot(parent: dict):
