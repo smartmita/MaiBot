@@ -1,21 +1,20 @@
 import random
-import time
 import re
+import time
 from collections import Counter
 
 import jieba
 import numpy as np
-from src.common.logger import get_module_logger
+from maim_message import UserInfo
 from pymongo.errors import PyMongoError
 
+from src.common.logger import get_module_logger
+from src.manager.mood_manager import mood_manager
+from .message import MessageRecv
 from ..models.utils_model import LLMRequest
 from ..utils.typo_generator import ChineseTypoGenerator
-from ...config.config import global_config
-from .message import MessageRecv
-from maim_message import UserInfo
-from ..moods.moods import MoodManager
 from ...common.database import db
-
+from ...config.config import global_config
 
 logger = get_module_logger("chat_utils")
 
@@ -405,7 +404,6 @@ def calculate_typing_time(
     - 在所有输入结束后，额外加上回车时间0.3秒
     - 如果is_emoji为True，将使用固定1秒的输入时间
     """
-    mood_manager = MoodManager.get_instance()
     # 将0-1的唤醒度映射到-1到1
     mood_arousal = mood_manager.current_mood.arousal
     # 映射到0.5到2倍的速度系数
