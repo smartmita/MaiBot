@@ -204,7 +204,7 @@ api_polling_max_retries = 3  # 神秘小功能
 rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
 
 [pfc]
-pfc_chatting = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+enable_pfc_chatting = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
 pfc_message_buffer_size = 2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
 pfc_recent_history_display_count = 20  # PFC 对话最大可见上下文
 

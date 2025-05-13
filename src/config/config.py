@@ -288,7 +288,7 @@ class BotConfig:
     )
 
     # pfc
-    pfc_chatting: bool = False  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+    enable_pfc_chatting: bool = False  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
     pfc_message_buffer_size: int = (
         2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
     )
@@ -576,10 +576,10 @@ class BotConfig:
                 "llm_heartflow",
                 "llm_PFC_action_planner",
                 "llm_PFC_chat",
-                "llm_PFC_relationship_eval",
                 "llm_nickname_mapping",
                 "llm_scheduler_all",
                 "llm_scheduler_doing",
+                "llm_PFC_relationship_eval",
             ]
 
             for item in config_list:
@@ -768,7 +768,7 @@ class BotConfig:
             if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):
                 pfc_config = parent.get("pfc", {})
                 # 解析 [pfc] 下的直接字段
-                config.pfc_chatting = pfc_config.get("pfc_chatting", config.pfc_chatting)
+                config.enable_pfc_chatting = pfc_config.get("enable_pfc_chatting", config.enable_pfc_chatting)
                 config.pfc_message_buffer_size = pfc_config.get(
                     "pfc_message_buffer_size", config.pfc_message_buffer_size
                 )
