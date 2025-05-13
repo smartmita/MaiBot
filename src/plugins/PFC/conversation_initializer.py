@@ -250,22 +250,6 @@ async def initialize_core_components(conversation_instance: "Conversation"):
             logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已初始化")
 
         if (
-            conversation_instance.mood_mng
-            and hasattr(conversation_instance.mood_mng, "start_mood_update")
-            and not conversation_instance.mood_mng._running
-        ):  # type: ignore
-            conversation_instance.mood_mng.start_mood_update(update_interval=global_config.mood_update_interval)  # type: ignore
-            logger.debug(
-                f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已启动后台更新，间隔: {global_config.mood_update_interval} 秒。"
-            )
-        elif conversation_instance.mood_mng and conversation_instance.mood_mng._running:  # type: ignore
-            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 已在运行中。")
-        else:
-            logger.warning(
-                f"[私聊][{conversation_instance.private_name}] (Initializer) MoodManager 未能启动，相关功能可能受限。"
-            )
-
-        if (
             conversation_instance.conversation_info
             and conversation_instance.conversation_info.person_id
             and conversation_instance.relationship_translator
@@ -299,7 +283,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         if conversation_instance.conversation_info and conversation_instance.mood_mng:  # 确保都存在
             try:
                 conversation_instance.conversation_info.current_emotion_text = (
-                    conversation_instance.mood_mng.get_prompt()
+                    conversation_instance.mood_mng.get_mood_prompt()
                 )  # type: ignore
                 logger.debug(
                     f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}"
