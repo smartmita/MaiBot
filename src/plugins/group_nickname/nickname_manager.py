@@ -4,7 +4,6 @@ import random
 import time
 import json
 import re
-from random import random
 from typing import Dict, Optional, List, Any
 from pymongo.errors import OperationFailure, DuplicateKeyError
 from src.common.logger_manager import get_logger
@@ -211,7 +210,7 @@ class NicknameManager:
         if not self.is_enabled:
             return
 
-        if random() < global_config.nickname_analysis_probability:
+        if random.random() < global_config.nickname_analysis_probability:
             logger.debug("跳过绰号分析：随机概率未命中。")
             return
 
