@@ -669,7 +669,7 @@ async def build_chat_history_text(observation_info: ObservationInfo, private_nam
         if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
             chat_history_text = observation_info.chat_history_str
         elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
-            history_slice = observation_info.chat_history[-20:]
+            history_slice = observation_info.chat_history[-global_config.pfc_recent_history_display_count :]
             chat_history_text = await build_readable_messages(
                 history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
             )

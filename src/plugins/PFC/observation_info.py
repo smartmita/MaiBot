@@ -11,7 +11,7 @@ from src.config.config import global_config
 from .chat_observer import ChatObserver
 from .chat_states import NotificationHandler, NotificationType, Notification
 
-logger = get_module_logger("observation_info")
+logger = get_module_logger("pfc_observation_info")
 
 TIME_ZONE = tz.gettz(global_config.TIME_ZONE if global_config else "Asia/Shanghai")  # 使用配置的时区，提供默认值
 

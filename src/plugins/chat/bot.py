@@ -1,14 +1,13 @@
+import traceback
 from typing import Dict, Any
 
-from ..moods.moods import MoodManager  # 导入情绪管理器
-from ...config.config import global_config
-from .message import MessageRecv
-
 from src.common.logger_manager import get_logger
+from src.manager.mood_manager import mood_manager  # 导入情绪管理器
+from .message import MessageRecv
 from ..heartFC_chat.heartflow_processor import HeartFCProcessor
 from ..PFC.pfc_processor import PFCProcessor
 from ..utils.prompt_builder import Prompt, global_prompt_manager
-import traceback
+from ...config.config import global_config
 
 # 定义日志配置
 
@@ -21,7 +20,7 @@ class ChatBot:
     def __init__(self):
         self.bot = None  # bot 实例引用
         self._started = False
-        self.mood_manager = MoodManager.get_instance()  # 获取情绪管理器单例
+        self.mood_manager = mood_manager  # 获取情绪管理器单例
         self.heartflow_processor = HeartFCProcessor()  # 新增
         self.pfc_processor = PFCProcessor()
 
@@ -67,12 +66,14 @@ class ChatBot:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
-            if groupinfo is None:
+            if groupinfo is None and global_config.enable_friend_whitelist:
                 logger.trace("检测到私聊消息，检查")
                 # 好友黑名单拦截
                 if userinfo.user_id not in global_config.talk_allowed_private:
                     logger.debug(f"用户{userinfo.user_id}没有私聊权限")
                     return
+            elif not global_config.enable_friend_whitelist:
+                logger.debug("私聊白名单模式未启用，跳过私聊权限检查。")
 
             # 群聊黑名单拦截
             if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
