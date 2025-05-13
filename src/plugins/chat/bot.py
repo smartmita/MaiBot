@@ -67,12 +67,14 @@ class ChatBot:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
-            if groupinfo is None:
+            if groupinfo is None and global_config.enable_friend_whitelist:
                 logger.trace("检测到私聊消息，检查")
                 # 好友黑名单拦截
                 if userinfo.user_id not in global_config.talk_allowed_private:
                     logger.debug(f"用户{userinfo.user_id}没有私聊权限")
                     return
+            elif not global_config.enable_friend_whitelist:
+                logger.debug("私聊白名单模式未启用，跳过私聊权限检查。")
 
             # 群聊黑名单拦截
             if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
