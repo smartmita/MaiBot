@@ -1,34 +1,36 @@
 import asyncio
+import contextlib
+import json  # <--- 确保导入 json
+import random  # <--- 添加导入
 import time
 import re
 import traceback
-import random
-import json
-from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
 from collections import deque
-from src.plugins.chat.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending
-from src.plugins.chat.message import Seg
-from src.plugins.chat.chat_stream import ChatStream
-from src.plugins.chat.message import UserInfo
-from src.plugins.chat.chat_stream import chat_manager
-from src.common.logger_manager import get_logger
-from src.plugins.models.utils_model import LLMRequest
-from src.config.config import global_config
-from src.plugins.chat.utils_image import image_path_to_base64
-from src.plugins.utils.timer_calculator import Timer
-from src.plugins.emoji_system.emoji_manager import emoji_manager
-from src.heart_flow.sub_mind import SubMind
-from src.heart_flow.observation import Observation
-from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
-import contextlib
-from src.plugins.utils.chat_message_builder import num_new_messages_since
-from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
-from .heartFC_sender import HeartFCSender
-from src.plugins.chat.utils import process_llm_response
-from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
-from src.plugins.moods.moods import MoodManager
-from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
+
 from rich.traceback import install
+
+from src.common.logger_manager import get_logger
+from src.config.config import global_config
+from src.heart_flow.observation import Observation
+from src.heart_flow.sub_mind import SubMind
+from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from src.manager.mood_manager import mood_manager
+from src.plugins.chat.chat_stream import ChatStream
+from src.plugins.chat.chat_stream import chat_manager
+from src.plugins.chat.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending
+from src.plugins.chat.message import Seg  # Local import needed after move
+from src.plugins.chat.message import UserInfo
+from src.plugins.chat.utils import process_llm_response
+from src.plugins.chat.utils_image import image_path_to_base64  # Local import needed after move
+from src.plugins.emoji_system.emoji_manager import emoji_manager
+from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
+from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
+from src.plugins.models.utils_model import LLMRequest
+from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
+from src.plugins.utils.chat_message_builder import num_new_messages_since
+from src.plugins.utils.timer_calculator import Timer  # <--- Import Timer
+from .heartFC_sender import HeartFCSender
 from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 
@@ -808,37 +810,37 @@ class HeartFChatting:
 
         actions_to_remove_temporarily = []
         # --- 检查历史动作并决定临时移除动作 (逻辑保持不变) ---
-        lian_xu_wen_ben_hui_fu = 0
-        probability_roll = random.random()
-        for cycle in reversed(self._cycle_history):
-            if cycle.action_taken:
-                if cycle.action_type == "text_reply":
-                    lian_xu_wen_ben_hui_fu += 1
-                else:
-                    break
-            if len(self._cycle_history) > 0 and cycle.cycle_id <= self._cycle_history[0].cycle_id + (
-                len(self._cycle_history) - 4
-            ):
-                break
-        logger.debug(f"{self.log_prefix}[Planner] 检测到连续文本回复次数: {lian_xu_wen_ben_hui_fu}")
+        # lian_xu_wen_ben_hui_fu = 0
+        # probability_roll = random.random()
+        # for cycle in reversed(self._cycle_history):
+        #     if cycle.action_taken:
+        #         if cycle.action_type == "text_reply":
+        #             lian_xu_wen_ben_hui_fu += 1
+        #         else:
+        #             break
+        #     if len(self._cycle_history) > 0 and cycle.cycle_id <= self._cycle_history[0].cycle_id + (
+        #         len(self._cycle_history) - 4
+        #     ):
+        #         break
+        # logger.debug(f"{self.log_prefix}[Planner] 检测到连续文本回复次数: {lian_xu_wen_ben_hui_fu}")
 
-        if lian_xu_wen_ben_hui_fu >= 3:
-            logger.info(f"{self.log_prefix}[Planner] 连续回复 >= 3 次，强制移除 text_reply 和 emoji_reply")
-            actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
-        elif lian_xu_wen_ben_hui_fu == 2:
-            if probability_roll < 0.8:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (触发)")
-                actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
-            else:
-                logger.info(
-                    f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (未触发)"
-                )
-        elif lian_xu_wen_ben_hui_fu == 1:
-            if probability_roll < 0.4:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (触发)")
-                actions_to_remove_temporarily.append("text_reply")
-            else:
-                logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (未触发)")
+        # if lian_xu_wen_ben_hui_fu >= 3:
+        #     logger.info(f"{self.log_prefix}[Planner] 连续回复 >= 3 次，强制移除 text_reply 和 emoji_reply")
+        #     actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
+        # elif lian_xu_wen_ben_hui_fu == 2:
+        #     if probability_roll < 0.8:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (触发)")
+        #         actions_to_remove_temporarily.extend(["text_reply", "emoji_reply"])
+        #     else:
+        #         logger.info(
+        #             f"{self.log_prefix}[Planner] 连续回复 2 次，80% 概率移除 text_reply 和 emoji_reply (未触发)"
+        #         )
+        # elif lian_xu_wen_ben_hui_fu == 1:
+        #     if probability_roll < 0.4:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (触发)")
+        #         actions_to_remove_temporarily.append("text_reply")
+        #     else:
+        #         logger.info(f"{self.log_prefix}[Planner] 连续回复 1 次，40% 概率移除 text_reply (未触发)")
         # --- 结束检查历史动作 ---
 
         # 获取观察信息
@@ -1312,7 +1314,7 @@ class HeartFChatting:
         """
         try:
             # 1. 获取情绪影响因子并调整模型温度
-            arousal_multiplier = MoodManager.get_instance().get_arousal_multiplier()
+            arousal_multiplier = mood_manager.get_arousal_multiplier()
             current_temp = global_config.llm_normal["temp"] * arousal_multiplier
             self.model_normal.temperature = current_temp  # 动态调整温度
 

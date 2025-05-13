@@ -3,7 +3,7 @@ import time
 import random
 from typing import List, Tuple, Optional
 from src.common.logger_manager import get_logger
-from src.plugins.moods.moods import MoodManager
+from src.manager.mood_manager import mood_manager
 from src.config.config import global_config
 
 logger = get_logger("mai_state")
@@ -88,7 +88,7 @@ class MaiStateInfo:
         self.last_min_check_time: float = time.time()  # 上次1分钟规则检查时间
 
         # Mood management is now part of MaiStateInfo
-        self.mood_manager = MoodManager.get_instance()  # Use singleton instance
+        self.mood_manager = mood_manager  # Use singleton instance
 
     def update_mai_status(self, new_status: MaiState) -> bool:
         """
@@ -124,7 +124,7 @@ class MaiStateInfo:
     def get_mood_prompt(self) -> str:
         """获取当前的心情提示词"""
         # Delegate to the internal mood manager
-        return self.mood_manager.get_prompt()
+        return self.mood_manager.get_mood_prompt()
 
     def get_current_state(self) -> MaiState:
         """获取当前的 MaiState"""

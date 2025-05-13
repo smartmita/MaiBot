@@ -1,3 +1,5 @@
+# TODO: 开机自启，遍历所有可发起的聊天流，而不是等待 PFC 实例结束
+# TODO: 优化 idle 逻辑 增强其与 PFC 模式的联动
 from typing import Optional, Dict, Set
 import asyncio
 import time

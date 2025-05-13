@@ -61,7 +61,7 @@ class QAManager:
 
             for res in relation_search_res:
                 rel_str = self.embed_manager.relation_embedding_store.store.get(res[0]).str
-                print(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {rel_str}")
+                logger.debug(f"找到相关关系，相似度：{(res[1] * 100):.2f}%  -  {rel_str}")
 
             # TODO: 使用LLM过滤三元组结果
             # logger.info(f"LLM过滤三元组用时：{time.time() - part_start_time:.2f}s")
@@ -77,16 +77,16 @@ class QAManager:
             logger.debug(f"文段检索用时：{part_end_time - part_start_time:.5f}s")
 
             if len(relation_search_res) != 0:
-                logger.info("找到相关关系，将使用RAG进行检索")
+                logger.debug("找到相关关系，将使用RAG进行检索")
                 # 使用KG检索
                 part_start_time = time.perf_counter()
                 result, ppr_node_weights = self.kg_manager.kg_search(
                     relation_search_res, paragraph_search_res, self.embed_manager
                 )
                 part_end_time = time.perf_counter()
-                logger.info(f"RAG检索用时：{part_end_time - part_start_time:.5f}s")
+                logger.debug(f"RAG检索用时：{part_end_time - part_start_time:.5f}s")
             else:
-                logger.info("未找到相关关系，将使用文段检索结果")
+                logger.debug("未找到相关关系，将使用文段检索结果")
                 result = paragraph_search_res
                 ppr_node_weights = None
 
@@ -95,7 +95,7 @@ class QAManager:
 
             for res in result:
                 raw_paragraph = self.embed_manager.paragraphs_embedding_store.store[res[0]].str
-                print(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
+                logger.debug(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
 
             return result, ppr_node_weights
         else:
