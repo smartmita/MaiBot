@@ -109,13 +109,13 @@ def _format_online_time(online_seconds: int) -> str:
     minutes = (total_oneline_time.seconds // 60) % 60
     seconds = total_oneline_time.seconds % 60
     if days > 0:
-        # 如果在线时间超过1天，则格式化为“X天X小时X分钟”
-        total_oneline_time_str = f"{days}天{hours}小时{minutes}分钟{seconds}秒"
+        # 如果在线时间超过1天，则格式化为"X天X小时X分钟"
+        total_oneline_time_str = f"{total_oneline_time.days}天{hours}小时{minutes}分钟{seconds}秒"
     elif hours > 0:
-        # 如果在线时间超过1小时，则格式化为“X小时X分钟X秒”
+        # 如果在线时间超过1小时，则格式化为"X小时X分钟X秒"
         total_oneline_time_str = f"{hours}小时{minutes}分钟{seconds}秒"
     else:
-        # 其他情况格式化为“X分钟X秒”
+        # 其他情况格式化为"X分钟X秒"
         total_oneline_time_str = f"{minutes}分钟{seconds}秒"
 
     return total_oneline_time_str
@@ -141,17 +141,17 @@ class StatisticOutputTask(AsyncTask):
         记录文件路径
         """
 
-        now_init = datetime.now() # Renamed to avoid conflict with 'now' in methods
+        now = datetime.now() # Renamed to avoid conflict with 'now' in methods
         if "deploy_time" in local_storage:
             # 如果存在部署时间，则使用该时间作为全量统计的起始时间
-            deploy_time_init = datetime.fromtimestamp(local_storage["deploy_time"])
+            deploy_time = datetime.fromtimestamp(local_storage["deploy_time"])
         else:
             # 否则，使用最大时间范围，并记录部署时间为当前时间
-            deploy_time_init = datetime(2000, 1, 1)
-            local_storage["deploy_time"] = now_init.timestamp()
+            deploy_time = datetime(2000, 1, 1)
+            local_storage["deploy_time"] = now.timestamp()
 
         self.stat_period: List[Tuple[str, timedelta, str]] = [
-            ("all_time", now_init - deploy_time_init, "自部署以来"),  # 必须保留“all_time”
+            ("all_time", now - deploy_time, "自部署以来"),  # 必须保留"all_time"
             ("last_7_days", timedelta(days=7), "最近7天"),
             ("last_24_hours", timedelta(days=1), "最近24小时"),
             ("last_hour", timedelta(hours=1), "最近1小时"),
