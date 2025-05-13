@@ -160,7 +160,7 @@ class IdleChat:
         """启动主动聊天检测"""
         # 检查是否启用了主动聊天功能
         if not global_config.enable_idle_chat:
-            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置ENABLE_IDLE_CHAT=False）")
+            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置enable_idle_chat=False）")
             return
 
         if self._running:

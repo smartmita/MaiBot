@@ -284,6 +284,9 @@ class BotConfig:
         2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
     )
     api_polling_max_retries: int = 3  # 神秘小功能
+    rename_person: bool = (
+        True  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
+    )
 
     # idle_chat
     enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
@@ -735,6 +738,8 @@ class BotConfig:
                 config.pfc_message_buffer_size = experimental_config.get(
                     "pfc_message_buffer_size", config.pfc_message_buffer_size
                 )
+            if config.INNER_VERSION in SpecifierSet(">=1.6.2.3"):
+                config.rename_person = experimental_config.get("rename_person", config.rename_person)
 
         def idle_chat(parent: dict):
             idle_chat_config = parent["idle_chat"]

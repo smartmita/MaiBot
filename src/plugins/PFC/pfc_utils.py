@@ -284,7 +284,6 @@ async def retrieve_contextual_info(
     retrieved_historical_chat_str = "无相关私聊历史回忆。"
 
     # --- 1. 全局压缩记忆检索 (来自 HippocampusManager) ---
-    # (保持你原始 pfc_utils.py 中这部分的逻辑基本不变)
     global_memory_log_msg = f"开始全局压缩记忆检索 (基于文本: '{text[:30]}...')"
     if text and text.strip() and text != "还没有聊天记录。" and text != "[构建聊天记录出错]":
         try:
