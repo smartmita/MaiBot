@@ -10,7 +10,7 @@ from ..chat.message import Message  # 假设 Message 类型被 _convert_to_messa
 from src.config.config import global_config
 from ..person_info.person_info import person_info_manager
 from ..person_info.relationship_manager import relationship_manager
-from ..moods.moods import MoodManager
+from src.manager.mood_manager import mood_manager
 
 from .pfc_relationship import PfcRelationshipUpdater, PfcRepationshipTranslator
 from .pfc_emotion import PfcEmotionUpdater
@@ -57,7 +57,7 @@ class Conversation:
 
         self.person_info_mng = person_info_manager
         self.relationship_mng = relationship_manager
-        self.mood_mng = MoodManager.get_instance()
+        self.mood_mng = mood_manager
 
         self.relationship_updater: Optional[PfcRelationshipUpdater] = None
         self.relationship_translator: Optional[PfcRepationshipTranslator] = None

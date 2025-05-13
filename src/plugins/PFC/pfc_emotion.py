@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 from src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
-from src.plugins.moods.moods import MoodManager  # MoodManager 本身是单例
+from src.manager.mood_manager import mood_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from src.plugins.PFC.observation_info import ObservationInfo
 from src.plugins.PFC.conversation_info import ConversationInfo
@@ -19,7 +19,7 @@ class PfcEmotionUpdater:
         """
         self.private_name = private_name
         self.bot_name = bot_name
-        self.mood_mng = MoodManager.get_instance()  # 获取 MoodManager 单例
+        self.mood_mng = mood_manager
 
         # LLM 实例 (根据 global_config.llm_summary 配置)
         llm_config_summary = getattr(global_config, "llm_summary", None)
