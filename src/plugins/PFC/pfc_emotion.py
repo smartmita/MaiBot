@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 from src.plugins.PFC.chat_observer import ChatObserver
 from src.common.logger_manager import get_logger
 from src.plugins.models.utils_model import LLMRequest
-from src.plugins.moods.moods import MoodManager  # MoodManager 本身是单例
+from src.manager.mood_manager import mood_manager
 from src.plugins.utils.chat_message_builder import build_readable_messages
 from src.plugins.PFC.observation_info import ObservationInfo
 from src.plugins.PFC.conversation_info import ConversationInfo
@@ -19,7 +19,7 @@ class PfcEmotionUpdater:
         """
         self.private_name = private_name
         self.bot_name = bot_name
-        self.mood_mng = MoodManager.get_instance()  # 获取 MoodManager 单例
+        self.mood_mng = mood_manager
 
         # LLM 实例 (根据 global_config.llm_summary 配置)
         llm_config_summary = getattr(global_config, "llm_summary", None)
@@ -51,7 +51,7 @@ class PfcEmotionUpdater:
             logger.error(f"[私聊][{self.private_name}] LLM未初始化，无法进行情绪更新。")
             # 即使LLM失败，也应该更新conversation_info中的情绪文本为MoodManager的当前状态
             if conversation_info and self.mood_mng:
-                conversation_info.current_emotion_text = self.mood_mng.get_prompt()
+                conversation_info.current_emotion_text = self.mood_mng.get_mood_prompt()
             return
 
         if not self.mood_mng or not conversation_info or not observation_info:
@@ -97,7 +97,7 @@ class PfcEmotionUpdater:
             if (
                 detected_emotion_word
                 and detected_emotion_word != "无变化"
-                and detected_emotion_word in self.mood_mng.emotion_map
+                and detected_emotion_word in self.mood_mng.EMOTION_FACTOR_MAP
             ):
                 self.mood_mng.update_mood_from_emotion(detected_emotion_word, intensity=self.EMOTION_UPDATE_INTENSITY)
                 logger.debug(
@@ -114,4 +114,4 @@ class PfcEmotionUpdater:
 
         # 无论LLM判断如何，都更新conversation_info中的情绪文本以供Prompt使用
         if conversation_info and self.mood_mng:  # 确保conversation_info有效
-            conversation_info.current_emotion_text = self.mood_mng.get_prompt()
+            conversation_info.current_emotion_text = self.mood_mng.get_mood_prompt()

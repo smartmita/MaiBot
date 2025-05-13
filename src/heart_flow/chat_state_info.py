@@ -1,4 +1,4 @@
-from src.plugins.moods.moods import MoodManager
+from src.manager.mood_manager import mood_manager
 import enum
 
 
@@ -13,5 +13,5 @@ class ChatStateInfo:
         self.chat_status: ChatState = ChatState.ABSENT
         self.current_state_time = 120
 
-        self.mood_manager = MoodManager()
-        self.mood = self.mood_manager.get_prompt()
+        self.mood_manager = mood_manager
+        self.mood = self.mood_manager.get_mood_prompt()

@@ -6,6 +6,9 @@ from .person_info import person_info_manager
 import time
 import random
 from maim_message import UserInfo
+
+from ...manager.mood_manager import mood_manager
+
 # import re
 # import traceback
 
@@ -22,9 +25,7 @@ class RelationshipManager:
     @property
     def mood_manager(self):
         if self._mood_manager is None:
-            from ..moods.moods import MoodManager  # 延迟导入
-
-            self._mood_manager = MoodManager.get_instance()
+            self._mood_manager = mood_manager
         return self._mood_manager
 
     def positive_feedback_sys(self, label: str, stance: str):
@@ -60,9 +61,7 @@ class RelationshipManager:
     def mood_feedback(self, value):
         """情绪反馈"""
         mood_manager = self.mood_manager
-        mood_gain = mood_manager.get_current_mood().valence ** 2 * math.copysign(
-            1, value * mood_manager.get_current_mood().valence
-        )
+        mood_gain = mood_manager.current_mood.valence**2 * math.copysign(1, value * mood_manager.current_mood.valence)
         value += value * mood_gain
         logger.info(f"当前relationship增益系数：{mood_gain:.3f}")
         return value

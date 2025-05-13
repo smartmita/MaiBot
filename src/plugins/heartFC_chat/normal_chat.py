@@ -1,32 +1,32 @@
-import time
 import asyncio
-import traceback
 import statistics  # 导入 statistics 模块
+import time
+import traceback
 from random import random
 from typing import List, Optional  # 导入 Optional
 
-from ..moods.moods import MoodManager
-from ...config.config import global_config
-from ..emoji_system.emoji_manager import emoji_manager
-from .normal_chat_generator import NormalChatGenerator
-from ..chat.message import MessageSending, MessageRecv, MessageThinking, MessageSet
-from ..chat.message_sender import message_manager
-from ..chat.utils_image import image_path_to_base64
-from ..willing.willing_manager import willing_manager
 from maim_message import UserInfo, Seg
+
 from src.common.logger_manager import get_logger
+from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from src.manager.mood_manager import mood_manager
 from src.plugins.chat.chat_stream import ChatStream, chat_manager
 from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
 from src.plugins.utils.timer_calculator import Timer
-from src.heart_flow.utils_chat import get_chat_type_and_target_info
-
+from .normal_chat_generator import NormalChatGenerator
+from ..chat.message import MessageSending, MessageRecv, MessageThinking, MessageSet
+from ..chat.message_sender import message_manager
+from ..chat.utils_image import image_path_to_base64
+from ..emoji_system.emoji_manager import emoji_manager
+from ..willing.willing_manager import willing_manager
+from ...config.config import global_config
 
 logger = get_logger("chat")
 
 
 class NormalChat:
-    def __init__(self, chat_stream: ChatStream, interest_dict: dict):
+    def __init__(self, chat_stream: ChatStream, interest_dict: dict = None):
         """初始化 NormalChat 实例。只进行同步操作。"""
 
         # Basic info from chat_stream (sync)
@@ -45,7 +45,7 @@ class NormalChat:
 
         # Other sync initializations
         self.gpt = NormalChatGenerator()
-        self.mood_manager = MoodManager.get_instance()
+        self.mood_manager = mood_manager
         self.start_time = time.time()
         self.last_speak_time = 0
         self._chat_task: Optional[asyncio.Task] = None
@@ -352,6 +352,8 @@ class NormalChat:
     # --- 新增：处理初始高兴趣消息的私有方法 ---
     async def _process_initial_interest_messages(self):
         """处理启动时存在于 interest_dict 中的高兴趣消息。"""
+        if not self.interest_dict:
+            return  # 如果 interest_dict 为 None或空，直接返回
         items_to_process = list(self.interest_dict.items())
         if not items_to_process:
             return  # 没有初始消息，直接返回

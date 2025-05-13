@@ -1,9 +1,9 @@
-from src.do_tool.tool_can_use.base_tool import BaseTool
-from src.config.config import global_config
-from src.common.logger_manager import get_logger
-from src.plugins.moods.moods import MoodManager
-
 from typing import Any
+
+from src.common.logger_manager import get_logger
+from src.config.config import global_config
+from src.do_tool.tool_can_use.base_tool import BaseTool
+from src.manager.mood_manager import mood_manager
 
 logger = get_logger("change_mood_tool")
 
@@ -36,7 +36,6 @@ class ChangeMoodTool(BaseTool):
             response_set = function_args.get("response_set")
             _message_processed_plain_text = function_args.get("text")
 
-            mood_manager = MoodManager.get_instance()
             # gpt = ResponseGenerator()
 
             if response_set is None:

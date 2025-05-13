@@ -118,7 +118,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                         conversation_instance.conversation_info.relationship_text = "你们的关系是：普通。"
                 if conversation_instance.mood_mng:
                     conversation_instance.conversation_info.current_emotion_text = (
-                        conversation_instance.mood_mng.get_prompt()
+                        conversation_instance.mood_mng.get_mood_prompt()
                     )
 
             if not all(
