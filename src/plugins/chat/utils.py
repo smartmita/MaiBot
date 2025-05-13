@@ -617,7 +617,7 @@ def translate_timestamp_to_human_readable(timestamp: float, mode: str = "normal"
         str: 格式化后的时间字符串
     """
     if mode == "normal":
-        return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+        return time.strftime("%Y-%m-%d %H:%M:%S ", time.localtime(timestamp))
     elif mode == "relative":
         now = time.time()
         diff = now - timestamp

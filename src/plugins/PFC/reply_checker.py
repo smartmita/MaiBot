@@ -4,7 +4,7 @@ from src.config.config import global_config  # 为了获取 BOT_QQ
 from .chat_observer import ChatObserver
 import re
 
-logger = get_module_logger("reply_checker")
+logger = get_module_logger("pfc_checker")
 
 
 class ReplyChecker:
