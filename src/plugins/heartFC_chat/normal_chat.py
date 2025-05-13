@@ -202,7 +202,7 @@ class NormalChat:
                 break
 
             # 获取待处理消息列表
-            items_to_process = list(self.interest_dict.items())
+            items_to_process = list(self.interest_dict.items()) if self.interest_dict else []
             if not items_to_process:
                 continue
 
