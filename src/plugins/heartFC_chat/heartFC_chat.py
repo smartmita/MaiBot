@@ -1,33 +1,35 @@
 import asyncio
+import contextlib
+import json  # <--- 确保导入 json
+import random  # <--- 添加导入
 import time
 import traceback
-import random
-import json
-from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
 from collections import deque
-from src.plugins.chat.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending
-from src.plugins.chat.message import Seg
-from src.plugins.chat.chat_stream import ChatStream
-from src.plugins.chat.message import UserInfo
-from src.plugins.chat.chat_stream import chat_manager
-from src.common.logger_manager import get_logger
-from src.plugins.models.utils_model import LLMRequest
-from src.config.config import global_config
-from src.plugins.chat.utils_image import image_path_to_base64
-from src.plugins.utils.timer_calculator import Timer
-from src.plugins.emoji_system.emoji_manager import emoji_manager
-from src.heart_flow.sub_mind import SubMind
-from src.heart_flow.observation import Observation
-from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
-import contextlib
-from src.plugins.utils.chat_message_builder import num_new_messages_since
-from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
-from .heartFC_sender import HeartFCSender
-from src.plugins.chat.utils import process_llm_response
-from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
-from src.plugins.moods.moods import MoodManager
-from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
+
 from rich.traceback import install
+
+from src.common.logger_manager import get_logger
+from src.config.config import global_config
+from src.heart_flow.observation import Observation
+from src.heart_flow.sub_mind import SubMind
+from src.heart_flow.utils_chat import get_chat_type_and_target_info
+from src.manager.mood_manager import mood_manager
+from src.plugins.chat.chat_stream import ChatStream
+from src.plugins.chat.chat_stream import chat_manager
+from src.plugins.chat.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending
+from src.plugins.chat.message import Seg  # Local import needed after move
+from src.plugins.chat.message import UserInfo
+from src.plugins.chat.utils import process_llm_response
+from src.plugins.chat.utils_image import image_path_to_base64  # Local import needed after move
+from src.plugins.emoji_system.emoji_manager import emoji_manager
+from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
+from src.plugins.heartFC_chat.heartflow_prompt_builder import global_prompt_manager, prompt_builder
+from src.plugins.models.utils_model import LLMRequest
+from src.plugins.respon_info_catcher.info_catcher import info_catcher_manager
+from src.plugins.utils.chat_message_builder import num_new_messages_since
+from src.plugins.utils.timer_calculator import Timer  # <--- Import Timer
+from .heartFC_sender import HeartFCSender
 from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 
@@ -789,7 +791,7 @@ class HeartFChatting:
                 )
                 return current_mind
         except Exception as e:
-            logger.error(f"{self.log_prefix}[SubMind] 思考失败: {e}")
+            logger.error(f"{self.log_prefix}子心流 思考失败: {e}")
             logger.error(traceback.format_exc())
             return "[思考时出错]"
 
@@ -1299,7 +1301,7 @@ class HeartFChatting:
         """
         try:
             # 1. 获取情绪影响因子并调整模型温度
-            arousal_multiplier = MoodManager.get_instance().get_arousal_multiplier()
+            arousal_multiplier = mood_manager.get_arousal_multiplier()
             current_temp = global_config.llm_normal["temp"] * arousal_multiplier
             self.model_normal.temperature = current_temp  # 动态调整温度
 

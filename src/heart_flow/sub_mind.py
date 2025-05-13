@@ -14,6 +14,8 @@ from src.plugins.chat.chat_stream import chat_manager
 from src.plugins.heartFC_chat.heartFC_Cycleinfo import CycleInfo
 import difflib
 from src.plugins.person_info.relationship_manager import relationship_manager
+from src.plugins.memory_system.Hippocampus import HippocampusManager
+import jieba
 
 
 logger = get_logger("sub_heartflow")
@@ -223,7 +225,48 @@ class SubMind:
         chat_observe_info = observation.get_observe_info()
         person_list = observation.person_list
 
-        # ---------- 2. 准备工具和个性化数据 ----------
+        # ---------- 2. 获取记忆 ----------
+        try:
+            # 从聊天内容中提取关键词
+            chat_words = set(jieba.cut(chat_observe_info))
+            # 过滤掉停用词和单字词
+            keywords = [word for word in chat_words if len(word) > 1]
+            # 去重并限制数量
+            keywords = list(set(keywords))[:5]
+
+            logger.debug(f"{self.log_prefix} 提取的关键词: {keywords}")
+            # 检查已有记忆，过滤掉已存在的主题
+            existing_topics = set()
+            for item in self.structured_info:
+                if item["type"] == "memory":
+                    existing_topics.add(item["id"])
+
+            # 过滤掉已存在的主题
+            filtered_keywords = [k for k in keywords if k not in existing_topics]
+
+            if not filtered_keywords:
+                logger.debug(f"{self.log_prefix} 所有关键词对应的记忆都已存在，跳过记忆提取")
+            else:
+                # 调用记忆系统获取相关记忆
+                related_memory = await HippocampusManager.get_instance().get_memory_from_topic(
+                    valid_keywords=filtered_keywords, max_memory_num=3, max_memory_length=2, max_depth=3
+                )
+
+                logger.debug(f"{self.log_prefix} 获取到的记忆: {related_memory}")
+
+                if related_memory:
+                    for topic, memory in related_memory:
+                        new_item = {"type": "memory", "id": topic, "content": memory, "ttl": 3}
+                        self.structured_info.append(new_item)
+                        logger.debug(f"{self.log_prefix} 添加新记忆: {topic} - {memory}")
+                else:
+                    logger.debug(f"{self.log_prefix} 没有找到相关记忆")
+
+        except Exception as e:
+            logger.error(f"{self.log_prefix} 获取记忆时出错: {e}")
+            logger.error(traceback.format_exc())
+
+        # ---------- 3. 准备工具和个性化数据 ----------
         # 初始化工具
         tool_instance = ToolUser()
         tools = tool_instance._define_tools()
@@ -244,7 +287,7 @@ class SubMind:
         # 获取当前时间
         time_now = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
-        # ---------- 3. 构建思考指导部分 ----------
+        # ---------- 4. 构建思考指导部分 ----------
         # 创建本地随机数生成器，基于分钟数作为种子
         local_random = random.Random()
         current_minute = int(time.strftime("%M"))
@@ -328,7 +371,7 @@ class SubMind:
             [option[0] for option in hf_options], weights=[option[1] for option in hf_options], k=1
         )[0]
 
-        # ---------- 4. 构建最终提示词 ----------
+        # ---------- 5. 构建最终提示词 ----------
         # --- Choose template based on chat type ---
         logger.debug(f"is_group_chat: {is_group_chat}")
         if is_group_chat:
@@ -363,7 +406,7 @@ class SubMind:
             )
         # --- End choosing template ---
 
-        # ---------- 5. 执行LLM请求并处理响应 ----------
+        # ---------- 6. 执行LLM请求并处理响应 ----------
         content = ""  # 初始化内容变量
         _reasoning_content = ""  # 初始化推理内容变量
 
@@ -412,7 +455,7 @@ class SubMind:
             content = "(不知道该想些什么...)"
             logger.warning(f"{self.log_prefix} LLM返回空结果，思考失败。")
 
-        # ---------- 6. 应用概率性去重和修饰 ----------
+        # ---------- 7. 应用概率性去重和修饰 ----------
         new_content = content  # 保存 LLM 直接输出的结果
         try:
             similarity = calculate_similarity(previous_mind, new_content)
@@ -485,7 +528,7 @@ class SubMind:
             # 出错时保留原始 content
             content = new_content
 
-        # ---------- 7. 更新思考状态并返回结果 ----------
+        # ---------- 8. 更新思考状态并返回结果 ----------
         logger.info(f"{self.log_prefix} 最终心流思考结果: {content}")
         # 更新当前思考内容
         self.update_current_mind(content)

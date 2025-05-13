@@ -1,16 +1,15 @@
+import traceback
 from typing import Dict, Any
 
-from ..moods.moods import MoodManager  # 导入情绪管理器
-from ...config.config import global_config
-from .message import MessageRecv
-from ..PFC.pfc_manager import PFCManager
-from .chat_stream import chat_manager
-from .only_message_process import MessageProcessor
-
 from src.common.logger_manager import get_logger
+from src.manager.mood_manager import mood_manager  # 导入情绪管理器
+from .chat_stream import chat_manager
+from .message import MessageRecv
+from .only_message_process import MessageProcessor
+from ..PFC.pfc_manager import PFCManager
 from ..heartFC_chat.heartflow_processor import HeartFCProcessor
 from ..utils.prompt_builder import Prompt, global_prompt_manager
-import traceback
+from ...config.config import global_config
 
 # 定义日志配置
 
@@ -23,7 +22,7 @@ class ChatBot:
     def __init__(self):
         self.bot = None  # bot 实例引用
         self._started = False
-        self.mood_manager = MoodManager.get_instance()  # 获取情绪管理器单例
+        self.mood_manager = mood_manager  # 获取情绪管理器单例
         self.heartflow_processor = HeartFCProcessor()  # 新增
 
         # 创建初始化PFC管理器的任务，会在_ensure_started时执行

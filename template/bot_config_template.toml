@@ -68,7 +68,7 @@ nonebot-qq="http://127.0.0.1:18002/api/message"
 [chat] #麦麦的聊天通用设置
 allow_focus_mode = true # 是否允许专注聊天状态
 # 是否启用heart_flowC(HFC)模式
-# 启用后麦麦会自主选择进入heart_flowC模式(持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
+# 启用后麦麦会自主选择进入heart_flowC模式（持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
 base_normal_chat_num = 8 # 最多允许多少个群进行普通聊天
 base_focused_chat_num = 5 # 最多允许多少个群进行专注聊天
 

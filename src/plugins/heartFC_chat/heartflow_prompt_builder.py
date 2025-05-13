@@ -10,7 +10,7 @@ from src.plugins.person_info.relationship_manager import relationship_manager
 from src.plugins.chat.utils import get_embedding
 from ...common.database import db
 from ..chat.utils import get_recent_group_speaker
-from ..moods.moods import MoodManager
+from src.manager.mood_manager import mood_manager
 from ..memory_system.Hippocampus import HippocampusManager
 from ..schedule.schedule_generator import bot_schedule
 from ..knowledge.knowledge_lib import qa_manager
@@ -351,8 +351,7 @@ class PromptBuilder:
             else:
                 logger.warning(f"Invalid person tuple encountered for relationship prompt: {person}")
 
-        mood_manager = MoodManager.get_instance()
-        mood_prompt = mood_manager.get_prompt()
+        mood_prompt = mood_manager.get_mood_prompt()
         reply_styles1 = [
             ("然后给出日常且口语化的回复，平淡一些", 0.4),
             ("给出非常简短的回复", 0.4),

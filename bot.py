@@ -1,7 +1,6 @@
 import asyncio
 import hashlib
 import os
-import shutil
 import sys
 from pathlib import Path
 import time
@@ -16,6 +15,8 @@ from src.main import MainSystem
 from rich.traceback import install
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 import atexit
+
+from src.manager.async_task_manager import async_task_manager
 
 install(extra_lines=3)
 
@@ -35,6 +36,23 @@ driver = None
 app = None
 loop = None
 
+# shutdown_requested = False  # 新增全局变量
+
+
+async def request_shutdown() -> bool:
+    """请求关闭程序"""
+    try:
+        if loop and not loop.is_closed():
+            try:
+                loop.run_until_complete(graceful_shutdown())
+            except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
+                logger.error(f"优雅关闭时发生错误: {ge}")
+                return False
+        return True
+    except Exception as e:
+        logger.error(f"请求关闭程序时发生错误: {e}")
+        return False
+
 
 def easter_egg():
     # 彩蛋
@@ -47,38 +65,6 @@ def easter_egg():
     for i, char in enumerate(text):
         rainbow_text += rainbow_colors[i % len(rainbow_colors)] + char
     print(rainbow_text)
-
-
-def init_config():
-    # 初次启动检测
-    if not os.path.exists("config/bot_config.toml"):
-        logger.warning("检测到bot_config.toml不存在，正在从模板复制")
-
-        # 检查config目录是否存在
-        if not os.path.exists("config"):
-            os.makedirs("config")
-            logger.info("创建config目录")
-
-        shutil.copy("template/bot_config_template.toml", "config/bot_config.toml")
-        logger.info("复制完成，请修改config/bot_config.toml和.env中的配置后重新启动")
-    if not os.path.exists("config/lpmm_config.toml"):
-        logger.warning("检测到lpmm_config.toml不存在，正在从模板复制")
-
-        # 检查config目录是否存在
-        if not os.path.exists("config"):
-            os.makedirs("config")
-            logger.info("创建config目录")
-
-        shutil.copy("template/lpmm_config_template.toml", "config/lpmm_config.toml")
-        logger.info("复制完成，请修改config/lpmm_config.toml和.env中的配置后重新启动")
-
-
-def init_env():
-    # 检测.env文件是否存在
-    if not os.path.exists(".env"):
-        logger.error("检测到.env文件不存在")
-        shutil.copy("template/template.env", "./.env")
-        logger.info("已从template/template.env复制创建.env，请修改配置后重新启动")
 
 
 def load_env():
@@ -125,6 +111,10 @@ def scan_provider(env_config: dict):
 async def graceful_shutdown():
     try:
         logger.info("正在优雅关闭麦麦...")
+
+        # 停止所有异步任务
+        await async_task_manager.stop_and_wait_all_tasks()
+
         tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
         for task in tasks:
             task.cancel()
@@ -220,9 +210,9 @@ def raw_main():
 
     check_eula()
     print("检查EULA和隐私条款完成")
+
     easter_egg()
-    init_config()
-    init_env()
+
     load_env()
 
     env_config = {key: os.getenv(key) for key in os.environ}
@@ -267,6 +257,8 @@ if __name__ == "__main__":
                     loop.run_until_complete(graceful_shutdown())
                 except Exception as ge:  # 捕捉优雅关闭时可能发生的错误
                     logger.error(f"优雅关闭时发生错误: {ge}")
+        # 新增：检测外部请求关闭
+
         # except Exception as e: # 将主异常捕获移到外层 try...except
         #     logger.error(f"事件循环内发生错误: {str(e)} {str(traceback.format_exc())}")
         #     exit_code = 1
@@ -286,5 +278,5 @@ if __name__ == "__main__":
             loop.close()
             logger.info("事件循环已关闭")
         # 在程序退出前暂停，让你有机会看到输出
-        input("按 Enter 键退出...")  # <--- 添加这行
+        # input("按 Enter 键退出...")  # <--- 添加这行
         sys.exit(exit_code)  # <--- 使用记录的退出码
