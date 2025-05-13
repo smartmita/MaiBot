@@ -288,30 +288,34 @@ class BotConfig:
     )
 
     # pfc
-    pfc_chatting: bool = False # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
-    pfc_message_buffer_size: int = 2 # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
-    pfc_recent_history_display_count: int = 20 # PFC 对话最大可见上下文
+    pfc_chatting: bool = False  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+    pfc_message_buffer_size: int = (
+        2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
+    )
+    pfc_recent_history_display_count: int = 20  # PFC 对话最大可见上下文
 
     # pfc.checker
-    enable_pfc_reply_checker: bool = True # 是否启用 PFC 的回复检查器
-    pfc_max_reply_attempts: int = 3 # 发言最多尝试次数
+    enable_pfc_reply_checker: bool = True  # 是否启用 PFC 的回复检查器
+    pfc_max_reply_attempts: int = 3  # 发言最多尝试次数
     pfc_max_chat_history_for_checker: int = 50  # checker聊天记录最大可见上文长度
 
     # pfc.emotion
-    pfc_emotion_update_intensity: float = 0.6 # 情绪更新强度
+    pfc_emotion_update_intensity: float = 0.6  # 情绪更新强度
     pfc_emotion_history_count: int = 5  # 情绪更新最大可见上下文长度
 
     # pfc.relationship
-    pfc_relationship_incremental_interval: int = 10# 关系值增值强度
-    pfc_relationship_incremental_msg_count: int = 10 # 会话中，关系值判断最大可见上下文
-    pfc_relationship_incremental_default_change: float = 1.0  # 会话中，关系值默认更新值（当 llm 返回错误时默认采用该值）
+    pfc_relationship_incremental_interval: int = 10  # 关系值增值强度
+    pfc_relationship_incremental_msg_count: int = 10  # 会话中，关系值判断最大可见上下文
+    pfc_relationship_incremental_default_change: float = (
+        1.0  # 会话中，关系值默认更新值（当 llm 返回错误时默认采用该值）
+    )
     pfc_relationship_incremental_max_change: float = 5.0  # 会话中，关系值最大可变值
-    pfc_relationship_final_msg_count: int = 30 # 会话结束时，关系值判断最大可见上下文
-    pfc_relationship_final_default_change: float = 5.0 # 会话结束时，关系值默认更新值
-    pfc_relationship_final_max_change: float = 50.0 # 会话结束时，关系值最大可变值
+    pfc_relationship_final_msg_count: int = 30  # 会话结束时，关系值判断最大可见上下文
+    pfc_relationship_final_default_change: float = 5.0  # 会话结束时，关系值默认更新值
+    pfc_relationship_final_max_change: float = 50.0  # 会话结束时，关系值最大可变值
 
     # pfc.fallback
-    pfc_historical_fallback_exclude_seconds: int = 7200# pfc 翻看聊天记录排除最近时长
+    pfc_historical_fallback_exclude_seconds: int = 7200  # pfc 翻看聊天记录排除最近时长
 
     # pfc.idle_chat
     enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
@@ -750,7 +754,9 @@ class BotConfig:
             # config.enable_think_flow = experimental_config.get("enable_think_flow", config.enable_think_flow)
             config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
             if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):
-                config.enable_friend_whitelist = experimental_config.get("enable_friend_whitelist", config.enable_friend_whitelist)
+                config.enable_friend_whitelist = experimental_config.get(
+                    "enable_friend_whitelist", config.enable_friend_whitelist
+                )
             if config.INNER_VERSION in SpecifierSet(">=1.6.1.5"):
                 config.api_polling_max_retries = experimental_config.get(
                     "api_polling_max_retries", config.api_polling_max_retries
@@ -763,41 +769,72 @@ class BotConfig:
                 pfc_config = parent.get("pfc", {})
                 # 解析 [pfc] 下的直接字段
                 config.pfc_chatting = pfc_config.get("pfc_chatting", config.pfc_chatting)
-                config.pfc_message_buffer_size = pfc_config.get("pfc_message_buffer_size", config.pfc_message_buffer_size)
-                config.pfc_recent_history_display_count = pfc_config.get("pfc_recent_history_display_count", config.pfc_recent_history_display_count)
+                config.pfc_message_buffer_size = pfc_config.get(
+                    "pfc_message_buffer_size", config.pfc_message_buffer_size
+                )
+                config.pfc_recent_history_display_count = pfc_config.get(
+                    "pfc_recent_history_display_count", config.pfc_recent_history_display_count
+                )
 
                 # 解析 [[pfc.checker]] 子表
                 checker_list = pfc_config.get("checker", [])
                 if checker_list and isinstance(checker_list, list):
                     checker_config = checker_list[0] if checker_list else {}
-                    config.enable_pfc_reply_checker = checker_config.get("enable_pfc_reply_checker", config.enable_pfc_reply_checker)
-                    config.pfc_max_reply_attempts = checker_config.get("pfc_max_reply_attempts", config.pfc_max_reply_attempts)
-                    config.pfc_max_chat_history_for_checker = checker_config.get("pfc_max_chat_history_for_checker", config.pfc_max_chat_history_for_checker)
+                    config.enable_pfc_reply_checker = checker_config.get(
+                        "enable_pfc_reply_checker", config.enable_pfc_reply_checker
+                    )
+                    config.pfc_max_reply_attempts = checker_config.get(
+                        "pfc_max_reply_attempts", config.pfc_max_reply_attempts
+                    )
+                    config.pfc_max_chat_history_for_checker = checker_config.get(
+                        "pfc_max_chat_history_for_checker", config.pfc_max_chat_history_for_checker
+                    )
 
                 # 解析 [[pfc.emotion]] 子表
                 emotion_list = pfc_config.get("emotion", [])
                 if emotion_list and isinstance(emotion_list, list):
                     emotion_config = emotion_list[0] if emotion_list else {}
-                    config.pfc_emotion_update_intensity = emotion_config.get("pfc_emotion_update_intensity", config.pfc_emotion_update_intensity)
-                    config.pfc_emotion_history_count = emotion_config.get("pfc_emotion_history_count", config.pfc_emotion_history_count)
+                    config.pfc_emotion_update_intensity = emotion_config.get(
+                        "pfc_emotion_update_intensity", config.pfc_emotion_update_intensity
+                    )
+                    config.pfc_emotion_history_count = emotion_config.get(
+                        "pfc_emotion_history_count", config.pfc_emotion_history_count
+                    )
 
                 # 解析 [[pfc.relationship]] 子表
                 relationship_list = pfc_config.get("relationship", [])
                 if relationship_list and isinstance(relationship_list, list):
                     relationship_config = relationship_list[0] if relationship_list else {}
-                    config.pfc_relationship_incremental_interval = relationship_config.get("pfc_relationship_incremental_interval", config.pfc_relationship_incremental_interval)
-                    config.pfc_relationship_incremental_msg_count = relationship_config.get("pfc_relationship_incremental_msg_count", config.pfc_relationship_incremental_msg_count)
-                    config.pfc_relationship_incremental_default_change = relationship_config.get("pfc_relationship_incremental_default_change", config.pfc_relationship_incremental_default_change)
-                    config.pfc_relationship_incremental_max_change = relationship_config.get("pfc_relationship_incremental_max_change", config.pfc_relationship_incremental_max_change)
-                    config.pfc_relationship_final_msg_count = relationship_config.get("pfc_relationship_final_msg_count", config.pfc_relationship_final_msg_count)
-                    config.pfc_relationship_final_default_change = relationship_config.get("pfc_relationship_final_default_change", config.pfc_relationship_final_default_change)
-                    config.pfc_relationship_final_max_change = relationship_config.get("pfc_relationship_final_max_change", config.pfc_relationship_final_max_change)
+                    config.pfc_relationship_incremental_interval = relationship_config.get(
+                        "pfc_relationship_incremental_interval", config.pfc_relationship_incremental_interval
+                    )
+                    config.pfc_relationship_incremental_msg_count = relationship_config.get(
+                        "pfc_relationship_incremental_msg_count", config.pfc_relationship_incremental_msg_count
+                    )
+                    config.pfc_relationship_incremental_default_change = relationship_config.get(
+                        "pfc_relationship_incremental_default_change",
+                        config.pfc_relationship_incremental_default_change,
+                    )
+                    config.pfc_relationship_incremental_max_change = relationship_config.get(
+                        "pfc_relationship_incremental_max_change", config.pfc_relationship_incremental_max_change
+                    )
+                    config.pfc_relationship_final_msg_count = relationship_config.get(
+                        "pfc_relationship_final_msg_count", config.pfc_relationship_final_msg_count
+                    )
+                    config.pfc_relationship_final_default_change = relationship_config.get(
+                        "pfc_relationship_final_default_change", config.pfc_relationship_final_default_change
+                    )
+                    config.pfc_relationship_final_max_change = relationship_config.get(
+                        "pfc_relationship_final_max_change", config.pfc_relationship_final_max_change
+                    )
 
                 # 解析 [[pfc.fallback]] 子表
                 fallback_list = pfc_config.get("fallback", [])
                 if fallback_list and isinstance(fallback_list, list):
                     fallback_config = fallback_list[0] if fallback_list else {}
-                    config.pfc_historical_fallback_exclude_seconds = fallback_config.get("pfc_historical_fallback_exclude_seconds", config.pfc_historical_fallback_exclude_seconds)
+                    config.pfc_historical_fallback_exclude_seconds = fallback_config.get(
+                        "pfc_historical_fallback_exclude_seconds", config.pfc_historical_fallback_exclude_seconds
+                    )
 
                 # 解析 [[pfc.idle_chat]] 子表
                 idle_chat_list = pfc_config.get("idle_chat", [])
