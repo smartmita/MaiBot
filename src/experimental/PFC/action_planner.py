@@ -38,6 +38,7 @@ PROMPT_INITIAL_REPLY = """
 可选行动类型以及解释：
 listening: 倾听对方发言，当你认为对方话才说到一半，发言明显未结束时选择
 direct_reply: 直接回复对方
+send_memes: 发送一个符合当前聊天氛围或{persona_text}心情的表情包，当你觉得用表情包回应更合适，或者想要活跃气氛时选择。
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
 end_conversation: 结束对话，对方长时间没回复，繁忙，或者当你觉得对话告一段落时可以选择
 block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当你觉得对话让[{persona_text}]感到十分不适，或[{persona_text}]遭到各类骚扰时选择
@@ -45,7 +46,8 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 请以JSON格式输出你的决策：
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
-    "reason": "选择该行动的原因 "
+    "reason": "选择该行动的原因 ",
+    "emoji_query": "string" // 可选。如果行动是 'send_memes'，必须提供表情主题(填写表情包的适用场合或情感描述)；如果行动是 'direct_reply' 且你想附带表情，也在此提供表情主题，否则留空字符串 ""
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
@@ -74,6 +76,7 @@ PROMPT_FOLLOW_UP = """
 wait: 暂时不说话，留给对方交互空间，等待对方回复。
 listening: 倾听对方发言（虽然你刚发过言，但如果对方立刻回复且明显话没说完，可以选择这个）
 send_new_message: 发送一条新消息，当你觉得[{persona_text}]还有话要说，或现在适合/需要发送消息时可以选择
+send_memes: 发送一个符合当前聊天氛围或{persona_text}心情的表情包，当你觉得用表情包回应更合适，或者想要活跃气氛时选择。
 rethink_goal: 思考一个对话目标，当你觉得目前对话需要目标，或当前目标不再适用，或话题卡住时选择。注意私聊的环境是灵活的，有可能需要经常选择
 end_conversation: 安全和平的结束对话，对方长时间没回复、繁忙、或你觉得对话告一段落时可以选择
 block_and_ignore: 更加极端的结束对话方式，直接结束对话并在一段时间内无视对方所有发言（屏蔽），当你觉得对话让[{persona_text}]感到十分不适，或[{persona_text}]遭到各类骚扰时选择
@@ -81,7 +84,8 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 请以JSON格式输出你的决策：
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
-    "reason": "选择该行动的原因"
+    "reason": "选择该行动的原因",
+    "emoji_query": "string" // 可选。如果行动是 'send_memes'，必须提供表情主题(填写表情包的适用场合或情感描述)；如果行动是 'send_new_message' 且你想附带表情，也在此提供表情主题，否则留空字符串 ""
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
@@ -231,24 +235,10 @@ class ActionPlanner:
             if use_reflect_prompt:  # 新增的判断
                 prompt_template = PROMPT_REFLECT_AND_ACT
                 log_msg = "使用 PROMPT_REFLECT_AND_ACT (反思决策)"
-                # 对于 PROMPT_REFLECT_AND_ACT，它不包含 send_new_message 选项，所以 spam_warning_message 中的相关提示可以调整或省略
-                # 但为了保持占位符填充的一致性，我们仍然计算它
-                # spam_warning_message = ""
-                # if conversation_info.my_message_count > 5:  # 这里的 my_message_count 仍有意义，表示之前连续发送了多少
-                # spam_warning_message = (
-                # f"⚠️【警告】**你之前已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎决策。**"
-                # )
-                # elif conversation_info.my_message_count > 2:
-                # spam_warning_message = f"💬【提示】**你之前已连续发送{str(conversation_info.my_message_count)}条消息。请注意保持对话平衡。**"
 
-            elif last_successful_reply_action in ["direct_reply", "send_new_message"]:
+            elif last_successful_reply_action in ["direct_reply", "send_new_message", "send_memes"]:
                 prompt_template = PROMPT_FOLLOW_UP
                 log_msg = "使用 PROMPT_FOLLOW_UP (追问决策)"
-                # spam_warning_message = ""
-                # if conversation_info.my_message_count > 5:
-                # spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请注意不要再选择send_new_message！以免刷屏对造成对方困扰！**"
-                # elif conversation_info.my_message_count > 2:
-                # spam_warning_message = f"💬【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息。请保持理智，如果非必要，请避免选择send_new_message，以免给对方造成困扰。**"
 
             else:
                 prompt_template = PROMPT_INITIAL_REPLY
@@ -300,12 +290,17 @@ class ActionPlanner:
                 self.private_name,
                 "action",
                 "reason",
-                default_values={"action": "wait", "reason": "LLM返回格式错误或未提供原因，默认等待"},
+                "emoji_query",
+                default_values={"action": "wait", "reason": "LLM返回格式错误或未提供原因，默认等待", "emoji_query": ""},
+                allow_empty_string_fields=["emoji_query"]
             )
 
             initial_action = initial_result.get("action", "wait")
             initial_reason = initial_result.get("reason", "LLM未提供原因，默认等待")
-            logger.info(f"[私聊][{self.private_name}] LLM 初步规划行动: {initial_action}, 原因: {initial_reason}")
+            current_emoji_query = initial_result.get("emoji_query", "") # 获取 emoji_query
+            logger.info(f"[私聊][{self.private_name}] LLM 初步规划行动: {initial_action}, 原因: {initial_reason}表情查询: '{current_emoji_query}'")
+            if conversation_info: # 确保 conversation_info 存在
+                conversation_info.current_emoji_query = current_emoji_query
         except Exception as llm_err:
             logger.error(f"[私聊][{self.private_name}] 调用 LLM 或解析初步规划结果时出错: {llm_err}")
             logger.error(traceback.format_exc())
@@ -348,6 +343,7 @@ class ActionPlanner:
         valid_actions_default = [
             "direct_reply",
             "send_new_message",
+            "send_memes",
             "wait",
             "listening",
             "rethink_goal",

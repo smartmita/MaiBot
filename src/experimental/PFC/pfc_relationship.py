@@ -265,7 +265,7 @@ class PfcRepationshipTranslator:
             "初识",  # level_num 2
             "友好",  # level_num 3
             "喜欢",  # level_num 4
-            "暧昧",  # level_num 5
+            "依赖",  # level_num 5
         ]
 
         if 0 <= level_num < len(relationship_descriptions):

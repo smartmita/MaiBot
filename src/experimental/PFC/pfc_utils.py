@@ -457,6 +457,7 @@ def get_items_from_json(
     default_values: Optional[Dict[str, Any]] = None,
     required_types: Optional[Dict[str, type]] = None,
     allow_array: bool = True,
+    allow_empty_string_fields: Optional[List[str]] = None,
 ) -> Tuple[bool, Union[Dict[str, Any], List[Dict[str, Any]]]]:
     """从文本中提取JSON内容并获取指定字段
 
@@ -478,9 +479,12 @@ def get_items_from_json(
         cleaned_content = markdown_match.group(1).strip()
         logger.debug(f"[私聊][{private_name}] 已去除 Markdown 标记，剩余内容: {cleaned_content[:100]}...")
     default_result: Dict[str, Any] = {}
+
     if default_values:
         default_result.update(default_values)
-        result = default_result.copy()
+        # result = default_result.copy()
+    _allow_empty_string_fields = allow_empty_string_fields if allow_empty_string_fields is not None else []
+
     if allow_array:
         try:
             json_array = json.loads(cleaned_content)
@@ -490,6 +494,7 @@ def get_items_from_json(
                     if not isinstance(item_json, dict):
                         logger.warning(f"[私聊][{private_name}] JSON数组中的元素不是字典: {item_json}")
                         continue
+
                     current_item_result = default_result.copy()
                     valid_item = True
                     for field in items:
@@ -499,13 +504,13 @@ def get_items_from_json(
                             logger.warning(f"[私聊][{private_name}] JSON数组元素缺少必要字段 '{field}': {item_json}")
                             valid_item = False
                             break
-                    if not valid_item:
+
+                    if not valid_item: 
                         continue
+
                     if required_types:
                         for field, expected_type in required_types.items():
-                            if field in current_item_result and not isinstance(
-                                current_item_result[field], expected_type
-                            ):
+                            if field in current_item_result and not isinstance(current_item_result[field], expected_type):
                                 logger.warning(
                                     f"[私聊][{private_name}] JSON数组元素字段 '{field}' 类型错误 (应为 {expected_type.__name__}, 实际为 {type(current_item_result[field]).__name__}): {item_json}"
                                 )
@@ -513,87 +518,121 @@ def get_items_from_json(
                                 break
                     if not valid_item:
                         continue
+
                     for field in items:
                         if (
                             field in current_item_result
                             and isinstance(current_item_result[field], str)
                             and not current_item_result[field].strip()
+                            and field not in _allow_empty_string_fields
                         ):
                             logger.warning(
                                 f"[私聊][{private_name}] JSON数组元素字段 '{field}' 不能为空字符串: {item_json}"
                             )
                             valid_item = False
                             break
+
                     if valid_item:
                         valid_items_list.append(current_item_result)
+
                 if valid_items_list:
                     logger.debug(f"[私聊][{private_name}] 成功解析JSON数组，包含 {len(valid_items_list)} 个有效项目。")
                     return True, valid_items_list
                 else:
                     logger.debug(f"[私聊][{private_name}] 解析为JSON数组，但未找到有效项目，尝试解析单个JSON对象。")
-                    result = default_result.copy()
+                    # result = default_result.copy()
         except json.JSONDecodeError:
             logger.debug(f"[私聊][{private_name}] JSON数组直接解析失败，尝试解析单个JSON对象")
-            result = default_result.copy()
+            # result = default_result.copy()
         except Exception as e:
             logger.error(f"[私聊][{private_name}] 尝试解析JSON数组时发生未知错误: {str(e)}")
-            result = default_result.copy()
+            # result = default_result.copy()
+            
+    json_data = None
+    valid_single_object = True # <--- 将初始化提前到这里
+
     try:
         json_data = json.loads(cleaned_content)
         if not isinstance(json_data, dict):
             logger.error(f"[私聊][{private_name}] 解析为单个对象，但结果不是字典类型: {type(json_data)}")
-            return False, default_result
+            # 如果不是字典，即使 allow_array 为 False，这里也应该认为单个对象解析失败
+            valid_single_object = False # 标记为无效
+            # return False, default_result.copy() # 不立即返回，让后续逻辑统一处理 valid_single_object
     except json.JSONDecodeError:
         json_pattern = r"\{[\s\S]*?\}"
         json_match = re.search(json_pattern, cleaned_content)
         if json_match:
             try:
-                potential_json_str = json_match.group()
+                potential_json_str = json_match.group(0)
                 json_data = json.loads(potential_json_str)
                 if not isinstance(json_data, dict):
                     logger.error(f"[私聊][{private_name}] 正则提取后解析，但结果不是字典类型: {type(json_data)}")
-                    return False, default_result
-                logger.debug(f"[私聊][{private_name}] 通过正则提取并成功解析JSON对象。")
+                    valid_single_object = False # 标记为无效
+                    # return False, default_result.copy()
+                else:
+                    logger.debug(f"[私聊][{private_name}] 通过正则提取并成功解析JSON对象。")
+                    # valid_single_object 保持 True
             except json.JSONDecodeError:
                 logger.error(f"[私聊][{private_name}] 正则提取的部分 '{potential_json_str[:100]}...' 无法解析为JSON。")
-                return False, default_result
+                valid_single_object = False # 标记为无效
+                # return False, default_result.copy()
         else:
             logger.error(
                 f"[私聊][{private_name}] 无法在返回内容中找到有效的JSON对象部分。原始内容: {cleaned_content[:100]}..."
             )
-            return False, default_result
-    if not isinstance(result, dict):
-        result = default_result.copy()
-    valid_single_object = True
-    for item_field in items:  # Renamed item to item_field
+            valid_single_object = False # 标记为无效
+            # return False, default_result.copy()
+
+    # 如果前面的步骤未能成功解析出一个 dict 类型的 json_data，则 valid_single_object 会是 False
+    if not isinstance(json_data, dict) or not valid_single_object: # 增加对 json_data 类型的检查
+        # 如果 allow_array 为 True 且数组解析成功过，这里不应该执行 (因为之前会 return True, valid_items_list)
+        # 如果 allow_array 为 False，或者数组解析也失败了，那么到这里就意味着整体解析失败
+        if not (allow_array and isinstance(json_array, list) and valid_items_list): # 修正：检查之前数组解析是否成功
+             logger.debug(f"[私聊][{private_name}] 未能成功解析为有效的JSON对象或数组。")
+        return False, default_result.copy()
+
+
+    # 如果成功解析了单个 JSON 对象 (json_data 是 dict 且 valid_single_object 仍为 True)
+    # current_single_result 的初始化和填充逻辑可以保持
+    current_single_result = default_result.copy()
+    # valid_single_object = True # 这一行现在是多余的，因为在上面已经初始化并可能被修改
+
+    for item_field in items:
         if item_field in json_data:
-            result[item_field] = json_data[item_field]
+            current_single_result[item_field] = json_data[item_field]
         elif item_field not in default_result:
             logger.error(f"[私聊][{private_name}] JSON对象缺少必要字段 '{item_field}'。JSON内容: {json_data}")
             valid_single_object = False
             break
-    if not valid_single_object:
-        return False, default_result
+    
+    if not valid_single_object: return False, default_result.copy() # 如果字段缺失，则校验失败
+
     if required_types:
         for field, expected_type in required_types.items():
-            if field in result and not isinstance(result[field], expected_type):
+            if field in current_single_result and not isinstance(current_single_result[field], expected_type):
                 logger.error(
-                    f"[私聊][{private_name}] JSON对象字段 '{field}' 类型错误 (应为 {expected_type.__name__}, 实际为 {type(result[field]).__name__})"
+                    f"[私聊][{private_name}] JSON对象字段 '{field}' 类型错误 (应为 {expected_type.__name__}, 实际为 {type(current_single_result[field]).__name__})"
                 )
                 valid_single_object = False
                 break
-    if not valid_single_object:
-        return False, default_result
+    
+    if not valid_single_object: return False, default_result.copy() # 如果类型错误，则校验失败
+
     for field in items:
-        if field in result and isinstance(result[field], str) and not result[field].strip():
-            logger.error(f"[私聊][{private_name}] JSON对象字段 '{field}' 不能为空字符串")
+        if field in current_single_result and \
+           isinstance(current_single_result[field], str) and \
+           not current_single_result[field].strip() and \
+           field not in _allow_empty_string_fields:
+            logger.error(f"[私聊][{private_name}] JSON对象字段 '{field}' 不能为空字符串 (除非特别允许)")
             valid_single_object = False
             break
+
     if valid_single_object:
         logger.debug(f"[私聊][{private_name}] 成功解析并验证了单个JSON对象。")
-        return True, result
+        return True, current_single_result
     else:
-        return False, default_result
+        return False, default_result.copy()
+    
 
 
 async def get_person_id(private_name: str, chat_stream: ChatStream):

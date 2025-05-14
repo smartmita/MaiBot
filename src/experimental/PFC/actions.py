@@ -3,14 +3,20 @@ import asyncio
 import datetime
 import traceback
 import json
+import os
 from typing import Optional, Set, TYPE_CHECKING
-
+from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.chat.utils.chat_message_builder import build_readable_messages
 from .pfc_types import ConversationState
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
+from src.chat.emoji_system.emoji_manager import emoji_manager
+from src.chat.utils.utils_image import image_path_to_base64 # 假设路径正确
+from maim_message import Seg, UserInfo # 从 maim_message 导入 Seg 和 UserInfo
+from src.chat.message_receive.message import MessageSending, MessageSet # PFC 的发送器依赖这些
+from src.chat.message_receive.message_sender import message_manager # PFC 的发送器依赖这个
 
 if TYPE_CHECKING:
     from .conversation import Conversation  # 用于类型提示以避免循环导入
@@ -459,13 +465,13 @@ async def handle_action(
 
             else:  # 达到最大尝试次数仍未找到合适回复 (is_suitable is False and not need_replan_from_checker)
                 logger.warning(
-                    f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 达到最大尝试次数 ({max_reply_attempts})，未能生成/检查通过合适的回复。最终原因: {check_reason}"
+                    f"[私聊][{conversation_instance.private_name}] 动作 '{action}': 达到最大回复尝试次数 ({max_reply_attempts})，ReplyChecker 仍判定不合适。最终检查原因: {check_reason}"
                 )
-                final_status = "recall"  # 标记为 recall
-                final_reason = f"尝试{max_reply_attempts}次后失败: {check_reason}"
-                action_successful = False  # 确保 action_successful 为 False
-                # 重置追问状态
-                conversation_info.last_successful_reply_action = None
+                final_status = "max_checker_attempts_failed"
+                final_reason = f"达到最大回复尝试次数({max_reply_attempts})，ReplyChecker仍判定不合适: {check_reason}"
+                action_successful = False
+                if conversation_info: # 确保 conversation_info 存在
+                    conversation_info.last_successful_reply_action = None
                 # my_message_count 保持不变
 
         # 2. 处理发送告别语动作 (保持简单，不加重试)
@@ -624,6 +630,191 @@ async def handle_action(
                     event_description=event_for_emotion_update,
                 )
 
+        # X. 处理发送表情包动作
+        elif action == "send_memes":
+            conversation_instance.state = ConversationState.GENERATING
+            final_reason_prefix = "发送表情包"
+            action_successful = False # 先假设不成功
+
+            # 确保 conversation_info 和 observation_info 存在
+            if not conversation_info or not observation_info:
+                logger.error(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': ConversationInfo 或 ObservationInfo 为空。")
+                final_status = "error"
+                final_reason = f"{final_reason_prefix}失败：内部信息缺失"
+                # done_action 的更新会在 finally 中处理
+                # 理论上这不应该发生，因为调用 handle_action 前应该有检查
+                # 但作为防御性编程，可以加上
+                if conversation_info: # 即使另一个为空，也尝试更新
+                     conversation_info.last_successful_reply_action = None
+                # 直接跳到 finally 块
+                # 注意：此处不能直接 return，否则 finally 不会被完整执行。
+                # 而是让后续的 final_status 和 action_successful 决定流程。
+                # 这里我们通过设置 action_successful = False 和 final_status = "error" 来让 finally 处理
+                # 更好的方式可能是直接在 finally 前面抛出异常，但为了简化，我们先这样。
+                # 此处保持 action_successful = False，后续的 finally 会处理状态。
+                pass # 让代码继续到 try...except...finally 的末尾
+
+            else: # conversation_info 和 observation_info 都存在
+                emoji_query = conversation_info.current_emoji_query
+                if not emoji_query:
+                    logger.warning(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': emoji_query 为空，无法获取表情包。")
+                    final_status = "recall"
+                    final_reason = f"{final_reason_prefix}失败：缺少表情包查询语句"
+                    conversation_info.last_successful_reply_action = None
+                else:
+                    logger.info(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': 使用查询 '{emoji_query}' 获取表情包...")
+                    try:
+                        emoji_result = await emoji_manager.get_emoji_for_text(emoji_query)
+
+                        if emoji_result:
+                            emoji_path, emoji_description = emoji_result
+                            logger.info(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': 获取到表情包: {emoji_path}, 描述: {emoji_description}")
+
+                            if not conversation_instance.chat_stream:
+                                logger.error(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': ChatStream 未初始化，无法发送。")
+                                raise RuntimeError("ChatStream 未初始化")
+
+                            image_b64_content = image_path_to_base64(emoji_path)
+                            if not image_b64_content:
+                                logger.error(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': 无法将图片 {emoji_path} 转换为 base64。")
+                                raise ValueError(f"无法将图片 {emoji_path} 转换为Base64")
+
+                            # --- 统一 Seg 构造方式 (与群聊类似) ---
+                            # 直接使用 type="emoji" 和 base64 数据
+                            message_segment_for_emoji = Seg(type="emoji", data=image_b64_content)
+                            # --------------------------------------
+
+                            bot_user_info = UserInfo(
+                                user_id=global_config.BOT_QQ,
+                                user_nickname=global_config.BOT_NICKNAME,
+                                platform=conversation_instance.chat_stream.platform,
+                            )
+                            message_id_emoji = f"pfc_meme_{round(time.time(), 3)}"
+
+                            # --- 直接使用 DirectMessageSender (如果其 send_message 适配单个 Seg) ---
+                            # 或者如果 DirectMessageSender.send_message 需要 content: str，
+                            # 我们就需要调整 DirectMessageSender 或这里的逻辑。
+                            # 假设 DirectMessageSender 能被改造或其依赖的 message_manager 能处理 Seg 对象。
+                            # 我们先按照 PFC/message_sender.py 的结构来尝试构造 MessageSending
+                            # PFC/message_sender.py 中的 DirectMessageSender.send_message(content: str)
+                            # 它内部是 segments = Seg(type="seglist", data=[Seg(type="text", data=content)])
+                            # 这意味着 DirectMessageSender 目前只设计来发送文本。
+
+                            # *** 为了与群聊发送逻辑一致，并假设底层 message_manager 可以处理任意 Seg ***
+                            # 我们需要绕过 DirectMessageSender 的 send_message(content: str)
+                            # 或者修改 DirectMessageSender 以接受 Seg 对象。
+                            # 更简单的做法是直接调用与群聊相似的底层发送机制，即构造 MessageSending 并使用 message_manager
+
+                            message_to_send = MessageSending(
+                                message_id=message_id_emoji,
+                                chat_stream=conversation_instance.chat_stream,
+                                bot_user_info=bot_user_info,
+                                sender_info=None, # 表情通常不是对特定消息的回复
+                                message_segment=message_segment_for_emoji, # 直接使用构造的 Seg
+                                reply=None,
+                                is_head=True,
+                                is_emoji=True,
+                                thinking_start_time=action_start_time, # 使用动作开始时间作为近似
+                            )
+
+                            await message_to_send.process() # 消息预处理
+
+                            message_set_emoji = MessageSet(conversation_instance.chat_stream, message_id_emoji)
+                            message_set_emoji.add_message(message_to_send)
+                            await message_manager.add_message(message_set_emoji) # 使用全局管理器发送
+
+                            logger.info(f"[私聊][{conversation_instance.private_name}] PFC 动作 'send_memes': 表情包已发送: {emoji_path} ({emoji_description})")
+                            action_successful = True # 标记发送成功
+                            # final_status 和 final_reason 会在 finally 中设置
+
+                            # --- 后续成功处理逻辑 (与之前相同，但要确保 conversation_info 存在) ---
+                            if conversation_info:
+                                conversation_info.my_message_count += 1
+                                conversation_info.last_successful_reply_action = action
+                                conversation_info.current_instance_message_count += 1
+                                logger.debug(
+                                    f"[私聊][{conversation_instance.private_name}] 成功执行 '{action}', my_message_count: {conversation_info.my_message_count}, 下一轮将使用【追问】逻辑。"
+                                )
+
+                            current_send_time = time.time()
+                            if conversation_instance.idle_chat:
+                                await conversation_instance.idle_chat.update_last_message_time(current_send_time)
+
+                            if observation_info and conversation_instance.bot_qq_str:
+                                bot_meme_message_dict = {
+                                    "message_id": message_id_emoji,
+                                    "time": current_send_time,
+                                    "user_info": bot_user_info.to_dict(),
+                                    "processed_plain_text": f"[表情包: {emoji_description}]",
+                                    "detailed_plain_text": f"[表情包: {emoji_path} - {emoji_description}]",
+                                    "raw_message": f"[CQ:image,file=base64://...]" # 示例
+                                }
+                                observation_info.chat_history.append(bot_meme_message_dict)
+                                observation_info.chat_history_count = len(observation_info.chat_history)
+                                max_history_len = getattr(global_config, "pfc_max_chat_history_for_checker", 50)
+                                if len(observation_info.chat_history) > max_history_len:
+                                    observation_info.chat_history = observation_info.chat_history[-max_history_len:]
+                                    observation_info.chat_history_count = len(observation_info.chat_history)
+                                history_slice_for_str = observation_info.chat_history[-30:]
+                                try:
+                                    observation_info.chat_history_str = await build_readable_messages(
+                                        history_slice_for_str, replace_bot_name=True, merge_messages=False,
+                                        timestamp_mode="relative", read_mark=0.0
+                                    )
+                                except Exception as e_build_hist_meme:
+                                    logger.error(f"[私聊][{conversation_instance.private_name}] 更新 chat_history_str (表情包后) 时出错: {e_build_hist_meme}")
+
+                            current_unprocessed_messages_emoji = observation_info.unprocessed_messages
+                            message_ids_to_clear_emoji: Set[str] = set()
+                            for msg_item in current_unprocessed_messages_emoji:
+                                msg_time_item = msg_item.get("time")
+                                msg_id_item = msg_item.get("message_id")
+                                sender_id_info_item = msg_item.get("user_info", {})
+                                sender_id_item = str(sender_id_info_item.get("user_id")) if sender_id_info_item else None
+                                if (
+                                    msg_id_item
+                                    and msg_time_item
+                                    and sender_id_item != conversation_instance.bot_qq_str
+                                    and msg_time_item < current_send_time
+                                ):
+                                    message_ids_to_clear_emoji.add(msg_id_item)
+                            if message_ids_to_clear_emoji:
+                                await observation_info.clear_processed_messages(message_ids_to_clear_emoji)
+
+                            if conversation_instance.relationship_updater and conversation_info:
+                                await conversation_instance.relationship_updater.update_relationship_incremental(
+                                    conversation_info=conversation_info,
+                                    observation_info=observation_info,
+                                    chat_observer_for_history=conversation_instance.chat_observer,
+                                )
+                            event_for_emotion_update_emoji = f"你发送了一个表情包 ({emoji_description})"
+                            if conversation_instance.emotion_updater and conversation_info:
+                                await conversation_instance.emotion_updater.update_emotion_based_on_context(
+                                    conversation_info=conversation_info,
+                                    observation_info=observation_info,
+                                    chat_observer_for_history=conversation_instance.chat_observer,
+                                    event_description=event_for_emotion_update_emoji,
+                                )
+                        else: # emoji_result is None
+                            logger.warning(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': 未能根据查询 '{emoji_query}' 获取到合适的表情包。")
+                            final_status = "recall"
+                            final_reason = f"{final_reason_prefix}失败：未找到合适表情包"
+                            action_successful = False
+                            if conversation_info:
+                                 conversation_info.last_successful_reply_action = None
+                                 conversation_info.current_emoji_query = None
+
+
+                    except Exception as get_send_emoji_err:
+                        logger.error(f"[私聊][{conversation_instance.private_name}] 动作 'send_memes': 处理过程中出错: {get_send_emoji_err}")
+                        logger.error(traceback.format_exc())
+                        final_status = "recall" # 或 "error"
+                        final_reason = f"{final_reason_prefix}失败：处理表情包时出错 ({get_send_emoji_err})"
+                        action_successful = False
+                        if conversation_info:
+                            conversation_info.last_successful_reply_action = None
+                            conversation_info.current_emoji_query = None
+
         # 7. 处理等待动作
         elif action == "wait":
             conversation_instance.state = ConversationState.WAITING
@@ -658,11 +849,15 @@ async def handle_action(
 
         # --- 重置非回复动作的追问状态 ---
         # 确保执行完非回复动作后，下一次规划不会错误地进入追问逻辑
-        if action not in ["direct_reply", "send_new_message", "say_goodbye"]:
+        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes"]:
             conversation_info.last_successful_reply_action = None
             # 清理可能残留的拒绝信息
             conversation_info.last_reply_rejection_reason = None
             conversation_info.last_rejected_reply_content = None
+
+        if action != "send_memes" or not action_successful:
+            if conversation_info and hasattr(conversation_info, 'current_emoji_query'):
+                conversation_info.current_emoji_query = None
 
     except asyncio.CancelledError:
         # 处理任务被取消的异常
@@ -685,72 +880,34 @@ async def handle_action(
             conversation_info.last_successful_reply_action = None
 
     finally:
-        # --- 无论成功与否，都执行 ---
-
-        # 1. 重置临时存储的计数值
-        if conversation_info:  # 确保 conversation_info 存在
-            conversation_info.other_new_messages_during_planning_count = 0
-
-        # 2. 更新动作历史记录的最终状态和原因
-        # 优化：如果动作成功但状态仍是默认的 recall，则更新为 done
-        if action_successful:
-            # 如果动作标记为成功，但 final_status 仍然是初始的 "recall" 或者 "start"
-            # (因为可能在try块中成功执行了但没有显式更新 final_status 为 "done")
-            # 或者是 "done_no_reply" 这种特殊的成功状态
-            if (
-                final_status in ["recall", "start"] and action != "send_new_message"
-            ):  # send_new_message + no_reply 是特殊成功
-                final_status = "done"
-                if not final_reason or final_reason == "动作未成功执行":  # 避免覆盖已有的具体成功原因
-                    # 为不同类型的成功动作提供更具体的默认成功原因
-                    if action == "wait":
-                        # 检查 conversation_info.goal_list 是否存在且不为空
-                        timeout_occurred = (
-                            any(
-                                "分钟，" in g.get("goal", "")
-                                for g in conversation_info.goal_list
-                                if isinstance(g, dict)
-                            )
-                            if conversation_info and conversation_info.goal_list
-                            else False
-                        )
-                        final_reason = "等待完成" + (" (超时)" if timeout_occurred else " (收到新消息或中断)")
-                    elif action == "listening":
-                        final_reason = "进入倾听状态"
-                    elif action in ["rethink_goal", "end_conversation", "block_and_ignore", "say_goodbye"]:
-                        final_reason = f"成功执行 {action}"
-                    elif action in ["direct_reply", "send_new_message"]:  # 正常发送成功的case
-                        final_reason = "成功发送"
-                    else:
-                        final_reason = f"动作 {action} 成功完成"
-            # 如果已经是 "done" 或 "done_no_reply"，则保留它们和它们对应的 final_reason
-
-        else:  # action_successful is False
-            # 如果动作标记为失败，且 final_status 还是 "recall" (初始值) 或 "start"
-            if final_status in ["recall", "start"]:
-                # 尝试从 conversation_info 中获取更具体的失败原因（例如 checker 的原因）
-                # 这个 specific_rejection_reason 是在 try 块中被设置的
-                specific_rejection_reason = getattr(conversation_info, "last_reply_rejection_reason", None)
-                rejected_content = getattr(conversation_info, "last_rejected_reply_content", None)
-
-                if specific_rejection_reason:  # 如果有更具体的原因
-                    final_reason = f"执行失败: {specific_rejection_reason}"
-                    if (
-                        rejected_content and specific_rejection_reason == "机器人尝试发送重复消息"
-                    ):  # 对复读提供更清晰的日志
-                        final_reason += f" (内容: '{rejected_content[:30]}...')"
-                elif not final_reason or final_reason == "动作未成功执行":  # 如果没有更具体的原因，且当前原因还是默认的
-                    final_reason = f"动作 {action} 执行失败或被意外中止"
-            # 如果 final_status 已经是 "error" 或 "cancelled"，则保留它们和它们对应的 final_reason
-
-        # 更新 done_action 中的记录
-        # 防御性检查，确保 conversation_info, done_action 存在，并且索引有效
+        # --- 统一更新动作历史记录的最终状态和原因 ---
+        # (确保 conversation_info 和 done_action[action_index] 有效)
         if (
             conversation_info
             and hasattr(conversation_info, "done_action")
             and conversation_info.done_action
             and action_index < len(conversation_info.done_action)
         ):
+            # 确定最终状态和原因
+            if action_successful: # 如果动作本身标记为成功
+                if final_status not in ["done", "done_no_reply"]: # 如果没有被特定成功状态覆盖
+                    final_status = "done"
+                if not final_reason or final_reason == "动作未成功执行":
+                    if action == "send_memes":
+                        final_reason = f"{final_reason_prefix}成功发送"
+                    # ... (其他动作的默认成功原因) ...
+                    else:
+                        final_reason = f"动作 {action} 成功完成"
+            else: # action_successful is False
+                if final_status in ["recall", "start", "unknown"]: # 如果状态还是初始或未定
+                    # 尝试从 conversation_info 获取更具体的失败原因
+                    specific_rejection_reason = getattr(conversation_info, "last_reply_rejection_reason", None)
+                    if specific_rejection_reason and (not final_reason or final_reason == "动作未成功执行"):
+                        final_reason = f"执行失败: {specific_rejection_reason}"
+                    elif not final_reason or final_reason == "动作未成功执行":
+                        final_reason = f"动作 {action} 执行失败或被中止"
+                # 如果 final_status 已经是 "error", "cancelled", "max_checker_attempts_failed" 等，则保留
+
             conversation_info.done_action[action_index].update(
                 {
                     "status": final_status,
@@ -764,18 +921,50 @@ async def handle_action(
                 f"[私聊][{conversation_instance.private_name}] 无法更新动作历史记录，索引 {action_index} 无效或列表为空。"
             )
 
-        # 最终日志输出
-        log_final_reason = final_reason if final_reason else "无明确原因"
-        # 为成功发送的动作添加发送内容摘要
+        # --- 统一设置 ConversationState ---
+        if final_status == "done" or final_status == "done_no_reply" or final_status == "recall":
+            # "recall" 状态也应该回到 ANALYZING 准备重新规划
+            conversation_instance.state = ConversationState.ANALYZING
+        elif final_status == "error" or final_status == "max_checker_attempts_failed":
+            conversation_instance.state = ConversationState.ERROR
+        # 对于 "cancelled", "listening", "waiting", "ignored", "ended" 等状态，
+        # 它们应该在各自的动作逻辑内部或者由外部 (如 loop) 来决定下一个 ConversationState。
+        # 例如，end_conversation/say_goodbye 会设置 should_continue=False，loop 会退出。
+        # listening/wait 会在动作完成后（可能因为新消息或超时）使 loop 自然进入下一轮 ANALYZING。
+        # cancelled 会让 loop 捕获异常并停止。
+
+        # 重置非回复动作的追问状态 (确保 send_memes 被视为回复动作)
+        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes"]: # <--- 把 send_memes 加到这里
+            if conversation_info:
+                conversation_info.last_successful_reply_action = None
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None
+        
+        # 清理表情查询（如果动作不是send_memes但查询还存在，或者send_memes失败了）
+        if action != "send_memes" or not action_successful:
+            if conversation_info and hasattr(conversation_info, 'current_emoji_query'):
+                conversation_info.current_emoji_query = None
+
+
+        log_final_reason_msg = final_reason if final_reason else "无明确原因"
         if (
             final_status == "done"
             and action_successful
-            and action in ["direct_reply", "send_new_message"]
+            and action in ["direct_reply", "send_new_message"] # send_memes 的发送内容不同
             and hasattr(conversation_instance, "generated_reply")
             and conversation_instance.generated_reply
         ):
-            log_final_reason += f" (发送内容: '{conversation_instance.generated_reply[:30]}...')"
+            log_final_reason_msg += f" (发送内容: '{conversation_instance.generated_reply[:30]}...')"
+        elif (
+            final_status == "done"
+            and action_successful
+            and action == "send_memes"
+            # emoji_description 在 send_memes 内部获取，这里不再重复记录到 log_final_reason_msg，
+            # 因为 logger.info 已经记录过发送的表情描述
+        ):
+            pass
+
 
         logger.info(
-            f"[私聊][{conversation_instance.private_name}] 动作 '{action}' 处理完成。最终状态: {final_status}, 原因: {log_final_reason}"
+            f"[私聊][{conversation_instance.private_name}] 动作 '{action}' 处理完成。最终状态: {final_status}, 原因: {log_final_reason_msg}"
         )

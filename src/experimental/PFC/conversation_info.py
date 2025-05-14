@@ -16,3 +16,4 @@ class ConversationInfo:
         self.current_emotion_text: Optional[str] = "心情平静。"  # 机器人当前的情绪描述文本
         self.current_instance_message_count: int = 0  # 当前私聊实例中的消息计数
         self.other_new_messages_during_planning_count: int = 0  # 在计划阶段期间收到的其他新消息计数
+        self.current_emoji_query: Optional[str] = None # 表情包

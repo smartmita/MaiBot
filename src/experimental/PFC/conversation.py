@@ -1,8 +1,10 @@
 import time
 import asyncio
 import traceback
+import os
 from typing import Dict, Any, Optional
-
+from src.chat.emoji_system.emoji_manager import emoji_manager
+from maim_message import Seg
 from src.common.logger_manager import get_logger
 from maim_message import UserInfo
 from src.chat.message_receive.chat_stream import chat_manager, ChatStream
