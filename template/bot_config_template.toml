@@ -1,5 +1,5 @@
 [inner]
-version = "1.7.0.1"
+version = "1.7.0.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -212,12 +212,12 @@ rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名�
 [pfc]
 enable_pfc_chatting = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
 pfc_message_buffer_size = 2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
-pfc_recent_history_display_count = 20  # PFC 对话最大可见上下文
+pfc_recent_history_display_count = 18  # PFC 对话最大可见上下文
 
 [[pfc.checker]]
 enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 pfc_max_reply_attempts = 3  # 发言最多尝试次数
-pfc_max_chat_history_for_checker = 50  # checker聊天记录最大可见上文长度
+pfc_max_chat_history_for_checker = 30  # checker聊天记录最大可见上文长度
 
 [[pfc.emotion]]
 pfc_emotion_update_intensity = 0.6  # 情绪更新强度
@@ -233,7 +233,7 @@ pfc_relationship_final_default_change =5.0  # 会话结束时，关系值默认�
 pfc_relationship_final_max_change = 50.0  # 会话结束时，关系值最大可变值
 
 [[pfc.fallback]]
-pfc_historical_fallback_exclude_seconds = 7200 # pfc 翻看聊天记录排除最近时长
+pfc_historical_fallback_exclude_seconds = 45 # pfc 翻看聊天记录排除最近时长
 
 [[pfc.idle_chat]]
 enable_idle_chat = true # 是否启用 pfc 主动发言

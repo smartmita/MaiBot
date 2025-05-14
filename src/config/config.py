@@ -294,12 +294,12 @@ class BotConfig:
     pfc_message_buffer_size: int = (
         2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
     )
-    pfc_recent_history_display_count: int = 20  # PFC 对话最大可见上下文
+    pfc_recent_history_display_count: int = 18  # PFC 对话最大可见上下文
 
     # pfc.checker
     enable_pfc_reply_checker: bool = True  # 是否启用 PFC 的回复检查器
     pfc_max_reply_attempts: int = 3  # 发言最多尝试次数
-    pfc_max_chat_history_for_checker: int = 50  # checker聊天记录最大可见上文长度
+    pfc_max_chat_history_for_checker: int = 30  # checker聊天记录最大可见上文长度
 
     # pfc.emotion
     pfc_emotion_update_intensity: float = 0.6  # 情绪更新强度
@@ -317,7 +317,7 @@ class BotConfig:
     pfc_relationship_final_max_change: float = 50.0  # 会话结束时，关系值最大可变值
 
     # pfc.fallback
-    pfc_historical_fallback_exclude_seconds: int = 7200  # pfc 翻看聊天记录排除最近时长
+    pfc_historical_fallback_exclude_seconds: int = 45  # pfc 翻看聊天记录排除最近时长
 
     # pfc.idle_chat
     enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
