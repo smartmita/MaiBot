@@ -12,7 +12,7 @@ from .mind import Mind
 from .interest_logger import InterestLogger  # Import InterestLogger
 from .background_tasks import BackgroundTaskManager  # Import BackgroundTaskManager
 
-logger = get_logger("L_heartflow")
+logger = get_logger("heartflow")
 
 
 class Heartflow:

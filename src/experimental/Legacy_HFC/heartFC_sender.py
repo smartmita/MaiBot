@@ -14,7 +14,7 @@ from rich.traceback import install
 install(extra_lines=3)
 
 
-logger = get_logger("L_sender")
+logger = get_logger("sender")
 
 
 async def send_message(message: MessageSending) -> None:

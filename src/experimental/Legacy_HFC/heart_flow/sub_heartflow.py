@@ -15,7 +15,7 @@ from .utils_chat import get_chat_type_and_target_info
 from .interest_chatting import InterestChatting
 
 
-logger = get_logger("L_sub_heartflow")
+logger = get_logger("sub_heartflow")
 
 
 class SubHeartflow:

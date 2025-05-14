@@ -10,7 +10,7 @@ from .subheartflow_manager import SubHeartflowManager
 from .interest_logger import InterestLogger
 
 
-logger = get_logger("L_background_tasks")
+logger = get_logger("background_tasks")
 
 
 # 新增兴趣评估间隔

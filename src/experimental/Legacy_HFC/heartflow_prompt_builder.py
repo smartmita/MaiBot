@@ -18,7 +18,7 @@ from src.plugins.group_nickname.nickname_manager import nickname_manager
 import traceback
 from .heartFC_Cycleinfo import CycleInfo
 
-logger = get_logger("L_prompt")
+logger = get_logger("prompt")
 
 
 def init_prompt():

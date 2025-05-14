@@ -24,7 +24,7 @@ from ...config.config import global_config
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 
 
-logger = get_logger("L_chat")
+logger = get_logger("chat")
 
 
 class NormalChat:

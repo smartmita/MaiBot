@@ -25,7 +25,7 @@ import traceback
 
 # 初始化日志记录器
 
-logger = get_logger("L_subheartflow_manager")
+logger = get_logger("subheartflow_manager")
 
 # 子心流管理相关常量
 INACTIVE_THRESHOLD_SECONDS = 3600  # 子心流不活跃超时时间(秒)

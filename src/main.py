@@ -9,6 +9,7 @@ from .chat.emoji_system.emoji_manager import emoji_manager
 from .chat.person_info.person_info import person_info_manager
 from .chat.normal_chat.willing.willing_manager import willing_manager
 from .chat.message_receive.chat_stream import chat_manager
+from src.experimental.Legacy_HFC.schedule.schedule_generator import bot_schedule
 from src.chat.heart_flow.heartflow import heartflow
 from src.experimental.Legacy_HFC.heart_flow.heartflow import heartflow as legacy_heartflow
 from .chat.memory_system.Hippocampus import HippocampusManager
@@ -79,6 +80,15 @@ class MainSystem:
 
         # 启动愿望管理器
         await willing_manager.async_task_starter()
+
+        # 初始化日程
+        bot_schedule.initialize(
+            name=global_config.BOT_NICKNAME,
+            personality=global_config.personality_core,
+            behavior=global_config.PROMPT_SCHEDULE_GEN,
+            interval=global_config.SCHEDULE_DOING_UPDATE_INTERVAL,
+        )
+        asyncio.create_task(bot_schedule.mai_schedule_start())
 
         # 初始化聊天管理器
         await chat_manager._initialize()

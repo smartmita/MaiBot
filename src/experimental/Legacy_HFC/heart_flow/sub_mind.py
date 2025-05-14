@@ -21,7 +21,7 @@ from src.chat.memory_system.Hippocampus import HippocampusManager
 import jieba
 
 
-logger = get_logger("L_sub_heartflow")
+logger = get_logger("sub_heartflow")
 
 
 def init_prompt():

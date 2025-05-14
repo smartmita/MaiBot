@@ -21,7 +21,7 @@ schedule_config = LogConfig(
     console_format=SCHEDULE_STYLE_CONFIG["console_format"],
     file_format=SCHEDULE_STYLE_CONFIG["file_format"],
 )
-logger = get_module_logger("L_scheduler", config=schedule_config)
+logger = get_module_logger("scheduler", config=schedule_config)
 
 
 class ScheduleGenerator:

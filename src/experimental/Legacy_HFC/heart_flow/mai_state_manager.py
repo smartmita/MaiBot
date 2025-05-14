@@ -6,7 +6,7 @@ from src.common.logger_manager import get_logger
 from src.manager.mood_manager import mood_manager
 from src.config.config import global_config
 
-logger = get_logger("L_mai_state")
+logger = get_logger("mai_state")
 
 
 # -- 状态相关的可配置参数 (可以从 glocal_config 加载) --

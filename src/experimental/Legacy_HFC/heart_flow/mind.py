@@ -13,7 +13,7 @@ if TYPE_CHECKING:
     from .mai_state_manager import MaiStateInfo
 
 
-logger = get_logger("L_sub_heartflow_mind")
+logger = get_logger("sub_heartflow_mind")
 
 
 class Mind:

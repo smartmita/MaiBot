@@ -10,7 +10,7 @@ import math
 # 定义常量 (从 interest.py 移动过来)
 MAX_INTEREST = 15.0
 
-logger = get_logger("L_interest_chatting")
+logger = get_logger("interest_chatting")
 
 PROBABILITY_INCREASE_RATE_PER_SECOND = 0.1
 PROBABILITY_DECREASE_RATE_PER_SECOND = 0.1

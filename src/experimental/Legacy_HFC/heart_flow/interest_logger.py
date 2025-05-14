@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .heartflow import Heartflow  # 导入 Heartflow 类型
 
 
-logger = get_logger("L_interest")
+logger = get_logger("interest")
 
 # Consider moving log directory/filename constants here
 LOG_DIRECTORY = "logs/interest"

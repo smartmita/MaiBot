@@ -9,6 +9,7 @@ from src.common.logger import (
     RELATION_STYLE_CONFIG,
     CONFIG_STYLE_CONFIG,
     HEARTFLOW_STYLE_CONFIG,
+    SCHEDULE_STYLE_CONFIG,
     LLM_STYLE_CONFIG,
     CHAT_STYLE_CONFIG,
     EMOJI_STYLE_CONFIG,
@@ -55,6 +56,7 @@ MODULE_LOGGER_CONFIGS = {
     "relation": RELATION_STYLE_CONFIG,  # 关系
     "config": CONFIG_STYLE_CONFIG,  # 配置
     "heartflow": HEARTFLOW_STYLE_CONFIG,  # 麦麦大脑袋
+    "L_schedule": SCHEDULE_STYLE_CONFIG,  # 在干嘛
     "llm": LLM_STYLE_CONFIG,  # 麦麦组织语言
     "chat": CHAT_STYLE_CONFIG,  # 见闻
     "emoji": EMOJI_STYLE_CONFIG,  # 表情包

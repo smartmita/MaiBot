@@ -14,7 +14,7 @@ from src.chat.utils.timer_calculator import Timer
 from src.chat.person_info.relationship_manager import relationship_manager
 from typing import Optional, Tuple, Dict, Any
 
-logger = get_logger("L_chat")
+logger = get_logger("chat")
 
 
 async def _handle_error(error: Exception, context: str, message: Optional[MessageRecv] = None) -> None:

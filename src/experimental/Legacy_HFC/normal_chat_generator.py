@@ -10,7 +10,7 @@ from src.common.logger_manager import get_logger
 from src.chat.utils.info_catcher import info_catcher_manager
 
 
-logger = get_logger("L_llm")
+logger = get_logger("llm")
 
 
 class NormalChatGenerator:

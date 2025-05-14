@@ -20,7 +20,7 @@ from src.chat.message_receive.message import MessageRecv  # 添加 MessageRecv �
 # Import the new utility function
 from .utils_chat import get_chat_type_and_target_info
 
-logger = get_logger("L_observation")
+logger = get_logger("observation")
 
 # --- Define Prompt Templates for Chat Summary ---
 Prompt(
