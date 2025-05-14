@@ -124,6 +124,7 @@ def init_prompt():
     <format_instruction>
         你必须从available_actions列出的可用行动中选择一个，并说明原因。
         你的决策必须以严格的 JSON 格式输出，且仅包含 JSON 内容，不要有任何其他文字或解释。
+        默认使用中文。
         JSON 结构如下，包含三个字段 "action", "reasoning", "emoji_query":
     </format_instruction>
     <json_structure>
