@@ -13,7 +13,7 @@ from .chat_states import NotificationHandler, NotificationType, Notification
 
 logger = get_logger("pfc_observation_info")
 
-TIME_ZONE = tz.gettz(global_config.TIME_ZONE if global_config else "Asia/Shanghai")  # 使用配置的时区，提供默认值
+TIME_ZONE = tz.gettz("Asia/Shanghai")  # 使用配置的时区，提供默认值
 
 
 class ObservationInfoHandler(NotificationHandler):
