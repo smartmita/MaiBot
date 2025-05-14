@@ -1,8 +1,7 @@
 import os
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Any
-from dateutil import tz
+from typing import Dict, List, Optional
 
 import tomli
 import tomlkit
@@ -23,9 +22,9 @@ install(extra_lines=3)
 logger = get_logger("config")
 
 # 考虑到，实际上配置文件中的mai_version是不会自动更新的,所以采用硬编码
-is_test = False
-mai_version_main = "0.6.3"
-mai_version_fix = "fix-3"
+is_test = True
+mai_version_main = "0.6.4"
+mai_version_fix = "snapshot-1"
 
 if mai_version_fix:
     if is_test:
@@ -153,6 +152,7 @@ class BotConfig:
             "用一句话或几句话描述人格的一些侧面",
         ]
     )
+    expression_style = "描述麦麦说话的表达风格，表达习惯"
     # identity
     identity_detail: List[str] = field(
         default_factory=lambda: [
@@ -165,13 +165,6 @@ class BotConfig:
     age: int = 20  # 年龄 单位岁
     gender: str = "男"  # 性别
     appearance: str = "用几句话描述外貌特征"  # 外貌特征
-
-    # schedule
-    ENABLE_SCHEDULE_GEN: bool = False  # 是否启用日程生成
-    PROMPT_SCHEDULE_GEN = "无日程"
-    SCHEDULE_DOING_UPDATE_INTERVAL: int = 300  # 日程表更新间隔 单位秒
-    SCHEDULE_TEMPERATURE: float = 0.5  # 日程表温度，建议0.5-1.0
-    TIME_ZONE: str = "Asia/Shanghai"  # 时区
 
     # chat
     allow_focus_mode: bool = True  # 是否允许专注聊天状态
@@ -298,7 +291,7 @@ class BotConfig:
     llm_heartflow: Dict[str, str] = field(default_factory=lambda: {})
     llm_tool_use: Dict[str, str] = field(default_factory=lambda: {})
     llm_plan: Dict[str, str] = field(default_factory=lambda: {})
-    llm_nickname_mapping: Dict[str, Any] = field(default_factory=dict)
+    llm_nickname_mapping: Dict[str, str] = field(default_factory=dict)
 
     api_urls: Dict[str, str] = field(default_factory=lambda: {})
 
@@ -370,6 +363,8 @@ class BotConfig:
             if config.INNER_VERSION in SpecifierSet(">=1.2.4"):
                 config.personality_core = personality_config.get("personality_core", config.personality_core)
                 config.personality_sides = personality_config.get("personality_sides", config.personality_sides)
+            if config.INNER_VERSION in SpecifierSet(">=1.7.0"):
+                config.expression_style = personality_config.get("expression_style", config.expression_style)
 
         def identity(parent: dict):
             identity_config = parent["identity"]
@@ -380,24 +375,6 @@ class BotConfig:
                 config.age = identity_config.get("age", config.age)
                 config.gender = identity_config.get("gender", config.gender)
                 config.appearance = identity_config.get("appearance", config.appearance)
-
-        def schedule(parent: dict):
-            schedule_config = parent["schedule"]
-            config.ENABLE_SCHEDULE_GEN = schedule_config.get("enable_schedule_gen", config.ENABLE_SCHEDULE_GEN)
-            config.PROMPT_SCHEDULE_GEN = schedule_config.get("prompt_schedule_gen", config.PROMPT_SCHEDULE_GEN)
-            config.SCHEDULE_DOING_UPDATE_INTERVAL = schedule_config.get(
-                "schedule_doing_update_interval", config.SCHEDULE_DOING_UPDATE_INTERVAL
-            )
-            logger.info(
-                f"载入自定义日程prompt:{schedule_config.get('prompt_schedule_gen', config.PROMPT_SCHEDULE_GEN)}"
-            )
-            if config.INNER_VERSION in SpecifierSet(">=1.0.2"):
-                config.SCHEDULE_TEMPERATURE = schedule_config.get("schedule_temperature", config.SCHEDULE_TEMPERATURE)
-                time_zone = schedule_config.get("time_zone", config.TIME_ZONE)
-                if tz.gettz(time_zone) is None:
-                    logger.error(f"无效的时区: {time_zone}，使用默认值: {config.TIME_ZONE}")
-                else:
-                    config.TIME_ZONE = time_zone
 
         def emoji(parent: dict):
             emoji_config = parent["emoji"]
@@ -413,7 +390,7 @@ class BotConfig:
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
         def group_nickname(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.3"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 group_nickname_config = parent.get("group_nickname", {})
                 config.enable_nickname_mapping = group_nickname_config.get(
                     "enable_nickname_mapping", config.enable_nickname_mapping
@@ -681,12 +658,6 @@ class BotConfig:
             # config.ban_user_id = set(groups_config.get("ban_user_id", []))
             config.ban_user_id = set(str(user) for user in groups_config.get("ban_user_id", []))
 
-        def platforms(parent: dict):
-            platforms_config = parent["platforms"]
-            if platforms_config and isinstance(platforms_config, dict):
-                for k in platforms_config.keys():
-                    config.api_urls[k] = platforms_config[k]
-
         def experimental(parent: dict):
             experimental_config = parent["experimental"]
             config.enable_friend_chat = experimental_config.get("enable_friend_chat", config.enable_friend_chat)
@@ -714,7 +685,6 @@ class BotConfig:
             "groups": {"func": groups, "support": ">=0.0.0"},
             "personality": {"func": personality, "support": ">=0.0.0"},
             "identity": {"func": identity, "support": ">=1.2.4"},
-            "schedule": {"func": schedule, "support": ">=0.0.11", "necessary": False},
             "emoji": {"func": emoji, "support": ">=0.0.0"},
             "model": {"func": model, "support": ">=0.0.0"},
             "memory": {"func": memory, "support": ">=0.0.0", "necessary": False},
@@ -722,13 +692,12 @@ class BotConfig:
             "remote": {"func": remote, "support": ">=0.0.10", "necessary": False},
             "keywords_reaction": {"func": keywords_reaction, "support": ">=0.0.2", "necessary": False},
             "chinese_typo": {"func": chinese_typo, "support": ">=0.0.3", "necessary": False},
-            "platforms": {"func": platforms, "support": ">=1.0.0"},
             "response_splitter": {"func": response_splitter, "support": ">=0.0.11", "necessary": False},
             "experimental": {"func": experimental, "support": ">=0.0.11", "necessary": False},
             "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
-            "group_nickname": {"func": group_nickname, "support": ">=1.6.3", "necessary": False},
+            "group_nickname": {"func": group_nickname, "support": ">=1.7.1", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象

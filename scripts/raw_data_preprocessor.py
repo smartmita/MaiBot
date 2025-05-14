@@ -6,7 +6,7 @@ import datetime  # 新增导入
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from src.common.logger_manager import get_logger
-from src.plugins.knowledge.src.lpmmconfig import global_config
+from src.chat.knowledge.src.lpmmconfig import global_config
 
 logger = get_logger("lpmm")
 ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))

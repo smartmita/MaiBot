@@ -1,5 +1,5 @@
 [inner]
-version = "1.6.3"
+version = "1.7.1"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -43,6 +43,10 @@ personality_sides = [
     "用一句话或几句话描述人格的一些细节",
 ]# 条数任意，不能为0, 该选项还在调试中，可能未完全生效
 
+# 表达方式
+expression_style = "描述麦麦说话的表达风格，表达习惯"
+
+
 [identity] #アイデンティティがない 生まれないらららら
 # 兴趣爱好 未完善，有些条目未使用
 identity_detail = [
@@ -54,23 +58,15 @@ age = 20 # 年龄 单位岁
 gender = "男" # 性别 
 appearance = "用几句话描述外貌特征" # 外貌特征 该选项还在调试中，暂时未生效
 
-[schedule]
-enable_schedule_gen = true # 是否启用日程表
-enable_schedule_interaction = true # 日程表是否影响回复模式
-prompt_schedule_gen = "用几句话描述描述性格特点或行动规律，这个特征会用来生成日程表"
-schedule_doing_update_interval = 900 # 日程表更新间隔 单位秒
-schedule_temperature = 0.1 # 日程表温度，建议0.1-0.5
-time_zone = "Asia/Shanghai" # 给你的机器人设置时区，可以解决运行电脑时区和国内时区不同的情况，或者模拟国外留学生日程
-
 [platforms] # 必填项目，填写每个平台适配器提供的链接
-nonebot-qq="http://127.0.0.1:18002/api/message"
+qq="http://127.0.0.1:18002/api/message"
 
 [chat] #麦麦的聊天通用设置
-allow_focus_mode = true # 是否允许专注聊天状态
+allow_focus_mode = false # 是否允许专注聊天状态
 # 是否启用heart_flowC(HFC)模式
 # 启用后麦麦会自主选择进入heart_flowC模式（持续一段时间），进行主动的观察和回复，并给出回复，比较消耗token
-base_normal_chat_num = 8 # 最多允许多少个群进行普通聊天
-base_focused_chat_num = 5 # 最多允许多少个群进行专注聊天
+base_normal_chat_num = 999 # 最多允许多少个群进行普通聊天
+base_focused_chat_num = 4 # 最多允许多少个群进行专注聊天
 
 observation_context_size = 15 # 观察到的最长上下文大小,建议15，太短太长都会导致脑袋尖尖
 message_buffer = true # 启用消息缓冲器？启用此项以解决消息的拆分问题，但会使麦麦的回复延迟
@@ -95,7 +91,7 @@ model_normal_probability = 0.3 # 麦麦回答时选择一般模型 模型的概�
 emoji_chance = 0.2 # 麦麦一般回复时使用表情包的概率，设置为1让麦麦自己决定发不发
 thinking_timeout = 100 # 麦麦最长思考时间，超过这个时间的思考会放弃（往往是api反应太慢）
 
-willing_mode = "classical" # 回复意愿模式 —— 经典模式：classical，动态模式：dynamic，mxp模式：mxp，自定义模式：custom（需要你自己实现）
+willing_mode = "classical" # 回复意愿模式 —— 经典模式：classical，mxp模式：mxp，自定义模式：custom（需要你自己实现）
 response_willing_amplifier = 1 # 麦麦回复意愿放大系数，一般为1
 response_interested_rate_amplifier = 1 # 麦麦回复兴趣度放大系数,听到记忆里的内容时放大系数
 down_frequency_rate = 3 # 降低回复频率的群组回复意愿降低系数 除法

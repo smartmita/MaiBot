@@ -63,36 +63,6 @@ describe = "外貌特征描述，该选项还在调试中，暂时未生效"
 important = false
 can_edit = true
 
-[schedule.enable_schedule_gen]
-describe = "是否启用日程表"
-important = false
-can_edit = true
-
-[schedule.enable_schedule_interaction]
-describe = "日程表是否影响回复模式"
-important = false
-can_edit = true
-
-[schedule.prompt_schedule_gen]
-describe = "用几句话描述描述性格特点或行动规律，这个特征会用来生成日程表"
-important = false
-can_edit = true
-
-[schedule.schedule_doing_update_interval]
-describe = "日程表更新间隔，单位秒"
-important = false
-can_edit = true
-
-[schedule.schedule_temperature]
-describe = "日程表温度，建议0.1-0.5"
-important = false
-can_edit = true
-
-[schedule.time_zone]
-describe = "时区设置，可以解决运行电脑时区和国内时区不同的情况，或者模拟国外留学生日程"
-important = false
-can_edit = true
-
 [platforms.nonebot-qq]
 describe = "nonebot-qq适配器提供的链接"
 important = true
