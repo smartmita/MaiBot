@@ -2,6 +2,7 @@ from .observation import ChattingObservation
 from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
+from ..schedule.schedule_generator import bot_schedule
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 import time
@@ -45,6 +46,7 @@ def init_prompt():
 <recent_internal_state>
     <previous_thoughts_and_actions>{last_loop_prompt}</previous_thoughts_and_actions>
     <recent_reply_history>{cycle_info_block}</recent_reply_history>
+    <current_schedule>你现在正在做的事情是：{schedule_info}</current_schedule>
     <current_mood>你现在{mood_info}</current_mood>
 </recent_internal_state>
 
@@ -62,7 +64,7 @@ def init_prompt():
 
 
 <output_requirements_for_inner_thought>
-1. 根据聊天内容生成你的想法，{hf_do_next}
+1. 根据聊天内容生成你的想法（如果你现在很忙或没时间，可以倾向选择不回复），{hf_do_next}
 2. 不要分点、不要使用表情符号
 3. 避免多余符号(冒号、引号、括号等)
 4. 语言简洁自然，不要浮夸
@@ -91,6 +93,8 @@ def init_prompt():
 {cycle_info_block}
 现在是{time_now}，你正在上网，和 {chat_target_name} 私聊，以下是你们的聊天内容：
 {chat_observe_info}
+
+你现在正在做的事情是：{schedule_info}
 
 你现在{mood_info}
 请仔细阅读聊天内容，想想你和 {chat_target_name} 的关系，回顾你们刚刚的交流,你刚刚发言和对方的反应，思考聊天的主题。
@@ -300,6 +304,16 @@ class SubMind:
         # 获取观察内容
         chat_observe_info = observation.get_observe_info()
         person_list = observation.person_list
+
+        try:
+            # 获取当前正在做的一件事情，不包含时间信息，以保持简洁
+            # 你可以根据需要调整 num 和 time_info 参数
+            current_schedule_info = bot_schedule.get_current_num_task(num=1, time_info=False)
+            if not current_schedule_info: # 如果日程为空，给一个默认提示
+                current_schedule_info = "当前没有什么特别的安排。"
+        except Exception as e:
+            logger.error(f"{self.log_prefix} 获取日程信息时出错: {e}")
+            current_schedule_info = "摸鱼发呆。"
 
         # ---------- 2. 获取记忆 ----------
         try:
@@ -598,6 +612,7 @@ class SubMind:
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
                 nickname_info=nickname_injection_str,
+                schedule_info=current_schedule_info, 
                 # chat_target_name is not used in group prompt
             )
         else:  # Private chat
@@ -614,6 +629,7 @@ class SubMind:
                 hf_do_next=hf_do_next,
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
+                schedule_info=current_schedule_info, 
             )
         # --- End choosing template ---
 
