@@ -251,7 +251,7 @@ class StatisticOutputTask(AsyncTask):
                     continue
 
 
-            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+            for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if record_timestamp >= period_start_time:
                     for period_key_to_update, _ in collect_period[idx:]:
                         stats[period_key_to_update][TOTAL_REQ_CNT] += 1
@@ -321,7 +321,7 @@ class StatisticOutputTask(AsyncTask):
 
             actual_end_timestamp = min(record_end_timestamp, now)
 
-            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+            for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if record_start_timestamp < now and actual_end_timestamp > period_start_time:
                     overlap_start = max(record_start_timestamp, period_start_time)
                     overlap_end = min(actual_end_timestamp, now) 
@@ -395,7 +395,7 @@ class StatisticOutputTask(AsyncTask):
                 self.name_mapping[chat_id] = (chat_name, message_time_ts)
 
 
-            for idx, (current_period_key, period_start_time) in enumerate(collect_period):
+            for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if message_datetime >= period_start_time:
                     for period_key_to_update, _ in collect_period[idx:]:
                         stats[period_key_to_update][TOTAL_MSG_CNT] += 1

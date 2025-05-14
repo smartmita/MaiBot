@@ -289,7 +289,7 @@ class DefaultExpressor:
             try:
                 if not mark_head:
                     mark_head = True
-                    first_bot_msg = bot_message  # 保存第一个成功发送的消息对象
+                    _first_bot_msg = bot_message  # 保存第一个成功发送的消息对象
                     typing = False
                 else:
                     typing = True

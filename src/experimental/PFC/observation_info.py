@@ -5,7 +5,6 @@ from typing import List, Optional, Dict, Any, Set
 from maim_message import UserInfo
 from src.common.logger_manager import get_logger
 from src.chat.utils.chat_message_builder import build_readable_messages
-from src.config.config import global_config
 
 # 确保导入路径正确
 from .chat_observer import ChatObserver
