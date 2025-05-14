@@ -20,7 +20,7 @@ from ...config.config import global_config
 logger = get_module_logger("chat_utils")
 
 # 预编译正则表达式以提高性能
-_LETTER_NOT_HAN_REGEX = regex.compile(r'\p{L}&^\p{Han}')
+_LETTER_NOT_HAN_REGEX = regex.compile(r'[\p{L}&&\P{Han}]')
 _HAN_CHAR_REGEX = regex.compile(r'\p{Han}')
 
 def is_english_letter(char: str) -> bool:
