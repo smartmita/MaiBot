@@ -87,7 +87,7 @@ def init_prompt():
             - 最后一条消息是{bot_name}自己发的且无人回应{bot_name}，同时{bot_name}也没有别的想要回复的消息
             - 讨论不了解的专业话题，或你不知道的梗，且对{bot_name}来说似乎没那么重要
             - {bot_name}发送了太多消息，且无人回复
-            - （特殊情况）{bot_name}的内心想法返回错误/无返回
+            - （特殊情况）{bot_name}的内心想法返回错误/无返回/无想法
         </principle_no_reply>
 
         <principle_text_reply>
@@ -254,15 +254,15 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     )
 
     prompt_ger = ""
-    if random.random() < 0.20:
-        prompt_ger += "不用输出对方的网名或绰号"
+    if random.random() < 0.60:
+        prompt_ger += "**不用输出对方的网名或绰号**"
     if random.random() < 0.00:
         prompt_ger += "你喜欢用反问句"
 
     reply_styles1 = [
-        ("给出日常且口语化的回复，平淡一些", 0.4),
-        ("给出非常简短的回复", 0.4),
-        ("**给出省略主语的回复，简短**", 0.15),
+        ("给出日常且口语化的回复，平淡一些", 0.40),
+        ("给出非常简短的回复", 0.30),
+        ("**给出省略主语的回复，简短**", 0.30),
         ("给出带有语病的回复，朴实平淡", 0.00),
     ]
     reply_style1_chosen = random.choices(
@@ -404,8 +404,8 @@ class PromptBuilder:
         reply_styles2 = [
             ("不用回复的太有条理，可以有个性", 0.75),  # 60%概率
             ("不用回复的太有条理，可以复读", 0.0),  # 15%概率
-            ("回复的认真一些", 0.2),  # 20%概率
-            ("可以回复单个表情符号", 0.05),  # 5%概率
+            ("回复的认真一些", 0.25),  # 20%概率
+            ("可以回复单个表情符号", 0.00),  # 5%概率
         ]
         reply_style2_chosen = random.choices(
             [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
