@@ -258,7 +258,7 @@ class DefaultExpressor:
             return None
 
         mark_head = False
-        first_bot_msg: Optional[MessageSending] = None
+        _first_bot_msg: Optional[MessageSending] = None
         reply_message_ids = []  # 记录实际发送的消息ID
         
         sent_msg_list = []
