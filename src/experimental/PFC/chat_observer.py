@@ -15,7 +15,7 @@ from rich.traceback import install
 
 install(extra_lines=3)
 
-logger = get_logger("chat_observer")
+logger = get_logger("pfc_chat_observer")
 
 
 class ChatObserver:

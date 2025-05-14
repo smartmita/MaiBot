@@ -12,7 +12,7 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .pfc_utils import build_chat_history_text
 
-logger = get_logger("reply_generator")
+logger = get_logger("pfc_reply")
 
 PROMPT_GER_VARIATIONS = [
     ("不用输出或提及对方的网名或绰号", 0.50),
