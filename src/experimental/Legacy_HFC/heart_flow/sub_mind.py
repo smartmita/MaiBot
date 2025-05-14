@@ -572,7 +572,7 @@ class SubMind:
         if is_group_chat:
             template_name = "sub_heartflow_prompt_before"
 
-            chat_stream = await chat_manager.get_stream(self.subheartflow_id)
+            chat_stream = chat_manager.get_stream(self.subheartflow_id)
             if not chat_stream:
                 logger.error(f"{self.log_prefix} 无法获取 chat_stream，无法生成绰号信息。")
                 nickname_injection_str = "[获取群成员绰号信息失败]"
