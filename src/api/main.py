@@ -3,7 +3,7 @@ from strawberry.fastapi import GraphQLRouter
 import os
 import sys
 
-# from src.heart_flow.heartflow import heartflow
+# from src.chat.heart_flow.heartflow import heartflow
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 # from src.config.config import BotConfig
 from src.common.logger_manager import get_logger
@@ -15,7 +15,7 @@ from src.api.apiforgui import (
     get_subheartflow_cycle_info,
     get_all_states,
 )
-from src.heart_flow.sub_heartflow import ChatState
+from src.chat.heart_flow.sub_heartflow import ChatState
 from src.api.basic_info_api import get_all_basic_info  # 新增导入
 
 # import uvicorn

@@ -13,10 +13,12 @@ llm_tool_benchmark_results.json
 MaiBot-Napcat-Adapter-main
 MaiBot-Napcat-Adapter
 /test
+/log_debug
 /src/test
 nonebot-maibot-adapter/
 *.zip
 run.bat
+log_debug/
 run_none.bat
 run.py
 message_queue_content.txt
@@ -25,8 +27,8 @@ message_queue_window.bat
 message_queue_window.txt
 queue_update.txt
 memory_graph.gml
-/src/do_tool/tool_can_use/auto_create_tool.py
-/src/do_tool/tool_can_use/execute_python_code_tool.py
+/src/tools/tool_can_use/auto_create_tool.py
+/src/tools/tool_can_use/execute_python_code_tool.py
 .env
 .env.*
 .cursor
