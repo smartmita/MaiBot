@@ -309,7 +309,7 @@ class SubMind:
             # 获取当前正在做的一件事情，不包含时间信息，以保持简洁
             # 你可以根据需要调整 num 和 time_info 参数
             current_schedule_info = bot_schedule.get_current_num_task(num=1, time_info=False)
-            if not current_schedule_info: # 如果日程为空，给一个默认提示
+            if not current_schedule_info:  # 如果日程为空，给一个默认提示
                 current_schedule_info = "当前没有什么特别的安排。"
         except Exception as e:
             logger.error(f"{self.log_prefix} 获取日程信息时出错: {e}")
@@ -612,7 +612,7 @@ class SubMind:
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
                 nickname_info=nickname_injection_str,
-                schedule_info=current_schedule_info, 
+                schedule_info=current_schedule_info,
                 # chat_target_name is not used in group prompt
             )
         else:  # Private chat
@@ -629,7 +629,7 @@ class SubMind:
                 hf_do_next=hf_do_next,
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
-                schedule_info=current_schedule_info, 
+                schedule_info=current_schedule_info,
             )
         # --- End choosing template ---
 
