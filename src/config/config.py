@@ -639,7 +639,7 @@ class BotConfig:
             config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
             if config.INNER_VERSION in SpecifierSet(">=1.1.0"):
                 config.enable_pfc_chatting = experimental_config.get("pfc_chatting", config.enable_pfc_chatting)
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.enable_pfc_reply_checker = experimental_config.get(
                     "enable_pfc_reply_checker", config.enable_pfc_reply_checker
                 )
@@ -650,7 +650,7 @@ class BotConfig:
 
         def idle_chat(parent: dict):
             idle_chat_config = parent["idle_chat"]
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.enable_idle_chat = idle_chat_config.get("enable_idle_chat", config.enable_idle_chat)
                 config.idle_check_interval = idle_chat_config.get("idle_check_interval", config.idle_check_interval)
                 config.min_cooldown = idle_chat_config.get("min_cooldown", config.min_cooldown)
@@ -687,7 +687,7 @@ class BotConfig:
             "chat": {"func": chat, "support": ">=1.6.0", "necessary": False},
             "normal_chat": {"func": normal_chat, "support": ">=1.6.0", "necessary": False},
             "focus_chat": {"func": focus_chat, "support": ">=1.6.0", "necessary": False},
-            "idle_chat": {"func": idle_chat, "support": ">=1.6.2", "necessary": False},
+            "idle_chat": {"func": idle_chat, "support": ">=1.7.1", "necessary": False},
         }
 
         # 原地修改，将 字符串版本表达式 转换成 版本对象
