@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 
 # 加载 .env 文件
-env_path = Path(__file__).resolve().parent.parent.parent / ".env"
+env_path = Path(os.getcwd()) / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # 保存原生处理器ID
@@ -29,8 +29,7 @@ _handler_registry: dict[str, List[int]] = {}
 _custom_style_handlers: dict[Tuple[str, str], List[int]] = {}  # 记录自定义样式处理器ID
 
 # 获取日志存储根地址
-current_file_path = Path(__file__).resolve()
-ROOT_PATH = os.path.abspath(os.path.join(current_file_path, "..", ".."))
+ROOT_PATH = os.getcwd()
 LOG_ROOT = str(ROOT_PATH) + "/" + "logs"
 
 SIMPLE_OUTPUT = os.getenv("SIMPLE_OUTPUT", "false").strip().lower()

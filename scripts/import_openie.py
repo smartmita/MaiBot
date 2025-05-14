@@ -10,22 +10,18 @@ from time import sleep
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from src.plugins.knowledge.src.lpmmconfig import PG_NAMESPACE, global_config
-from src.plugins.knowledge.src.embedding_store import EmbeddingManager
-from src.plugins.knowledge.src.llm_client import LLMClient
-from src.plugins.knowledge.src.open_ie import OpenIE
-from src.plugins.knowledge.src.kg_manager import KGManager
+from src.chat.knowledge.src.lpmmconfig import PG_NAMESPACE, global_config
+from src.chat.knowledge.src.embedding_store import EmbeddingManager
+from src.chat.knowledge.src.llm_client import LLMClient
+from src.chat.knowledge.src.open_ie import OpenIE
+from src.chat.knowledge.src.kg_manager import KGManager
 from src.common.logger import get_module_logger
-from src.plugins.knowledge.src.utils.hash import get_sha256
+from src.chat.knowledge.src.utils.hash import get_sha256
 
 
 # 添加项目根目录到 sys.path
 ROOT_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OPENIE_DIR = (
-    global_config["persistence"]["openie_data_path"]
-    if global_config["persistence"]["openie_data_path"]
-    else os.path.join(ROOT_PATH, "data/openie")
-)
+OPENIE_DIR = global_config["persistence"]["openie_data_path"] or os.path.join(ROOT_PATH, "data/openie")
 
 logger = get_module_logger("OpenIE导入")
 
@@ -49,14 +45,14 @@ def hash_deduplicate(
         new_triple_list_data: 去重后的三元组
     """
     # 保存去重后的段落
-    new_raw_paragraphs = dict()
+    new_raw_paragraphs = {}
     # 保存去重后的三元组
-    new_triple_list_data = dict()
+    new_triple_list_data = {}
 
     for _, (raw_paragraph, triple_list) in enumerate(zip(raw_paragraphs.values(), triple_list_data.values())):
         # 段落hash
         paragraph_hash = get_sha256(raw_paragraph)
-        if ((PG_NAMESPACE + "-" + paragraph_hash) in stored_pg_hashes) and (paragraph_hash in stored_paragraph_hashes):
+        if f"{PG_NAMESPACE}-{paragraph_hash}" in stored_pg_hashes and paragraph_hash in stored_paragraph_hashes:
             continue
         new_raw_paragraphs[paragraph_hash] = raw_paragraph
         new_triple_list_data[paragraph_hash] = triple_list
@@ -65,6 +61,7 @@ def hash_deduplicate(
 
 
 def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, kg_manager: KGManager) -> bool:
+    # sourcery skip: extract-method
     # 从OpenIE数据中提取段落原文与三元组列表
     # 索引的段落原文
     raw_paragraphs = openie_data.extract_raw_paragraph_dict()
@@ -117,7 +114,7 @@ def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, k
             return False
         # 新增：提示用户是否删除非法文段继续导入
         # 将print移到所有logger.error之后，确保不会被冲掉
-        logger.info("\n检测到非法文段，共{}条。".format(len(missing_idxs)))
+        logger.info(f"\n检测到非法文段，共{len(missing_idxs)}条。")
         logger.info("\n是否删除所有非法文段后继续导入？(y/n): ", end="")
         user_choice = input().strip().lower()
         if user_choice != "y":
@@ -133,10 +130,10 @@ def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, k
         raw_paragraphs = openie_data.extract_raw_paragraph_dict()
         entity_list_data = openie_data.extract_entity_dict()
         triple_list_data = openie_data.extract_triple_dict()
-        # 再次校验
-        if len(raw_paragraphs) != len(entity_list_data) or len(raw_paragraphs) != len(triple_list_data):
-            logger.error("删除非法文段后，数据仍不一致，程序终止。")
-            sys.exit(1)
+    # 再次校验
+    if len(raw_paragraphs) != len(entity_list_data) or len(raw_paragraphs) != len(triple_list_data):
+        logger.error("删除非法文段后，数据仍不一致，程序终止。")
+        sys.exit(1)
     # 将索引换为对应段落的hash值
     logger.info("正在进行段落去重与重索引")
     raw_paragraphs, triple_list_data = hash_deduplicate(
@@ -166,7 +163,7 @@ def handle_import_openie(openie_data: OpenIE, embed_manager: EmbeddingManager, k
     return True
 
 
-def main():
+def main():  # sourcery skip: dict-comprehension
     # 新增确认提示
     print("=== 重要操作确认 ===")
     print("OpenIE导入时会大量发送请求，可能会撞到请求速度上限，请注意选用的模型")
@@ -185,7 +182,7 @@ def main():
     logger.info("----开始导入openie数据----\n")
 
     logger.info("创建LLM客户端")
-    llm_client_list = dict()
+    llm_client_list = {}
     for key in global_config["llm_providers"]:
         llm_client_list[key] = LLMClient(
             global_config["llm_providers"][key]["base_url"],
@@ -198,7 +195,7 @@ def main():
     try:
         embed_manager.load_from_file()
     except Exception as e:
-        logger.error("从文件加载Embedding库时发生错误：{}".format(e))
+        logger.error(f"从文件加载Embedding库时发生错误：{e}")
         if "嵌入模型与本地存储不一致" in str(e):
             logger.error("检测到嵌入模型与本地存储不一致，已终止导入。请检查模型设置或清空嵌入库后重试。")
             logger.error("请保证你的嵌入模型从未更改,并且在导入时使用相同的模型")
@@ -213,7 +210,7 @@ def main():
     try:
         kg_manager.load_from_file()
     except Exception as e:
-        logger.error("从文件加载KG时发生错误：{}".format(e))
+        logger.error(f"从文件加载KG时发生错误：{e}")
         logger.error("如果你是第一次导入知识，请忽略此错误")
     logger.info("KG加载完成")
 
@@ -222,7 +219,7 @@ def main():
 
     # 数据比对：Embedding库与KG的段落hash集合
     for pg_hash in kg_manager.stored_paragraph_hashes:
-        key = PG_NAMESPACE + "-" + pg_hash
+        key = f"{PG_NAMESPACE}-{pg_hash}"
         if key not in embed_manager.stored_pg_hashes:
             logger.warning(f"KG中存在Embedding库中不存在的段落：{key}")
 
@@ -230,7 +227,7 @@ def main():
     try:
         openie_data = OpenIE.load()
     except Exception as e:
-        logger.error("导入OpenIE数据文件时发生错误：{}".format(e))
+        logger.error(f"导入OpenIE数据文件时发生错误：{e}")
         return False
     if handle_import_openie(openie_data, embed_manager, kg_manager) is False:
         logger.error("处理OpenIE数据时发生错误")
