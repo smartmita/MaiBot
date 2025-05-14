@@ -333,7 +333,7 @@ async def _build_readable_messages_internal(
                     stripped_line = stripped_line[:-1]
                 # 如果内容被截断，结尾已经是 ...（内容太长），不再添加分号
                 if not stripped_line.endswith("（内容太长）"):
-                    output_lines.append(f"{stripped_line};")
+                    output_lines.append(f"{stripped_line}")
                 else:
                     output_lines.append(stripped_line)  # 直接添加截断后的内容
         output_lines.append("\n")  # 在每个消息块后添加换行，保持可读性
@@ -455,7 +455,7 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
         if stripped_line:
             if stripped_line.endswith("。"):
                 stripped_line = stripped_line[:-1]
-            output_lines.append(f"{stripped_line};")
+            output_lines.append(f"{stripped_line}")
         output_lines.append("\n")
 
     formatted_string = "".join(output_lines).strip()
