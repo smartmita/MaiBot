@@ -17,7 +17,14 @@ from .heart_flow.sub_mind import SubMind
 from .heart_flow.utils_chat import get_chat_type_and_target_info
 from src.manager.mood_manager import mood_manager
 from src.chat.message_receive.chat_stream import ChatStream, chat_manager
-from src.chat.message_receive.message import MessageRecv, BaseMessageInfo, MessageThinking, MessageSending, Seg, UserInfo
+from src.chat.message_receive.message import (
+    MessageRecv,
+    BaseMessageInfo,
+    MessageThinking,
+    MessageSending,
+    Seg,
+    UserInfo,
+)
 from src.chat.utils.utils import process_llm_response
 from src.chat.utils.utils_image import image_path_to_base64
 from src.chat.emoji_system.emoji_manager import emoji_manager

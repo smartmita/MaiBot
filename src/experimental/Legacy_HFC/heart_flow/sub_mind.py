@@ -567,7 +567,7 @@ class SubMind:
 
         # ---------- 5. 构建最终提示词 ----------
         # --- Choose template based on chat type ---
-        nickname_injection_str = "" # 初始化为空字符串
+        nickname_injection_str = ""  # 初始化为空字符串
 
         if is_group_chat:
             template_name = "sub_heartflow_prompt_before"
@@ -584,7 +584,7 @@ class SubMind:
                 )
                 nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
                     chat_stream, message_list_for_nicknames
-                ) 
+                )
 
             prompt = (await global_prompt_manager.get_prompt_async(template_name)).format(
                 extra_info=self.structured_info_str,

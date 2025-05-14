@@ -102,7 +102,7 @@ def _format_online_time(online_seconds: int) -> str:
     :param online_seconds: 在线时间（秒）
     :return: 格式化后的在线时间字符串
     """
-    total_oneline_time = timedelta(seconds=int(online_seconds)) #确保是整数
+    total_oneline_time = timedelta(seconds=int(online_seconds))  # 确保是整数
 
     days = total_oneline_time.days
     hours = total_oneline_time.seconds // 3600
@@ -141,7 +141,7 @@ class StatisticOutputTask(AsyncTask):
         记录文件路径
         """
 
-        now = datetime.now() # Renamed to avoid conflict with 'now' in methods
+        now = datetime.now()  # Renamed to avoid conflict with 'now' in methods
         if "deploy_time" in local_storage:
             # 如果存在部署时间，则使用该时间作为全量统计的起始时间
             deploy_time = datetime.fromtimestamp(local_storage["deploy_time"])
@@ -167,7 +167,7 @@ class StatisticOutputTask(AsyncTask):
         :param now: 基准当前时间
         """
         # 输出最近一小时的统计数据
-        last_hour_stats = stats.get("last_hour", {}) # Ensure 'last_hour' key exists
+        last_hour_stats = stats.get("last_hour", {})  # Ensure 'last_hour' key exists
 
         output = [
             self.SEP_LINE,
@@ -191,7 +191,7 @@ class StatisticOutputTask(AsyncTask):
             stats = self._collect_all_statistics(now)
 
             # 输出统计数据到控制台
-            if "last_hour" in stats: # Check if stats for last_hour were successfully collected
+            if "last_hour" in stats:  # Check if stats for last_hour were successfully collected
                 self._statistic_console_output(stats, now)
             else:
                 logger.warning("无法输出最近一小时统计数据到控制台，因为数据缺失。")
@@ -209,7 +209,7 @@ class StatisticOutputTask(AsyncTask):
 
         :param collect_period: 统计时间段 [(period_key, start_datetime), ...]
         """
-        if not collect_period: 
+        if not collect_period:
             return {}
 
         collect_period.sort(key=lambda x: x[1], reverse=True)
@@ -236,20 +236,19 @@ class StatisticOutputTask(AsyncTask):
             }
             for period_key, _ in collect_period
         }
-        
+
         # Determine the overall earliest start time for the database query
         # This assumes collect_period is not empty, which is checked at the beginning.
         overall_earliest_start_time = min(p[1] for p in collect_period)
 
         for record in db.llm_usage.find({"timestamp": {"$gte": overall_earliest_start_time}}):
             record_timestamp = record.get("timestamp")
-            if not isinstance(record_timestamp, datetime): # Ensure timestamp is a datetime object
-                try: # Attempt conversion if it's a number (e.g. Unix timestamp)
+            if not isinstance(record_timestamp, datetime):  # Ensure timestamp is a datetime object
+                try:  # Attempt conversion if it's a number (e.g. Unix timestamp)
                     record_timestamp = datetime.fromtimestamp(float(record_timestamp))
                 except (ValueError, TypeError):
                     logger.warning(f"Skipping LLM usage record with invalid timestamp: {record.get('_id')}")
                     continue
-
 
             for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if record_timestamp >= period_start_time:
@@ -285,7 +284,7 @@ class StatisticOutputTask(AsyncTask):
                         stats[period_key_to_update][COST_BY_TYPE][request_type] += cost
                         stats[period_key_to_update][COST_BY_USER][user_id] += cost
                         stats[period_key_to_update][COST_BY_MODEL][model_name] += cost
-                    break  
+                    break
 
         return stats
 
@@ -308,7 +307,7 @@ class StatisticOutputTask(AsyncTask):
             }
             for period_key, _ in collect_period
         }
-        
+
         overall_earliest_start_time = min(p[1] for p in collect_period)
 
         for record in db.online_time.find({"end_timestamp": {"$gte": overall_earliest_start_time}}):
@@ -324,13 +323,13 @@ class StatisticOutputTask(AsyncTask):
             for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if record_start_timestamp < now and actual_end_timestamp > period_start_time:
                     overlap_start = max(record_start_timestamp, period_start_time)
-                    overlap_end = min(actual_end_timestamp, now) 
+                    overlap_end = min(actual_end_timestamp, now)
 
-                    if overlap_end > overlap_start: 
+                    if overlap_end > overlap_start:
                         duration_seconds = (overlap_end - overlap_start).total_seconds()
                         for period_key_to_update, _ in collect_period[idx:]:
                             stats[period_key_to_update][ONLINE_TIME] += duration_seconds
-                        break 
+                        break
 
         return stats
 
@@ -354,37 +353,36 @@ class StatisticOutputTask(AsyncTask):
         }
 
         overall_earliest_start_timestamp_float = min(p[1].timestamp() for p in collect_period)
-        
-        for message in db.messages.find({"time": {"$gte": overall_earliest_start_timestamp_float}}):
-            chat_info = message.get("chat_info", {}) 
-            user_info = message.get("user_info", {}) 
-            message_time_ts = message.get("time")  
 
-            if message_time_ts is None: 
+        for message in db.messages.find({"time": {"$gte": overall_earliest_start_timestamp_float}}):
+            chat_info = message.get("chat_info", {})
+            user_info = message.get("user_info", {})
+            message_time_ts = message.get("time")
+
+            if message_time_ts is None:
                 logger.warning(f"Skipping message record with no timestamp: {message.get('_id')}")
                 continue
-            
+
             try:
                 message_datetime = datetime.fromtimestamp(float(message_time_ts))
             except (ValueError, TypeError):
                 logger.warning(f"Skipping message record with invalid time format: {message.get('_id')}")
                 continue
 
-
             group_info = chat_info.get("group_info")
             chat_id = None
             chat_name = None
 
             if group_info and group_info.get("group_id"):
-                gid = group_info.get('group_id')
+                gid = group_info.get("group_id")
                 chat_id = f"g{gid}"
                 chat_name = group_info.get("group_name", f"群聊 {gid}")
             elif user_info and user_info.get("user_id"):
-                uid = user_info['user_id']
+                uid = user_info["user_id"]
                 chat_id = f"u{uid}"
                 chat_name = user_info.get("user_nickname", f"用户 {uid}")
-            
-            if not chat_id: 
+
+            if not chat_id:
                 continue
 
             current_mapping = self.name_mapping.get(chat_id)
@@ -394,13 +392,12 @@ class StatisticOutputTask(AsyncTask):
             else:
                 self.name_mapping[chat_id] = (chat_name, message_time_ts)
 
-
             for idx, (_current_period_key, period_start_time) in enumerate(collect_period):
                 if message_datetime >= period_start_time:
                     for period_key_to_update, _ in collect_period[idx:]:
                         stats[period_key_to_update][TOTAL_MSG_CNT] += 1
                         stats[period_key_to_update][MSG_CNT_BY_CHAT][chat_id] += 1
-                    break 
+                    break
 
         return stats
 
@@ -428,7 +425,7 @@ class StatisticOutputTask(AsyncTask):
             ("last_24_hours", timedelta(days=1), "最近24小时"),
             ("last_hour", timedelta(hours=1), "最近1小时"),
         ]
-        self.stat_period = current_stat_periods_config # Update instance's stat_period if needed elsewhere
+        self.stat_period = current_stat_periods_config  # Update instance's stat_period if needed elsewhere
 
         stat_start_timestamp_config = []
         for period_name, delta, _ in current_stat_periods_config:
@@ -446,23 +443,39 @@ class StatisticOutputTask(AsyncTask):
             final_stats[period_key].update(model_req_stat.get(period_key, {}))
             final_stats[period_key].update(online_time_stat.get(period_key, {}))
             final_stats[period_key].update(message_count_stat.get(period_key, {}))
-            
+
             for stat_field_key in [
-                TOTAL_REQ_CNT, REQ_CNT_BY_TYPE, REQ_CNT_BY_USER, REQ_CNT_BY_MODEL,
-                IN_TOK_BY_TYPE, IN_TOK_BY_USER, IN_TOK_BY_MODEL,
-                OUT_TOK_BY_TYPE, OUT_TOK_BY_USER, OUT_TOK_BY_MODEL,
-                TOTAL_TOK_BY_TYPE, TOTAL_TOK_BY_USER, TOTAL_TOK_BY_MODEL,
-                TOTAL_COST, COST_BY_TYPE, COST_BY_USER, COST_BY_MODEL,
-                ONLINE_TIME, TOTAL_MSG_CNT, MSG_CNT_BY_CHAT
+                TOTAL_REQ_CNT,
+                REQ_CNT_BY_TYPE,
+                REQ_CNT_BY_USER,
+                REQ_CNT_BY_MODEL,
+                IN_TOK_BY_TYPE,
+                IN_TOK_BY_USER,
+                IN_TOK_BY_MODEL,
+                OUT_TOK_BY_TYPE,
+                OUT_TOK_BY_USER,
+                OUT_TOK_BY_MODEL,
+                TOTAL_TOK_BY_TYPE,
+                TOTAL_TOK_BY_USER,
+                TOTAL_TOK_BY_MODEL,
+                TOTAL_COST,
+                COST_BY_TYPE,
+                COST_BY_USER,
+                COST_BY_MODEL,
+                ONLINE_TIME,
+                TOTAL_MSG_CNT,
+                MSG_CNT_BY_CHAT,
             ]:
                 if stat_field_key not in final_stats[period_key]:
                     # Initialize with appropriate default type if key is missing
-                    if "BY_" in stat_field_key: # These are usually defaultdicts
-                        final_stats[period_key][stat_field_key] = defaultdict(int if "CNT" in stat_field_key or "TOK" in stat_field_key else float)
-                    elif "CNT" in stat_field_key or "TOK" in stat_field_key :
-                         final_stats[period_key][stat_field_key] = 0
+                    if "BY_" in stat_field_key:  # These are usually defaultdicts
+                        final_stats[period_key][stat_field_key] = defaultdict(
+                            int if "CNT" in stat_field_key or "TOK" in stat_field_key else float
+                        )
+                    elif "CNT" in stat_field_key or "TOK" in stat_field_key:
+                        final_stats[period_key][stat_field_key] = 0
                     elif "COST" in stat_field_key or ONLINE_TIME == stat_field_key:
-                         final_stats[period_key][stat_field_key] = 0.0
+                        final_stats[period_key][stat_field_key] = 0.0
         return final_stats
 
     # -- 以下为统计数据格式化方法 --
@@ -517,7 +530,7 @@ class StatisticOutputTask(AsyncTask):
         """
         if stats.get(TOTAL_MSG_CNT, 0) > 0:
             output = ["聊天消息统计:", " 联系人/群组名称                  消息数量"]
-            msg_cnt_by_chat = stats.get(MSG_CNT_BY_CHAT, {}) 
+            msg_cnt_by_chat = stats.get(MSG_CNT_BY_CHAT, {})
             for chat_id, count in sorted(msg_cnt_by_chat.items()):
                 chat_name_display = self.name_mapping.get(chat_id, (f"未知 ({chat_id})", None))[0]
                 output.append(f"{chat_name_display[:32]:<32}  {count:>10}")
@@ -539,21 +552,25 @@ class StatisticOutputTask(AsyncTask):
                 deploy_time_dt = datetime.fromtimestamp(local_storage["deploy_time"])
             except (TypeError, ValueError):
                 logger.error("Invalid deploy_time in local_storage for HTML report. Using default.")
-                deploy_time_dt = datetime(2000,1,1) # Fallback
+                deploy_time_dt = datetime(2000, 1, 1)  # Fallback
         else:
             # This should ideally not happen if __init__ or _collect_all_statistics ran
             logger.warning("deploy_time not found in local_storage for HTML report. Using default.")
-            deploy_time_dt = datetime(2000, 1, 1) # Fallback
+            deploy_time_dt = datetime(2000, 1, 1)  # Fallback
 
         tab_list_html = []
         tab_content_html_list = []
 
-        for period_key, period_delta, period_display_name in self.stat_period: # Use self.stat_period as defined by _collect_all_statistics
+        for (
+            period_key,
+            period_delta,
+            period_display_name,
+        ) in self.stat_period:  # Use self.stat_period as defined by _collect_all_statistics
             tab_list_html.append(
                 f'<button class="tab-link" onclick="showTab(event, \'{period_key}\')">{period_display_name}</button>'
             )
 
-            current_period_stats = stat_collection.get(period_key, {}) 
+            current_period_stats = stat_collection.get(period_key, {})
 
             if period_key == "all_time":
                 start_time_dt_for_period = deploy_time_dt
@@ -561,10 +578,11 @@ class StatisticOutputTask(AsyncTask):
                 # Ensure period_delta is a timedelta object
                 if isinstance(period_delta, timedelta):
                     start_time_dt_for_period = now - period_delta
-                else: # Fallback if period_delta is not as expected (e.g. from old self.stat_period)
-                    logger.warning(f"period_delta for {period_key} is not a timedelta. Using 'now'. Type: {type(period_delta)}")
+                else:  # Fallback if period_delta is not as expected (e.g. from old self.stat_period)
+                    logger.warning(
+                        f"period_delta for {period_key} is not a timedelta. Using 'now'. Type: {type(period_delta)}"
+                    )
                     start_time_dt_for_period = now
-
 
             html_content_for_tab = f"""
             <div id="{period_key}" class="tab-content">
@@ -630,7 +648,7 @@ class StatisticOutputTask(AsyncTask):
             cost_by_user = current_period_stats.get(COST_BY_USER, defaultdict(float))
             if req_cnt_by_user:
                 for user_id, count in sorted(req_cnt_by_user.items()):
-                    user_display_name = self.name_mapping.get(user_id, (user_id, None))[0] 
+                    user_display_name = self.name_mapping.get(user_id, (user_id, None))[0]
                     html_content_for_tab += (
                         f"<tr>"
                         f"<td>{user_display_name}</td>"
@@ -645,7 +663,9 @@ class StatisticOutputTask(AsyncTask):
                 html_content_for_tab += "<tr><td colspan='6'>无数据</td></tr>"
             html_content_for_tab += "</tbody></table>"
 
-            html_content_for_tab += "<h2>聊天消息统计</h2><table><thead><tr><th>联系人/群组名称</th><th>消息数量</th></tr></thead><tbody>"
+            html_content_for_tab += (
+                "<h2>聊天消息统计</h2><table><thead><tr><th>联系人/群组名称</th><th>消息数量</th></tr></thead><tbody>"
+            )
             msg_cnt_by_chat = current_period_stats.get(MSG_CNT_BY_CHAT, {})
             if msg_cnt_by_chat:
                 for chat_id, count in sorted(msg_cnt_by_chat.items()):
@@ -653,10 +673,9 @@ class StatisticOutputTask(AsyncTask):
                     html_content_for_tab += f"<tr><td>{chat_name_display}</td><td>{count}</td></tr>"
             else:
                 html_content_for_tab += "<tr><td colspan='2'>无数据</td></tr>"
-            html_content_for_tab += "</tbody></table></div>" 
+            html_content_for_tab += "</tbody></table></div>"
 
             tab_content_html_list.append(html_content_for_tab)
-
 
         html_template = (
             """

@@ -264,8 +264,6 @@ class IdleChat:
             # 获取关系值
             relationship_value = 0
             try:
-
-
                 # 尝试获取person_id
                 person_id = None
                 try:
@@ -428,7 +426,6 @@ class IdleChat:
     async def _get_chat_stream(self) -> Optional[ChatStream]:
         """获取聊天流实例"""
         try:
-
             existing_chat_stream = chat_manager.get_stream(self.stream_id)
             if existing_chat_stream:
                 logger.debug(f"[私聊][{self.private_name}]从chat_manager找到现有聊天流")

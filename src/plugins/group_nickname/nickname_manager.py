@@ -18,6 +18,7 @@ from src.chat.person_info.relationship_manager import relationship_manager
 from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.message_receive.message import MessageRecv
 from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
+
 logger = get_logger("NicknameManager")
 logger_helper = get_logger("AsyncLoopHelper")  # 为辅助函数创建单独的 logger
 

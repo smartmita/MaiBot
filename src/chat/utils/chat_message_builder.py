@@ -424,7 +424,7 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
 
     # 分配占位符
     person_map = {}
-    current_char = ord('A')
+    current_char = ord("A")
     output_lines = []
 
     for msg in messages:

@@ -20,8 +20,9 @@ from ...config.config import global_config
 logger = get_module_logger("chat_utils")
 
 # 预编译正则表达式以提高性能
-_L_REGEX = regex.compile(r'\p{L}') # 匹配任何Unicode字母
-_HAN_CHAR_REGEX = regex.compile(r'\p{Han}') # 匹配汉字 (Unicode属性)
+_L_REGEX = regex.compile(r"\p{L}")  # 匹配任何Unicode字母
+_HAN_CHAR_REGEX = regex.compile(r"\p{Han}")  # 匹配汉字 (Unicode属性)
+
 
 def is_letter_not_han(char_str: str) -> bool:
     """
@@ -40,15 +41,18 @@ def is_letter_not_han(char_str: str) -> bool:
     is_han = _HAN_CHAR_REGEX.fullmatch(char_str) is not None
     return not is_han
 
+
 def is_han_character(char_str: str) -> bool:
     """检查字符是否为汉字 (使用 \p{Han} Unicode 属性)"""
     if not isinstance(char_str, str) or len(char_str) != 1:
         return False
     return _HAN_CHAR_REGEX.fullmatch(char_str) is not None
 
+
 def is_english_letter(char: str) -> bool:
     """检查字符是否为英文字母（忽略大小写）"""
     return "a" <= char.lower() <= "z"
+
 
 def db_message_to_str(message_dict: dict) -> str:
     logger.debug(f"message_dict: {message_dict}")
@@ -101,7 +105,8 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
         if not is_mentioned:
             # 判断是否被回复
             if re.match(
-                f"\\[回复 [\\s\\S]*?\\({str(global_config.BOT_QQ)}\\)：[\\s\\S]*?\\]，说：", message.processed_plain_text
+                f"\\[回复 [\\s\\S]*?\\({str(global_config.BOT_QQ)}\\)：[\\s\\S]*?\\]，说：",
+                message.processed_plain_text,
             ):
                 is_mentioned = True
             else:
@@ -211,6 +216,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     # 2. 处理换行符和其他分隔符的组合 (增加了 . 和 —)
     text = regex.sub(r"\n\s*([—。.,，;\s\xa0])", r"\1", text)
     text = regex.sub(r"([—。.,，;\s\xa0])\s*\n", r"\1", text)
+
     # 3. 处理两个汉字中间的换行符
     def replace_han_newline(match):
         char1 = match.group(1)
@@ -218,6 +224,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         if is_han_character(char1) and is_han_character(char2):
             return char1 + "。" + char2
         return match.group(0)
+
     text = regex.sub(r"(.)\n(.)", replace_han_newline, text)
 
     len_text = len(text)
@@ -239,7 +246,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         if char in separators:
             can_split = True
 
-            if char == ' ' or char == '\xa0':
+            if char == " " or char == "\xa0":
                 if 0 < i < len(text) - 1:
                     prev_char = text[i - 1]
                     next_char = text[i + 1]
@@ -251,9 +258,9 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
             if can_split:
                 if current_segment:
                     segments.append((current_segment, char))
-                elif char not in [' ', '\xa0']:
+                elif char not in [" ", "\xa0"]:
                     segments.append(("", char))
-                elif char in [' ', '\xa0']:
+                elif char in [" ", "\xa0"]:
                     segments.append(("", char))
                 current_segment = ""
             else:
@@ -268,9 +275,9 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     temp_segments_for_filter = []
     for content, sep in segments:
         if content.strip():
-            temp_segments_for_filter.append((content,sep))
-        elif sep and sep not in [' ', '\xa0']:
-            temp_segments_for_filter.append((content,sep))
+            temp_segments_for_filter.append((content, sep))
+        elif sep and sep not in [" ", "\xa0"]:
+            temp_segments_for_filter.append((content, sep))
     segments = temp_segments_for_filter
 
     if not segments:
@@ -280,7 +287,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     current_sentence_build = ""
     for content, sep in segments:
         current_sentence_build += content
-        if sep and sep not in [' ', '\xa0']:
+        if sep and sep not in [" ", "\xa0"]:
             current_sentence_build += sep
             if current_sentence_build.strip():
                 preliminary_final_sentences.append(current_sentence_build.strip())
@@ -310,7 +317,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         temp_sentence = preliminary_final_sentences[0]
         for i in range(1, len(preliminary_final_sentences)):
             if random.random() < merge_probability and temp_sentence:
-                temp_sentence += " " + preliminary_final_sentences[i] 
+                temp_sentence += " " + preliminary_final_sentences[i]
             else:
                 if temp_sentence:
                     final_sentences_merged.append(temp_sentence)
@@ -448,7 +455,7 @@ def calculate_typing_time(
 
     total_time = 0
     for char in input_string:
-        if is_han_character(char): # 使用 is_han_character 进行判断
+        if is_han_character(char):  # 使用 is_han_character 进行判断
             total_time += chinese_time
         else:
             total_time += english_time
@@ -460,7 +467,6 @@ def calculate_typing_time(
         total_time = 1
 
     return total_time
-
 
 
 def cosine_similarity(v1, v2):
@@ -578,7 +584,7 @@ def get_western_ratio(paragraph):
     if not alnum_chars:
         return 0.0
 
-    western_count = sum(1 for char in alnum_chars if is_english_letter(char)) # 保持使用 is_english_letter
+    western_count = sum(1 for char in alnum_chars if is_english_letter(char))  # 保持使用 is_english_letter
     return western_count / len(alnum_chars)
 
 
