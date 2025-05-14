@@ -1,5 +1,6 @@
 import random
 import re
+import regex
 import time
 from collections import Counter
 
@@ -18,11 +19,26 @@ from ...config.config import global_config
 
 logger = get_module_logger("chat_utils")
 
+# 预编译正则表达式以提高性能
+_LETTER_NOT_HAN_REGEX = regex.compile(r'\p{L}&^\p{Han}')
+_HAN_CHAR_REGEX = regex.compile(r'\p{Han}')
 
 def is_english_letter(char: str) -> bool:
     """检查字符是否为英文字母（忽略大小写）"""
     return "a" <= char.lower() <= "z"
 
+def is_letter_not_han(char_str: str) -> bool:
+    """检查字符是否为非汉字字母 (例如拉丁字母、西里尔字母、韩文等)"""
+    if not isinstance(char_str, str) or len(char_str) != 1:
+        return False
+    return _LETTER_NOT_HAN_REGEX.fullmatch(char_str) is not None
+
+
+def is_han_character(char_str: str) -> bool:
+    """检查字符是否为汉字"""
+    if not isinstance(char_str, str) or len(char_str) != 1:
+        return False
+    return _HAN_CHAR_REGEX.fullmatch(char_str) is not None
 
 def db_message_to_str(message_dict: dict) -> str:
     logger.debug(f"message_dict: {message_dict}")
@@ -185,13 +201,14 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     """
     # 预处理：处理多余的换行符
     # 1. 将连续的换行符替换为单个换行符
-    text = re.sub(r"\n\s*\n+", "\n", text)
+    text = regex.sub(r"\n\s*\n+", "\n", text) # 使用 regex 保持一致性，虽然 re 也能处理
     # 2. 处理换行符和其他分隔符的组合
-    text = re.sub(r"\n\s*([，,。;\s])", r"\1", text)
-    text = re.sub(r"([，,。;\s])\s*\n", r"\1", text)
+    text = regex.sub(r"\n\s*([，,。;\s])", r"\1", text)
+    text = regex.sub(r"([，,。;\s])\s*\n", r"\1", text)
 
     # 处理两个汉字中间的换行符
-    text = re.sub(r"([\u4e00-\u9fff])\n([\u4e00-\u9fff])", r"\1。\2", text)
+    # text = re.sub(r"([\u4e00-\u9fff])\n([\u4e00-\u9fff])", r"\1。\2", text) # 原代码
+    text = regex.sub(r"(\p{Han})\n(\p{Han})", r"\1。\2", text) # 修改后：使用 regex 和 \p{Han}
 
     len_text = len(text)
     if len_text < 3:
@@ -210,13 +227,13 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     while i < len(text):
         char = text[i]
         if char in separators:
-            # 检查分割条件：如果分隔符左右都是英文字母，则不分割
+            # 检查分割条件：如果分隔符左右都是非汉字字母 (如英文、俄文、韩文等)，则不分割
             can_split = True
             if 0 < i < len(text) - 1:
                 prev_char = text[i - 1]
                 next_char = text[i + 1]
-                # if is_english_letter(prev_char) and is_english_letter(next_char) and char == ' ': # 原计划只对空格应用此规则，现应用于所有分隔符
-                if is_english_letter(prev_char) and is_english_letter(next_char):
+                # if is_english_letter(prev_char) and is_english_letter(next_char): # 原代码
+                if is_letter_not_han(prev_char) and is_letter_not_han(next_char): # 修改后：使用 is_letter_not_han
                     can_split = False
 
             if can_split:
@@ -243,9 +260,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
 
     # 如果分割后为空（例如，输入全是分隔符且不满足保留条件），恢复颜文字并返回
     if not segments:
-        # recovered_text = recover_kaomoji([text], mapping) # 恢复原文本中的颜文字 - 已移至上层处理
-        # return [s for s in recovered_text if s] # 返回非空结果
-        return [text] if text else []  # 如果原始文本非空，则返回原始文本（可能只包含未被分割的字符或颜文字占位符）
+        return [text] if text else []
 
     # 2. 概率合并
     if len_text < 12:
@@ -404,25 +419,22 @@ def calculate_typing_time(
     - 在所有输入结束后，额外加上回车时间0.3秒
     - 如果is_emoji为True，将使用固定1秒的输入时间
     """
-    # 将0-1的唤醒度映射到-1到1
     mood_arousal = mood_manager.current_mood.arousal
-    # 映射到0.5到2倍的速度系数
-    typing_speed_multiplier = 1.5**mood_arousal  # 唤醒度为1时速度翻倍,为-1时速度减半
+    typing_speed_multiplier = 1.5**mood_arousal
     chinese_time *= 1 / typing_speed_multiplier
     english_time *= 1 / typing_speed_multiplier
-    # 计算中文字符数
-    chinese_chars = sum(1 for char in input_string if "\u4e00" <= char <= "\u9fff")
 
-    # 如果只有一个中文字符，使用3倍时间
+    # 使用 is_han_character 进行判断
+    chinese_chars = sum(1 for char in input_string if is_han_character(char))
+
     if chinese_chars == 1 and len(input_string.strip()) == 1:
-        return chinese_time * 3 + 0.3  # 加上回车时间
+        return chinese_time * 3 + 0.3
 
     total_time = 0
-    # 正常计算所有字符的输入时间
     for char in input_string:
-        if "\u4e00" <= char <= "\u9fff":  # 判断是否为中文字符
+        if is_han_character(char): # 使用 is_han_character 进行判断
             total_time += chinese_time
-        else:  # 其他字符（如英文）
+        else:
             total_time += english_time
 
     if is_emoji:
@@ -431,12 +443,8 @@ def calculate_typing_time(
     if time.time() - thinking_start_time > 10:
         total_time = 1
 
-    # print(f"thinking_start_time:{thinking_start_time}")
-    # print(f"nowtime:{time.time()}")
-    # print(f"nowtime - thinking_start_time:{time.time() - thinking_start_time}")
-    # print(f"{total_time}")
+    return total_time
 
-    return total_time  # 加上回车时间
 
 
 def cosine_similarity(v1, v2):
@@ -554,7 +562,7 @@ def get_western_ratio(paragraph):
     if not alnum_chars:
         return 0.0
 
-    western_count = sum(1 for char in alnum_chars if is_english_letter(char))
+    western_count = sum(1 for char in alnum_chars if is_english_letter(char)) # 保持使用 is_english_letter
     return western_count / len(alnum_chars)
 
 
