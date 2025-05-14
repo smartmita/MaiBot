@@ -3,6 +3,7 @@ from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 import time
 import re
 import traceback
@@ -31,6 +32,10 @@ def init_prompt():
     <bot_name>你的名字是{bot_name}。</bot_name>
     <personality_profile>{prompt_personality}</personality_profile>
 </identity>
+
+<group_nicknames>
+{nickname_info}
+</group_nicknames>
 
 <knowledge_base>
     <structured_information>{extra_info}</structured_information>
@@ -561,9 +566,25 @@ class SubMind:
 
         # ---------- 5. 构建最终提示词 ----------
         # --- Choose template based on chat type ---
-        logger.debug(f"is_group_chat: {is_group_chat}")
+        nickname_injection_str = "" # 初始化为空字符串
+
         if is_group_chat:
             template_name = "sub_heartflow_prompt_before"
+
+            chat_stream = await chat_manager.get_stream(self.subheartflow_id)
+            if not chat_stream:
+                logger.error(f"{self.log_prefix} 无法获取 chat_stream，无法生成绰号信息。")
+                nickname_injection_str = "[获取群成员绰号信息失败]"
+            else:
+                message_list_for_nicknames = get_raw_msg_before_timestamp_with_chat(
+                    chat_id=self.subheartflow_id,
+                    timestamp=time.time(),
+                    limit=global_config.observation_context_size,
+                )
+                nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                    chat_stream, message_list_for_nicknames
+                ) 
+
             prompt = (await global_prompt_manager.get_prompt_async(template_name)).format(
                 extra_info=self.structured_info_str,
                 prompt_personality=prompt_personality,
@@ -575,6 +596,7 @@ class SubMind:
                 hf_do_next=hf_do_next,
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
+                nickname_info=nickname_injection_str,
                 # chat_target_name is not used in group prompt
             )
         else:  # Private chat
