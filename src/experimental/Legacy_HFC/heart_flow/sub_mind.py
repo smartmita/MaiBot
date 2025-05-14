@@ -3,6 +3,7 @@ from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 import time
 import re
 import traceback
@@ -32,6 +33,10 @@ def init_prompt():
     <personality_profile>{prompt_personality}</personality_profile>
 </identity>
 
+<group_nicknames>
+{nickname_info}
+</group_nicknames>
+
 <knowledge_base>
     <structured_information>{extra_info}</structured_information>
     <social_relationships>{relation_prompt}</social_relationships>
@@ -51,6 +56,7 @@ def init_prompt():
 
 <thinking_guidance>
 请仔细阅读当前聊天内容，分析讨论话题和群成员关系，分析你刚刚发言和别人对你的发言的反应，思考你要不要回复或发言。然后思考你是否需要使用函数工具。
+请特别留意对话的节奏。如果你发送消息后没有得到回应，那么在考虑发言或追问时，请务必谨慎。优先考虑是否你的上一条信息已经结束了当前话题，或者对方暂时不方便回复。除非你有非常重要且有时效性的新事情，否则避免在对方无明显回应意愿时进行追问。
 思考并输出你真实的内心想法。
 </thinking_guidance>
 
@@ -60,7 +66,7 @@ def init_prompt():
 2. 不要分点、不要使用表情符号
 3. 避免多余符号(冒号、引号、括号等)
 4. 语言简洁自然，不要浮夸
-5. 如果你刚发言，并且没有人回复你，请谨慎考虑要不要继续发消息
+5. 当你发送消息后没人理你，你的内心想法应倾向于“耐心等待对方回复”或“思考是否对方正在忙”，而不是立即产生追问的想法。只有当你认为追问确实必要且不会打扰对方时，才考虑生成追问的意图。
 6. 不要把注意力放在别人发的表情包上，它们只是一种辅助表达方式
 7. 注意分辨群里谁在跟谁说话，你不一定是当前聊天的主角，消息中的“你”不一定指的是你（{bot_name}），也可能是别人
 8. 思考要不要回复或发言，如果要，必须**明确写出**你准备发送的消息的具体内容是什么
@@ -561,9 +567,25 @@ class SubMind:
 
         # ---------- 5. 构建最终提示词 ----------
         # --- Choose template based on chat type ---
-        logger.debug(f"is_group_chat: {is_group_chat}")
+        nickname_injection_str = "" # 初始化为空字符串
+
         if is_group_chat:
             template_name = "sub_heartflow_prompt_before"
+
+            chat_stream = await chat_manager.get_stream(self.subheartflow_id)
+            if not chat_stream:
+                logger.error(f"{self.log_prefix} 无法获取 chat_stream，无法生成绰号信息。")
+                nickname_injection_str = "[获取群成员绰号信息失败]"
+            else:
+                message_list_for_nicknames = get_raw_msg_before_timestamp_with_chat(
+                    chat_id=self.subheartflow_id,
+                    timestamp=time.time(),
+                    limit=global_config.observation_context_size,
+                )
+                nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                    chat_stream, message_list_for_nicknames
+                ) 
+
             prompt = (await global_prompt_manager.get_prompt_async(template_name)).format(
                 extra_info=self.structured_info_str,
                 prompt_personality=prompt_personality,
@@ -575,6 +597,7 @@ class SubMind:
                 hf_do_next=hf_do_next,
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
+                nickname_info=nickname_injection_str,
                 # chat_target_name is not used in group prompt
             )
         else:  # Private chat
