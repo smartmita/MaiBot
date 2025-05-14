@@ -34,14 +34,6 @@ class APIBotConfig:
     gender: str  # 性别
     appearance: str  # 外貌特征描述
 
-    # schedule
-    enable_schedule_gen: bool  # 是否启用日程表
-    enable_schedule_interaction: bool  # 日程表是否影响回复模式
-    prompt_schedule_gen: str  # 日程生成提示词
-    schedule_doing_update_interval: int  # 日程表更新间隔（秒）
-    schedule_temperature: float  # 日程表温度
-    time_zone: str  # 时区
-
     # platforms
     platforms: Dict[str, str]  # 平台信息
 
@@ -164,7 +156,6 @@ class APIBotConfig:
             "groups",
             "personality",
             "identity",
-            "schedule",
             "platforms",
             "chat",
             "normal_chat",
