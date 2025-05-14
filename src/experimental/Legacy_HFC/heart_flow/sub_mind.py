@@ -205,10 +205,10 @@ class SubMind:
         self._update_structured_info_str()
         # 阶梯式筛选
         self.knowledge_retrieval_steps = self.knowledge_retrieval_steps = [
-            {"name": "latest_1_msg", "limit": 1, "relevance_threshold": 0.75},  # 新增：最新1条，极高阈值
-            {"name": "latest_2_msgs", "limit": 2, "relevance_threshold": 0.65},  # 新增：最新2条，较高阈值
-            {"name": "short_window_3_msgs", "limit": 3, "relevance_threshold": 0.50},  # 原有的3条，阈值可保持或微调
-            {"name": "medium_window_8_msgs", "limit": 8, "relevance_threshold": 0.30},  # 原有的8条，阈值可保持或微调
+            {"name": "latest_1_msg", "limit": 1, "relevance_threshold": 0.075},  # 新增：最新1条，极高阈值
+            {"name": "latest_2_msgs", "limit": 2, "relevance_threshold": 0.065},  # 新增：最新2条，较高阈值
+            {"name": "short_window_3_msgs", "limit": 3, "relevance_threshold": 0.050},  # 原有的3条，阈值可保持或微调
+            {"name": "medium_window_8_msgs", "limit": 8, "relevance_threshold": 0.030},  # 原有的8条，阈值可保持或微调
             # 完整窗口的回退逻辑保持不变
         ]
 
