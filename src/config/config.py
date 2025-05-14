@@ -5,6 +5,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
+from dateutil import tz
 
 import tomli
 import tomlkit
@@ -172,6 +173,13 @@ class BotConfig:
     gender: str = "男"  # 性别
     appearance: str = "用几句话描述外貌特征"  # 外貌特征
 
+    # schedule
+    ENABLE_SCHEDULE_GEN: bool = False  # 是否启用日程生成
+    PROMPT_SCHEDULE_GEN = "无日程"
+    SCHEDULE_DOING_UPDATE_INTERVAL: int = 300  # 日程表更新间隔 单位秒
+    SCHEDULE_TEMPERATURE: float = 0.5  # 日程表温度，建议0.5-1.0
+    TIME_ZONE: str = "Asia/Shanghai"  # 时区
+
     # chat
     allow_focus_mode: bool = True  # 是否允许专注聊天状态
 
@@ -271,6 +279,7 @@ class BotConfig:
     remote_enable: bool = True  # 是否启用远程控制
 
     # experimental
+    enable_Legacy_HFC: bool = False  # 是否启用旧 HFC 处理器
     enable_friend_chat: bool = False  # 是否启用好友聊天
     # enable_think_flow: bool = False  # 是否启用思考流程
     enable_friend_whitelist: bool = True  # 是否启用好友白名单
@@ -430,6 +439,24 @@ class BotConfig:
                 config.age = identity_config.get("age", config.age)
                 config.gender = identity_config.get("gender", config.gender)
                 config.appearance = identity_config.get("appearance", config.appearance)
+
+        def schedule(parent: dict):
+            schedule_config = parent["schedule"]
+            config.ENABLE_SCHEDULE_GEN = schedule_config.get("enable_schedule_gen", config.ENABLE_SCHEDULE_GEN)
+            config.PROMPT_SCHEDULE_GEN = schedule_config.get("prompt_schedule_gen", config.PROMPT_SCHEDULE_GEN)
+            config.SCHEDULE_DOING_UPDATE_INTERVAL = schedule_config.get(
+                "schedule_doing_update_interval", config.SCHEDULE_DOING_UPDATE_INTERVAL
+            )
+            logger.info(
+                f"载入自定义日程prompt:{schedule_config.get('prompt_schedule_gen', config.PROMPT_SCHEDULE_GEN)}"
+            )
+            if config.INNER_VERSION in SpecifierSet(">=1.0.2"):
+                config.SCHEDULE_TEMPERATURE = schedule_config.get("schedule_temperature", config.SCHEDULE_TEMPERATURE)
+                time_zone = schedule_config.get("time_zone", config.TIME_ZONE)
+                if tz.gettz(time_zone) is None:
+                    logger.error(f"无效的时区: {time_zone}，使用默认值: {config.TIME_ZONE}")
+                else:
+                    config.TIME_ZONE = time_zone
 
         def emoji(parent: dict):
             emoji_config = parent["emoji"]
@@ -738,6 +765,8 @@ class BotConfig:
                 )
             if config.INNER_VERSION in SpecifierSet(">=1.6.2.3"):
                 config.rename_person = experimental_config.get("rename_person", config.rename_person)
+            if config.INNER_VERSION in SpecifierSet(">=1.7.0.1"):
+                config.enable_Legacy_HFC = experimental_config.get("enable_Legacy_HFC", config.enable_Legacy_HFC)
 
         def pfc(parent: dict):
             if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):
@@ -839,6 +868,7 @@ class BotConfig:
             "groups": {"func": groups, "support": ">=0.0.0"},
             "personality": {"func": personality, "support": ">=0.0.0"},
             "identity": {"func": identity, "support": ">=1.2.4"},
+            "schedule": {"func": schedule, "support": ">=0.0.11", "necessary": False},
             "emoji": {"func": emoji, "support": ">=0.0.0"},
             "model": {"func": model, "support": ">=0.0.0"},
             "memory": {"func": memory, "support": ">=0.0.0", "necessary": False},

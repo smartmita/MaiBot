@@ -10,6 +10,7 @@ from .chat.person_info.person_info import person_info_manager
 from .chat.normal_chat.willing.willing_manager import willing_manager
 from .chat.message_receive.chat_stream import chat_manager
 from src.chat.heart_flow.heartflow import heartflow
+from src.experimental.Legacy_HFC.heart_flow.heartflow import heartflow as legacy_heartflow
 from .chat.memory_system.Hippocampus import HippocampusManager
 from .chat.message_receive.message_sender import message_manager
 from .chat.message_receive.storage import MessageStorage
@@ -113,8 +114,12 @@ class MainSystem:
             logger.success("全局消息管理器启动成功")
 
             # 启动心流系统主循环
-            asyncio.create_task(heartflow.heartflow_start_working())
-            logger.success("心流系统启动成功")
+            if not global_config.enable_Legacy_HFC:
+                asyncio.create_task(heartflow.heartflow_start_working())
+                logger.success("心流系统启动成功")
+            else:
+                asyncio.create_task(legacy_heartflow.heartflow_start_working())
+                logger.success("Legacy HFC心流系统启动成功")
 
             init_time = int(1000 * (time.time() - init_start_time))
             logger.success(f"初始化完成，神经元放电{init_time}次")
