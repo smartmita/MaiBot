@@ -16,11 +16,7 @@ if TYPE_CHECKING:
 logger = get_logger("pfc_loop")
 
 # 时区配置
-configured_tz = getattr(global_config, "TIME_ZONE", "Asia/Shanghai")
-TIME_ZONE = tz.gettz(configured_tz)
-if TIME_ZONE is None:
-    logger.error(f"配置的时区 '{configured_tz}' 无效，将使用默认时区 'Asia/Shanghai'")
-    TIME_ZONE = tz.gettz("Asia/Shanghai")
+TIME_ZONE = tz.gettz("Asia/Shanghai")
 
 MAX_CONSECUTIVE_LLM_ACTION_FAILURES = 3  # 可配置的最大LLM连续失败次数
 

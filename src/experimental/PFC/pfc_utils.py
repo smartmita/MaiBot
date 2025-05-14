@@ -3,12 +3,12 @@ import json
 import re
 from typing import Dict, Any, Optional, Tuple, List, Union
 from src.common.logger_manager import get_logger  # 确认 logger 的导入路径
-from src.plugins.memory_system.Hippocampus import HippocampusManager
-from src.plugins.heartFC_chat.heartflow_prompt_builder import prompt_builder  # 确认 prompt_builder 的导入路径
-from src.plugins.chat.chat_stream import ChatStream
-from ..person_info.person_info import person_info_manager
+from src.chat.memory_system.Hippocampus import HippocampusManager
+from src.chat.focus_chat.heartflow_prompt_builder import prompt_builder
+from src.chat.utils.chat_message_builder import build_readable_messages
+from src.chat.message_receive.chat_stream import ChatStream
+from src.chat.person_info.person_info import person_info_manager
 import math
-from src.plugins.utils.chat_message_builder import build_readable_messages
 from .observation_info import ObservationInfo
 from src.config.config import global_config
 
