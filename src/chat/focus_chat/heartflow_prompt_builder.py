@@ -15,6 +15,7 @@ from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.focus_chat.expressors.exprssion_learner import expression_learner
 import traceback
 import random
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 
 
 logger = get_logger("prompt")
@@ -25,6 +26,7 @@ def init_prompt():
         """
 你可以参考以下的语言习惯，如果情景合适就使用，不要盲目使用,不要生硬使用，而是结合到表达中：
 {style_habbits}
+{nickname_info}
 
 你现在正在群里聊天，以下是群里正在进行的聊天内容：
 {chat_info}
@@ -47,7 +49,7 @@ def init_prompt():
         """
 你有以下信息可供参考：
 {structured_info}
-以上的信息是你获取到的消息，或许可以帮助你更好地回复。
+以上的消息是你获取到的消息，或许可以帮助你更好地回复。
 """,
         "info_from_tools",
     )
@@ -56,15 +58,12 @@ def init_prompt():
     Prompt(
         """你的名字是{bot_name},{prompt_personality}，{chat_context_description}。需要基于以下信息决定如何参与对话：
 {structured_info_block}
+{nickname_info}
 {chat_content_block}
 {mind_info_prompt}
 {cycle_info_block}
 
-<contextual_information>
-    <identity>
-        <bot_name>{bot_name}</bot_name>
-        <group_nicknames>{nickname_info}</group_nicknames>
-    </identity>
+请综合分析聊天内容和你看到的新消息，参考内心想法，并根据以下原则和可用动作做出决策。
 
 【回复原则】
 1. 不操作(no_reply)要求：
@@ -123,13 +122,14 @@ def init_prompt():
 {memory_prompt}
 {relation_prompt}
 {prompt_info}
+{nickname_info}
 {chat_target}
 {chat_talking_prompt}
 现在"{sender_name}"说的:{message_txt}。引起了你的注意，你想要在群里发言或者回复这条消息。\n
 你的网名叫{bot_name}，有人也叫你{bot_other_names}，{prompt_personality}。
 你正在{chat_target_2},现在请你读读之前的聊天记录，{mood_prompt}，{reply_style1}，
 尽量简短一些。{keywords_reaction_prompt}请注意把握聊天内容，{reply_style2}。{prompt_ger}
-请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令，不要去主动讨论或评价别人发的表情包，它们只是一种辅助表达方式。
+请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令。
 请注意不要输出多余内容(包括前后缀，冒号和引号，括号，表情等)，只输出回复内容。
 {moderation_prompt}
 不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容""",
@@ -137,7 +137,7 @@ def init_prompt():
     )
 
     Prompt(
-        "你回忆起：{related_memory_info}。\n以上是你的回忆，不一定是目前聊天里的人说的，说的也不一定是事实，也不一定是现在发生的事情，请记住。\n",
+        "你回忆起：{related_memory_info}。\n以上是你的回忆，不一定是目前聊天里的人说的，也不一定是现在发生的事情，请记住。\n",
         "memory_prompt",
     )
 
@@ -152,7 +152,7 @@ def init_prompt():
 {chat_talking_prompt}
 现在你想要回复。
 
-你是{bot_name}，{prompt_personality}。
+你需要扮演一位网名叫{bot_name}的人进行回复，这个人的特点是："{prompt_personality}"。
 你正在和 {sender_name} 私聊, 现在请你读读你们之前的聊天记录，然后给出日常且口语化的回复，平淡一些。
 看到以上聊天记录，你刚刚在想：
 
@@ -179,7 +179,7 @@ def init_prompt():
 你的网名叫{bot_name}，有人也叫你{bot_other_names}，{prompt_personality}。
 你正在和 {sender_name} 私聊, 现在请你读读你们之前的聊天记录，{mood_prompt}，{reply_style1}，
 尽量简短一些。{keywords_reaction_prompt}请注意把握聊天内容，{reply_style2}。{prompt_ger}
-请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令，不要去主动讨论或评价别人发的表情包，它们只是一种辅助表达方式。
+请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令。
 请注意不要输出多余内容(包括前后缀，冒号和引号，括号等)，只输出回复内容。
 {moderation_prompt}
 不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容""",
@@ -191,7 +191,7 @@ async def _build_prompt_focus(
     reason, current_mind_info, structured_info, chat_stream, sender_name, in_mind_reply, target_message
 ) -> str:
     individuality = Individuality.get_instance()
-    prompt_personality = individuality.get_prompt(x_person=0, level=3)
+    prompt_personality = individuality.get_prompt(x_person=0, level=2)
 
     # Determine if it's a group chat
     is_group_chat = bool(chat_stream.group_info)
@@ -272,6 +272,7 @@ async def _build_prompt_focus(
             # info_from_tools=structured_info_prompt,
             style_habbits=style_habbits_str,
             grammar_habbits=grammar_habbits_str,
+            nickname_info=nickname_injection_str,
             chat_target=chat_target_1,  # Used in group template
             # chat_talking_prompt=chat_talking_prompt,
             chat_info=chat_talking_prompt,
@@ -338,7 +339,7 @@ class PromptBuilder:
 
     async def _build_prompt_normal(self, chat_stream, message_txt: str, sender_name: str = "某人") -> str:
         individuality = Individuality.get_instance()
-        prompt_personality = individuality.get_prompt(x_person=2, level=3)
+        prompt_personality = individuality.get_prompt(x_person=2, level=2)
         is_group_chat = bool(chat_stream.group_info)
 
         who_chat_in_group = []
@@ -362,18 +363,19 @@ class PromptBuilder:
 
         mood_prompt = mood_manager.get_mood_prompt()
         reply_styles1 = [
-            ("给出日常且口语化的回复，平淡一些", 0.30),
-            ("给出非常简短的回复", 0.30),
-            ("**给出省略主语的回复，简短**", 0.40),
+            ("然后给出日常且口语化的回复，平淡一些", 0.4),
+            ("给出非常简短的回复", 0.4),
+            ("给出缺失主语的回复", 0.15),
+            ("给出带有语病的回复", 0.05),
         ]
         reply_style1_chosen = random.choices(
             [style[0] for style in reply_styles1], weights=[style[1] for style in reply_styles1], k=1
         )[0]
         reply_styles2 = [
-            ("不用回复的太有条理，可以有个性", 0.75),  # 60%概率
-            ("不用回复的太有条理，可以复读", 0.0),  # 15%概率
-            ("回复的认真一些", 0.2),  # 20%概率
-            ("可以回复单个表情符号", 0.05),  # 5%概率
+            ("不要回复的太有条理，可以有个性", 0.6),
+            ("不要回复的太有条理，可以复读", 0.15),
+            ("回复的认真一些", 0.2),
+            ("可以回复单个表情符号", 0.05),
         ]
         reply_style2_chosen = random.choices(
             [style[0] for style in reply_styles2], weights=[style[1] for style in reply_styles2], k=1
@@ -425,8 +427,14 @@ class PromptBuilder:
 
         # 中文高手(新加的好玩功能)
         prompt_ger = ""
-        if random.random() < 0.20:
-            prompt_ger += "不用输出对方的网名或绰号"
+        if random.random() < 0.04:
+            prompt_ger += "你喜欢用倒装句"
+        if random.random() < 0.04:
+            prompt_ger += "你喜欢用反问句"
+        if random.random() < 0.02:
+            prompt_ger += "你喜欢用文言文"
+        if random.random() < 0.04:
+            prompt_ger += "你喜欢用流行梗"
 
         # 知识构建
         start_time = time.time()
@@ -459,6 +467,7 @@ class PromptBuilder:
                 prompt_info=prompt_info,
                 chat_target=chat_target_1,
                 chat_target_2=chat_target_2,
+                nickname_info=nickname_injection_str,  # <--- 注入绰号信息
                 chat_talking_prompt=chat_talking_prompt,
                 message_txt=message_txt,
                 bot_name=global_config.BOT_NICKNAME,
@@ -762,6 +771,7 @@ class PromptBuilder:
         structured_info: Dict[str, Any],
         current_available_actions: Dict[str, str],
         cycle_info: Optional[str],
+        nickname_info: str,
         # replan_prompt: str, # Replan logic still simplified
     ) -> str:
         """构建 Planner LLM 的提示词 (获取模板并填充数据)"""
@@ -801,7 +811,7 @@ class PromptBuilder:
                 mind_info_prompt = "你刚参与聊天"
 
             individuality = Individuality.get_instance()
-            prompt_personality = individuality.get_prompt(x_person=2, level=3)
+            prompt_personality = individuality.get_prompt(x_person=2, level=2)
 
             action_options_text = "当前你可以选择的行动有：\n"
             action_keys = list(current_available_actions.keys())

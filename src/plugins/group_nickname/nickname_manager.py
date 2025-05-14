@@ -9,16 +9,15 @@ from pymongo.errors import OperationFailure, DuplicateKeyError
 from src.common.logger_manager import get_logger
 from src.common.database import db
 from src.config.config import global_config
-from src.plugins.models.utils_model import LLMRequest
+from src.chat.models.utils_model import LLMRequest
 from .nickname_db import NicknameDB
 from .nickname_mapper import _build_mapping_prompt
 from .nickname_utils import select_nicknames_for_prompt, format_nickname_prompt_injection
-from ..person_info.person_info import person_info_manager
-from ..person_info.relationship_manager import relationship_manager
-from src.plugins.chat.chat_stream import ChatStream
-from src.plugins.chat.message import MessageRecv
-from src.plugins.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
-
+from src.chat.person_info.person_info import person_info_manager
+from src.chat.person_info.relationship_manager import relationship_manager
+from src.chat.message_receive.chat_stream import ChatStream
+from src.chat.message_receive.message import MessageRecv
+from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
 logger = get_logger("NicknameManager")
 logger_helper = get_logger("AsyncLoopHelper")  # 为辅助函数创建单独的 logger
 

@@ -21,6 +21,7 @@ from src.chat.utils.utils_image import image_path_to_base64
 from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.chat.normal_chat.willing.willing_manager import willing_manager
 from src.config.config import global_config
+from src.plugins.group_nickname.nickname_manager import nickname_manager
 
 logger = get_logger("chat")
 
@@ -201,7 +202,7 @@ class NormalChat:
                 break
 
             # 获取待处理消息列表
-            items_to_process = list(self.interest_dict.items()) if self.interest_dict else []
+            items_to_process = list(self.interest_dict.items())
             if not items_to_process:
                 continue
 
