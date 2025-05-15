@@ -259,6 +259,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     reply_style2_chosen = ""
     style_habbits_str = ""
     grammar_habbits_str = ""
+    prompt_ger = ""
     if is_group_chat and global_config.enable_expression_learner:
         # 从/data/expression/对应chat_id/expressions.json中读取表达方式
         (
