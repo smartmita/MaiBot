@@ -325,15 +325,15 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         return []
 
     if len_text < 12:
-        split_strength = 0.2
-    elif len_text < 32:
         split_strength = 0.5
-    else:
+    elif len_text < 32:
         split_strength = 0.7
+    else:
+        split_strength = 0.9
     merge_probability = 1.0 - split_strength
 
     if merge_probability == 1.0 and len(preliminary_final_sentences) > 1 : # 只有多个句子才合并
-        merged_text = " ".join(preliminary_final_sentences).strip()
+        merged_text = "，".join(preliminary_final_sentences).strip()
         # 移除末尾的逗号（中英文）
         if merged_text.endswith(',') or merged_text.endswith('，'):
             merged_text = merged_text[:-1].strip()
