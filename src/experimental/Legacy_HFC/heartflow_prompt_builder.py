@@ -260,6 +260,10 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     style_habbits_str = ""
     grammar_habbits_str = ""
     prompt_ger = ""
+    if random.random() < 0.60:
+        prompt_ger += "**不用输出对方的网名或绰号**"
+    if random.random() < 0.00:
+        prompt_ger += "你喜欢用反问句"
     if is_group_chat and global_config.enable_expression_learner:
         # 从/data/expression/对应chat_id/expressions.json中读取表达方式
         (
@@ -293,12 +297,6 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         style_habbits_str = "\n你可以参考以下的语言习惯，如果情景合适就使用，不要盲目使用,不要生硬使用，而是结合到表达中：\n".join(style_habbits)
         grammar_habbits_str = "\n请你根据情景使用以下句法：\n".join(grammar_habbits)
     else:
-        prompt_ger = ""
-        if random.random() < 0.60:
-            prompt_ger += "**不用输出对方的网名或绰号**"
-        if random.random() < 0.00:
-            prompt_ger += "你喜欢用反问句"
-
         reply_styles1 = [
             ("给出日常且口语化的回复，平淡一些", 0.40),
             ("给出非常简短的回复", 0.30),
