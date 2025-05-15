@@ -255,7 +255,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         else:
             return [text]
 
-    separators = {"。", "，", ",", " ", ";", "\xa0", "\n", ".", "—"} # 保持原有分隔符集合
+    separators = {"。", "，", ",", " ", ";", "\xa0", "\n", ".", "—", "！", "？"} # 保持原有分隔符集合
     # logger.debug(f"DEBUG: 使用的分隔符集合: {separators}")
     segments = []
     current_segment = ""
@@ -365,6 +365,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         if s.endswith(',') or s.endswith('，'):
             s = s[:-1].strip()
         if s:
+            s = random_remove_punctuation(s)
             processed_sentences_after_merge.append(s)
 
     return processed_sentences_after_merge
@@ -386,13 +387,13 @@ def random_remove_punctuation(text: str) -> str:
         if char == "。" and i == text_len - 1:  # 结尾的句号
             if random.random() > 0.1:  # 90%概率删除结尾句号
                 continue
-        elif char == "，":
-            rand = random.random()
-            if rand < 0.25:  # 5%概率删除逗号
-                continue
-            elif rand < 0.25:  # 20%概率把逗号变成空格
-                result += " "
-                continue
+        # elif char == "，":
+        #     rand = random.random()
+        #     if rand < 0.25:  # 25%概率删除逗号
+        #         continue
+        #     elif rand < 0.2:  # 20%概率把逗号变成空格
+        #         result += " "
+        #         continue
         result += char
     return result
 
