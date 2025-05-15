@@ -22,6 +22,7 @@ logger = get_module_logger("chat_utils")
 # 预编译正则表达式以提高性能
 _L_REGEX = regex.compile(r"\p{L}")  # 匹配任何Unicode字母
 _HAN_CHAR_REGEX = regex.compile(r"\p{Han}")  # 匹配汉字 (Unicode属性)
+_Nd_REGEX = regex.compile(r'\p{Nd}') # 新增：匹配Unicode数字 (Nd = Number, decimal digit)
 
 
 def is_letter_not_han(char_str: str) -> bool:
@@ -47,6 +48,28 @@ def is_han_character(char_str: str) -> bool:
     if not isinstance(char_str, str) or len(char_str) != 1:
         return False
     return _HAN_CHAR_REGEX.fullmatch(char_str) is not None
+
+
+def is_relevant_word_char(char_str: str) -> bool: # 新增辅助函数
+    """
+    检查字符是否为“相关词语字符”（非汉字字母 或 数字）。
+    用于判断在非中文语境下，空格两侧是否应被视为一个词内部的部分。
+    例如拉丁字母、西里尔字母、数字等返回True。
+    汉字、标点、纯空格等返回False。
+    """
+    if not isinstance(char_str, str) or len(char_str) != 1:
+        return False
+
+    # 检查是否为Unicode字母
+    if _L_REGEX.fullmatch(char_str):
+        # 如果是字母，则检查是否非汉字
+        return not _HAN_CHAR_REGEX.fullmatch(char_str)
+
+    # 检查是否为Unicode数字
+    if _Nd_REGEX.fullmatch(char_str):
+        return True # 数字本身被视为相关词语字符
+
+    return False
 
 
 def is_english_letter(char: str) -> bool:
@@ -210,22 +233,20 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     Returns:
         List[str]: 分割和合并后的句子列表
     """
+    # print(f"DEBUG: 输入文本 (repr): {repr(text)}")
+
     # 预处理：
-    # 1. 将连续的换行符替换为单个换行符
     text = regex.sub(r"\n\s*\n+", "\n", text)
-    # 2. 处理换行符和其他分隔符的组合 (增加了 . 和 —)
     text = regex.sub(r"\n\s*([—。.,，;\s\xa0])", r"\1", text)
     text = regex.sub(r"([—。.,，;\s\xa0])\s*\n", r"\1", text)
-
-    # 3. 处理两个汉字中间的换行符
     def replace_han_newline(match):
         char1 = match.group(1)
         char2 = match.group(2)
         if is_han_character(char1) and is_han_character(char2):
-            return char1 + "。" + char2
+            return char1 + "，" + char2
         return match.group(0)
-
     text = regex.sub(r"(.)\n(.)", replace_han_newline, text)
+    # print(f"DEBUG: 预处理后文本 (repr): {repr(text)}")
 
     len_text = len(text)
     if len_text < 3:
@@ -234,36 +255,33 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         else:
             return [text]
 
-    # 定义分隔符，增加了 \n, ., —
-    separators = {"，", ",", " ", "。", ";", "\xa0", "\n", ".", "—"}
+    separators = {"。", "，", ",", " ", ";", "\xa0", "\n", ".", "—"} # 保持原有分隔符集合
+    # logger.debug(f"DEBUG: 使用的分隔符集合: {separators}")
     segments = []
     current_segment = ""
 
     i = 0
     while i < len(text):
         char = text[i]
-
         if char in separators:
             can_split = True
-
-            if char == " " or char == "\xa0":
+            if char == ' ' or char == '\xa0': # 仅当分隔符是空格或NBSP时，检查两侧字符
                 if 0 < i < len(text) - 1:
                     prev_char = text[i - 1]
                     next_char = text[i + 1]
-                    is_prev_letter_not_han = is_letter_not_han(prev_char)
-                    is_next_letter_not_han = is_letter_not_han(next_char)
-                    if is_prev_letter_not_han and is_next_letter_not_han:
+                    # 检查前后字符是否都是“相关词语字符”（非汉字字母或数字）
+                    # 如果是，则不应在此处分割，因为这可能是一个单词内部的空格（例如 "word1 word2"）
+                    if is_relevant_word_char(prev_char) and is_relevant_word_char(next_char):
                         can_split = False
 
             if can_split:
                 if current_segment:
                     segments.append((current_segment, char))
-                elif char not in [" ", "\xa0"]:
-                    segments.append(("", char))
-                elif char in [" ", "\xa0"]:
+                elif char not in [' ', '\xa0'] or char == '\n':
                     segments.append(("", char))
                 current_segment = ""
             else:
+                # 如果不能分割 (can_split is False)，则将当前字符（空格/NBSP）加入到当前段落
                 current_segment += char
         else:
             current_segment += char
@@ -272,13 +290,13 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     if current_segment:
         segments.append((current_segment, ""))
 
-    temp_segments_for_filter = []
+    filtered_segments = []
     for content, sep in segments:
         if content.strip():
-            temp_segments_for_filter.append((content, sep))
-        elif sep and sep not in [" ", "\xa0"]:
-            temp_segments_for_filter.append((content, sep))
-    segments = temp_segments_for_filter
+            filtered_segments.append((content, sep))
+        elif sep and sep not in [' ', '\xa0']:
+            filtered_segments.append(("", sep))
+    segments = filtered_segments
 
     if not segments:
         return [text] if text.strip() else []
@@ -287,15 +305,21 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     current_sentence_build = ""
     for content, sep in segments:
         current_sentence_build += content
-        if sep and sep not in [" ", "\xa0"]:
+
+        if sep and sep not in [' ', '\xa0']:
             current_sentence_build += sep
             if current_sentence_build.strip():
                 preliminary_final_sentences.append(current_sentence_build.strip())
             current_sentence_build = ""
         elif sep:
-            current_sentence_build += sep
+            if current_sentence_build.strip():
+                preliminary_final_sentences.append(current_sentence_build.strip())
+            current_sentence_build = ""
+
     if current_sentence_build.strip():
         preliminary_final_sentences.append(current_sentence_build.strip())
+
+    logger.debug(f"初步分割（未合并，已strip）后的句子: {preliminary_final_sentences}")
 
     if not preliminary_final_sentences:
         return []
@@ -308,8 +332,18 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         split_strength = 0.7
     merge_probability = 1.0 - split_strength
 
-    if merge_probability == 1.0:
-        return [" ".join(preliminary_final_sentences).strip()] if preliminary_final_sentences else []
+    if merge_probability == 1.0 and len(preliminary_final_sentences) > 1 : # 只有多个句子才合并
+        merged_text = " ".join(preliminary_final_sentences).strip()
+        # 移除末尾的逗号（中英文）
+        if merged_text.endswith(',') or merged_text.endswith('，'):
+            merged_text = merged_text[:-1].strip()
+        return [merged_text] if merged_text else []
+    elif len(preliminary_final_sentences) == 1: # 如果只有一个初步句子，直接返回
+        s = preliminary_final_sentences[0].strip()
+        if s.endswith(',') or s.endswith('，'):
+            s = s[:-1].strip()
+        return [s] if s else []
+
 
     final_sentences_merged = []
     temp_sentence = ""
@@ -325,9 +359,15 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         if temp_sentence:
             final_sentences_merged.append(temp_sentence)
 
-    final_sentences = [s.strip() for s in final_sentences_merged if s.strip()]
+    processed_sentences_after_merge = []
+    for sentence in final_sentences_merged:
+        s = sentence.strip()
+        if s.endswith(',') or s.endswith('，'):
+            s = s[:-1].strip()
+        if s:
+            processed_sentences_after_merge.append(s)
 
-    return final_sentences
+    return processed_sentences_after_merge
 
 
 def random_remove_punctuation(text: str) -> str:
@@ -365,18 +405,18 @@ def process_llm_response(text: str) -> list[str]:
     else:
         protected_text = text
         kaomoji_mapping = {}
-    # 提取被 () 或 [] 包裹且包含中文的内容
-    pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
-    # _extracted_contents = pattern.findall(text)
-    _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
-    # 去除 () 和 [] 及其包裹的内容
-    cleaned_text = pattern.sub("", protected_text)
+    # # 提取被 () 或 [] 包裹且包含中文的内容
+    # pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
+    # # _extracted_contents = pattern.findall(text)
+    # _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
+    # # 去除 () 和 [] 及其包裹的内容
+    # cleaned_text = pattern.sub("", protected_text)
 
-    if cleaned_text == "":
-        return ["呃呃"]
+    # if cleaned_text == "":
+    #     return ["呃呃"]
 
-    logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
-
+    # logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
+    cleaned_text = protected_text
     # 对清理后的文本进行进一步处理
     max_length = global_config.response_max_length * 2
     max_sentence_num = global_config.response_max_sentence_num
