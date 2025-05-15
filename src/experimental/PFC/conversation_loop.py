@@ -339,20 +339,22 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                     last_action_final_status = "unknown"
                     # 从 conversation_info.done_action 获取上一个动作的最终状态
                     if conversation_instance.conversation_info and conversation_instance.conversation_info.done_action:
-                        if conversation_instance.conversation_info.done_action: # 确保列表不为空
-                             last_action_record = conversation_instance.conversation_info.done_action[-1]
-                             last_action_final_status = last_action_record.get("status", "unknown")
+                        if conversation_instance.conversation_info.done_action:  # 确保列表不为空
+                            last_action_record = conversation_instance.conversation_info.done_action[-1]
+                            last_action_final_status = last_action_record.get("status", "unknown")
 
                     if last_action_final_status == "max_checker_attempts_failed":
                         original_planned_action = last_action_record.get("action", "unknown_original_action")
                         original_plan_reason = last_action_record.get("plan_reason", "unknown_original_reason")
-                        checker_fail_reason_from_history = last_action_record.get("final_reason", "ReplyChecker判定不合适")
+                        checker_fail_reason_from_history = last_action_record.get(
+                            "final_reason", "ReplyChecker判定不合适"
+                        )
 
                         logger.warning(
                             f"[私聊][{conversation_instance.private_name}] (Loop) 原规划动作 '{original_planned_action}' 因达到ReplyChecker最大尝试次数而失败。将强制执行 'wait' 动作。"
                         )
-                        
-                        action_to_perform_now = "wait" # 强制动作为 "wait"
+
+                        action_to_perform_now = "wait"  # 强制动作为 "wait"
                         reason_for_forced_wait = f"原动作 '{original_planned_action}' (规划原因: {original_plan_reason}) 因 ReplyChecker 多次判定不合适 ({checker_fail_reason_from_history}) 而失败，现强制等待。"
 
                         if conversation_instance.conversation_info:
@@ -360,21 +362,20 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                             conversation_instance.conversation_info.last_successful_reply_action = None
                             # 重置连续LLM失败计数器，因为我们已经用特定的“等待”动作处理了这种失败类型
                             conversation_instance.consecutive_llm_action_failures = 0
-                        
+
                         logger.info(f"[私聊][{conversation_instance.private_name}] (Loop) 执行强制等待动作...")
                         await actions.handle_action(
                             conversation_instance,
-                            action_to_perform_now, # "wait"
+                            action_to_perform_now,  # "wait"
                             reason_for_forced_wait,
                             conversation_instance.observation_info,
                             conversation_instance.conversation_info,
                         )
                         # "wait" 动作执行后，其内部逻辑会将状态设置为 ANALYZING (通过 finally 块)
                         # 所以循环的下一轮会自然地重新规划或根据等待结果行动
-                        _force_reflect_and_act_next_iter = False # 确保此路径不会强制反思
-                        await asyncio.sleep(0.1) # 短暂暂停，等待状态更新等
-                        continue # 进入主循环的下一次迭代
-
+                        _force_reflect_and_act_next_iter = False  # 确保此路径不会强制反思
+                        await asyncio.sleep(0.1)  # 短暂暂停，等待状态更新等
+                        continue  # 进入主循环的下一次迭代
 
                     elif conversation_instance.consecutive_llm_action_failures >= MAX_CONSECUTIVE_LLM_ACTION_FAILURES:
                         logger.error(
@@ -382,8 +383,10 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                         )
 
                         forced_wait_action_on_consecutive_failure = "wait"
-                        reason_for_consecutive_failure_wait = f"LLM连续失败{conversation_instance.consecutive_llm_action_failures}次，强制等待"
-                        
+                        reason_for_consecutive_failure_wait = (
+                            f"LLM连续失败{conversation_instance.consecutive_llm_action_failures}次，强制等待"
+                        )
+
                         conversation_instance.consecutive_llm_action_failures = 0
 
                         if conversation_instance.conversation_info:
@@ -392,7 +395,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                         logger.info(f"[私聊][{conversation_instance.private_name}] (Loop) 执行强制等待动作...")
                         await actions.handle_action(
                             conversation_instance,
-                            forced_wait_action_on_consecutive_failure, # "wait"
+                            forced_wait_action_on_consecutive_failure,  # "wait"
                             reason_for_consecutive_failure_wait,
                             conversation_instance.observation_info,
                             conversation_instance.conversation_info,

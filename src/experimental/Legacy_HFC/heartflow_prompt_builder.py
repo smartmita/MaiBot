@@ -294,7 +294,11 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
             if isinstance(expr, dict) and "situation" in expr and "style" in expr:
                 style_habbits.append(f"当{expr['situation']}时，使用 {expr['style']}")
 
-        style_habbits_str = "\n你可以参考以下的语言习惯，如果情景合适就使用，不要盲目使用,不要生硬使用，而是结合到表达中：\n".join(style_habbits)
+        style_habbits_str = (
+            "\n你可以参考以下的语言习惯，如果情景合适就使用，不要盲目使用,不要生硬使用，而是结合到表达中：\n".join(
+                style_habbits
+            )
+        )
         grammar_habbits_str = "\n请你根据情景使用以下句法：\n".join(grammar_habbits)
     else:
         reply_styles1 = [
@@ -946,6 +950,7 @@ class PromptBuilder:
             logger.error(f"[PromptBuilder] 构建 Planner 提示词时出错: {e}")
             logger.error(traceback.format_exc())
             return "[构建 Planner Prompt 时出错]"
+
 
 def weighted_sample_no_replacement(items, weights, k) -> list:
     """

@@ -22,19 +22,76 @@ logger = get_module_logger("chat_utils")
 # 预编译正则表达式以提高性能
 _L_REGEX = regex.compile(r"\p{L}")  # 匹配任何Unicode字母
 _HAN_CHAR_REGEX = regex.compile(r"\p{Han}")  # 匹配汉字 (Unicode属性)
-_Nd_REGEX = regex.compile(r'\p{Nd}') # 新增：匹配Unicode数字 (Nd = Number, decimal digit)
+_Nd_REGEX = regex.compile(r"\p{Nd}")  # 新增：匹配Unicode数字 (Nd = Number, decimal digit)
 SEPARATORS = {"。", "，", ",", " ", ";", "\xa0", "\n", ".", "—", "！", "？"}
 KNOWN_ABBREVIATIONS_ENDING_WITH_DOT = {
-    "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "St.", "Messrs.", "Mmes.", "Capt.", "Gov.",
-    "Inc.", "Ltd.", "Corp.", "Co.", "PLC", # PLC通常不带点，但有些可能
-    "vs.", "etc.", "i.e.", "e.g.", "viz.", "al.", "et al.", "ca.", "cf.",
-    "No.", "Vol.", "pp.", "fig.", "figs.", "ed.", "Ph.D.", "M.D.", "B.A.", "M.A.",
-    "Jan.", "Feb.", "Mar.", "Apr.", "Jun.", "Jul.", "Aug.", "Sep.", "Oct.", "Nov.", "Dec.", # May. 通常不用点
-    "Mon.", "Tue.", "Wed.", "Thu.", "Fri.", "Sat.", "Sun.",
-    "U.S.", "U.K.", "E.U.", "U.S.A.", "U.S.S.R.",
-    "Ave.", "Blvd.", "Rd.", "Ln.", # Street suffixes
-    "approx.", "dept.", "appt.", "श्री." # Hindi Shri.
+    "Mr.",
+    "Mrs.",
+    "Ms.",
+    "Dr.",
+    "Prof.",
+    "St.",
+    "Messrs.",
+    "Mmes.",
+    "Capt.",
+    "Gov.",
+    "Inc.",
+    "Ltd.",
+    "Corp.",
+    "Co.",
+    "PLC",  # PLC通常不带点，但有些可能
+    "vs.",
+    "etc.",
+    "i.e.",
+    "e.g.",
+    "viz.",
+    "al.",
+    "et al.",
+    "ca.",
+    "cf.",
+    "No.",
+    "Vol.",
+    "pp.",
+    "fig.",
+    "figs.",
+    "ed.",
+    "Ph.D.",
+    "M.D.",
+    "B.A.",
+    "M.A.",
+    "Jan.",
+    "Feb.",
+    "Mar.",
+    "Apr.",
+    "Jun.",
+    "Jul.",
+    "Aug.",
+    "Sep.",
+    "Oct.",
+    "Nov.",
+    "Dec.",  # May. 通常不用点
+    "Mon.",
+    "Tue.",
+    "Wed.",
+    "Thu.",
+    "Fri.",
+    "Sat.",
+    "Sun.",
+    "U.S.",
+    "U.K.",
+    "E.U.",
+    "U.S.A.",
+    "U.S.S.R.",
+    "Ave.",
+    "Blvd.",
+    "Rd.",
+    "Ln.",  # Street suffixes
+    "approx.",
+    "dept.",
+    "appt.",
+    "श्री.",  # Hindi Shri.
 }
+
 
 def is_letter_not_han(char_str: str) -> bool:
     """
@@ -68,7 +125,7 @@ def is_digit(char_str: str) -> bool:
     return _Nd_REGEX.fullmatch(char_str) is not None
 
 
-def is_relevant_word_char(char_str: str) -> bool: # 新增辅助函数
+def is_relevant_word_char(char_str: str) -> bool:  # 新增辅助函数
     """
     检查字符是否为“相关词语字符”（非汉字字母 或 数字）。
     用于判断在非中文语境下，空格两侧是否应被视为一个词内部的部分。
@@ -85,7 +142,7 @@ def is_relevant_word_char(char_str: str) -> bool: # 新增辅助函数
 
     # 检查是否为Unicode数字
     if _Nd_REGEX.fullmatch(char_str):
-        return True # 数字本身被视为相关词语字符
+        return True  # 数字本身被视为相关词语字符
 
     return False
 
@@ -249,15 +306,17 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     # print(f"DEBUG: 输入文本 (repr): {repr(text)}")
 
     # 预处理
-    text = regex.sub(r"\n\s*\n+", "\n", text) # 合并多个换行符
-    text = regex.sub(r"\n\s*([—。.,，;\s\xa0！？])", r"\1", text) 
-    text = regex.sub(r"([—。.,，;\s\xa0！？])\s*\n", r"\1", text) 
+    text = regex.sub(r"\n\s*\n+", "\n", text)  # 合并多个换行符
+    text = regex.sub(r"\n\s*([—。.,，;\s\xa0！？])", r"\1", text)
+    text = regex.sub(r"([—。.,，;\s\xa0！？])\s*\n", r"\1", text)
+
     def replace_han_newline(match):
         char1 = match.group(1)
         char2 = match.group(2)
         if is_han_character(char1) and is_han_character(char2):
-            return char1 + "，" + char2 # 汉字间的换行符替换为逗号
+            return char1 + "，" + char2  # 汉字间的换行符替换为逗号
         return match.group(0)
+
     text = regex.sub(r"(.)\n(.)", replace_han_newline, text)
 
     len_text = len(text)
@@ -277,25 +336,26 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         if char in SEPARATORS:
             can_split_current_char = True
 
-            if char == '.':
+            if char == ".":
                 can_split_this_dot = True
                 # 规则1: 小数点 (数字.数字)
-                if 0 < i < len_text - 1 and is_digit(text[i-1]) and is_digit(text[i+1]):
+                if 0 < i < len_text - 1 and is_digit(text[i - 1]) and is_digit(text[i + 1]):
                     can_split_this_dot = False
                 # 规则2: 西文缩写/域名内部的点 (西文字母.西文字母)
-                elif 0 < i < len_text - 1 and is_letter_not_han(text[i-1]) and is_letter_not_han(text[i+1]):
+                elif 0 < i < len_text - 1 and is_letter_not_han(text[i - 1]) and is_letter_not_han(text[i + 1]):
                     can_split_this_dot = False
                 # 规则3: 已知缩写词的末尾点 (例如 "e.g. ", "U.S.A. ")
                 else:
                     potential_abbreviation_word = current_segment + char
-                    is_followed_by_space = (i + 1 < len_text and text[i+1] == ' ')
-                    is_at_end_of_text = (i + 1 == len_text)
+                    is_followed_by_space = i + 1 < len_text and text[i + 1] == " "
+                    is_at_end_of_text = i + 1 == len_text
 
-                    if potential_abbreviation_word in KNOWN_ABBREVIATIONS_ENDING_WITH_DOT and \
-                        (is_followed_by_space or is_at_end_of_text):
+                    if potential_abbreviation_word in KNOWN_ABBREVIATIONS_ENDING_WITH_DOT and (
+                        is_followed_by_space or is_at_end_of_text
+                    ):
                         can_split_this_dot = False
                 can_split_current_char = can_split_this_dot
-            elif char == ' ' or char == '\xa0': # 处理空格/NBSP
+            elif char == " " or char == "\xa0":  # 处理空格/NBSP
                 if 0 < i < len_text - 1:
                     prev_char = text[i - 1]
                     next_char = text[i + 1]
@@ -304,19 +364,19 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
                         can_split_current_char = False
 
             if can_split_current_char:
-                if current_segment: # 如果当前段落有内容，则添加 (内容, 分隔符)
+                if current_segment:  # 如果当前段落有内容，则添加 (内容, 分隔符)
                     segments.append((current_segment, char))
                 # 如果当前段落为空，但分隔符不是简单的排版空格 (除非是换行符这种有意义的空行分隔)
-                elif char not in [' ', '\xa0'] or char == '\n':
-                    segments.append(("", char)) # 添加 ("", 分隔符)
-                current_segment = "" # 重置当前段落
+                elif char not in [" ", "\xa0"] or char == "\n":
+                    segments.append(("", char))  # 添加 ("", 分隔符)
+                current_segment = ""  # 重置当前段落
             else:
-                current_segment += char # 不分割，将当前分隔符加入到当前段落
+                current_segment += char  # 不分割，将当前分隔符加入到当前段落
         else:
-            current_segment += char # 非分隔符，加入当前段落
+            current_segment += char  # 非分隔符，加入当前段落
         i += 1
 
-    if current_segment: # 处理末尾剩余的段落
+    if current_segment:  # 处理末尾剩余的段落
         segments.append((current_segment, ""))
 
     # 过滤掉仅由空格组成的segment，但保留其后的有效分隔符
@@ -325,7 +385,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
         stripped_content = content.strip()
         if stripped_content:
             filtered_segments.append((stripped_content, sep))
-        elif sep and (sep not in [' ', '\xa0'] or sep == '\n'):
+        elif sep and (sep not in [" ", "\xa0"] or sep == "\n"):
             filtered_segments.append(("", sep))
     segments = filtered_segments
 
@@ -335,33 +395,32 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     preliminary_final_sentences = []
     current_sentence_build = ""
     for k, (content, sep) in enumerate(segments):
-        current_sentence_build += content # 先添加内容部分
+        current_sentence_build += content  # 先添加内容部分
 
         # 判断分隔符类型
         is_strong_terminator = sep in {"。", ".", "！", "？", "\n", "—"}
-        is_space_separator = sep in [' ', '\xa0']
+        is_space_separator = sep in [" ", "\xa0"]
 
         if is_strong_terminator:
-            current_sentence_build += sep # 将强终止符加入
+            current_sentence_build += sep  # 将强终止符加入
             if current_sentence_build.strip():
                 preliminary_final_sentences.append(current_sentence_build.strip())
-            current_sentence_build = "" # 开始新的句子构建
+            current_sentence_build = ""  # 开始新的句子构建
         elif is_space_separator:
             # 如果是空格，并且当前构建的句子不以空格结尾，则添加空格并继续构建
             if not current_sentence_build.endswith(sep):
                 current_sentence_build += sep
-        elif sep: # 其他分隔符 (如 ',', ';')
-            current_sentence_build += sep # 加入并继续构建，这些通常不独立成句
+        elif sep:  # 其他分隔符 (如 ',', ';')
+            current_sentence_build += sep  # 加入并继续构建，这些通常不独立成句
             # 如果这些弱分隔符后紧跟的就是文本末尾，则它们可能结束一个句子
-            if k == len(segments) -1 and current_sentence_build.strip():
+            if k == len(segments) - 1 and current_sentence_build.strip():
                 preliminary_final_sentences.append(current_sentence_build.strip())
                 current_sentence_build = ""
 
-
-    if current_sentence_build.strip(): # 处理最后一个构建中的句子
+    if current_sentence_build.strip():  # 处理最后一个构建中的句子
         preliminary_final_sentences.append(current_sentence_build.strip())
 
-    preliminary_final_sentences = [s for s in preliminary_final_sentences if s.strip()] # 清理空字符串
+    preliminary_final_sentences = [s for s in preliminary_final_sentences if s.strip()]  # 清理空字符串
     # print(f"DEBUG: 初步分割（优化组装后）的句子: {preliminary_final_sentences}")
 
     if not preliminary_final_sentences:
@@ -377,12 +436,12 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
 
     if merge_probability == 1.0 and len(preliminary_final_sentences) > 1:
         merged_text = " ".join(preliminary_final_sentences).strip()
-        if merged_text.endswith(',') or merged_text.endswith('，'):
+        if merged_text.endswith(",") or merged_text.endswith("，"):
             merged_text = merged_text[:-1].strip()
         return [merged_text] if merged_text else []
     elif len(preliminary_final_sentences) == 1:
         s = preliminary_final_sentences[0].strip()
-        if s.endswith(',') or s.endswith('，'):
+        if s.endswith(",") or s.endswith("，"):
             s = s[:-1].strip()
         return [s] if s else []
 
@@ -407,7 +466,7 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     processed_sentences_after_merge = []
     for sentence in final_sentences_merged:
         s = sentence.strip()
-        if s.endswith(',') or s.endswith('，'):
+        if s.endswith(",") or s.endswith("，"):
             s = s[:-1].strip()
         if s:
             s = random_remove_punctuation(s)

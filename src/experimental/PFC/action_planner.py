@@ -292,14 +292,16 @@ class ActionPlanner:
                 "reason",
                 "emoji_query",
                 default_values={"action": "wait", "reason": "LLM返回格式错误或未提供原因，默认等待", "emoji_query": ""},
-                allow_empty_string_fields=["emoji_query"]
+                allow_empty_string_fields=["emoji_query"],
             )
 
             initial_action = initial_result.get("action", "wait")
             initial_reason = initial_result.get("reason", "LLM未提供原因，默认等待")
-            current_emoji_query = initial_result.get("emoji_query", "") # 获取 emoji_query
-            logger.info(f"[私聊][{self.private_name}] LLM 初步规划行动: {initial_action}, 原因: {initial_reason}表情查询: '{current_emoji_query}'")
-            if conversation_info: # 确保 conversation_info 存在
+            current_emoji_query = initial_result.get("emoji_query", "")  # 获取 emoji_query
+            logger.info(
+                f"[私聊][{self.private_name}] LLM 初步规划行动: {initial_action}, 原因: {initial_reason}表情查询: '{current_emoji_query}'"
+            )
+            if conversation_info:  # 确保 conversation_info 存在
                 conversation_info.current_emoji_query = current_emoji_query
         except Exception as llm_err:
             logger.error(f"[私聊][{self.private_name}] 调用 LLM 或解析初步规划结果时出错: {llm_err}")
