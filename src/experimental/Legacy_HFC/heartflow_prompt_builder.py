@@ -255,6 +255,10 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         truncate=True,
     )
 
+    reply_style1_chosen = ""
+    reply_style2_chosen = ""
+    style_habbits_str = ""
+    grammar_habbits_str = ""
     if is_group_chat and global_config.enable_expression_learner:
         # 从/data/expression/对应chat_id/expressions.json中读取表达方式
         (
@@ -347,13 +351,13 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
             prompt_personality=prompt_personality,
             chat_target_2=chat_target_2,  # Used in group template
             current_mind_info=current_mind_info,
-            reply_style2=reply_style2_chosen if reply_style2_chosen else "",
-            reply_style1=reply_style1_chosen if reply_style1_chosen else "",
+            reply_style2=reply_style2_chosen,
+            reply_style1=reply_style1_chosen,
             reason=reason,
             prompt_ger=prompt_ger,
             moderation_prompt=await global_prompt_manager.get_prompt_async("moderation_prompt"),
-            style_habbits=style_habbits_str if style_habbits_str else "",
-            grammar_habbits=grammar_habbits_str if grammar_habbits_str else "",
+            style_habbits=style_habbits_str,
+            grammar_habbits=grammar_habbits_str,
             # sender_name is not used in the group template
         )
     else:  # Private chat
