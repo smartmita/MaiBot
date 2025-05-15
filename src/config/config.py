@@ -1,6 +1,7 @@
 # TODO: 更多的可配置项
 # TODO: 所有模型单独分离，温度可配置
 # TODO: 原生多模态支持
+from importlib.util import spec_from_file_location
 import os
 import re
 from dataclasses import dataclass, field
@@ -160,6 +161,7 @@ class BotConfig:
         0  # 人设消息注入 prompt 详细等级 (0: 采用默认配置, 1: 核心/随机细节, 2: 核心+随机侧面/全部细节, 3: 全部)
     )
     expression_style = "描述麦麦说话的表达风格，表达习惯"
+    enable_expression_learner: bool = True  # 是否启用新发言习惯注入，关闭则启用旧方法
     # identity
     identity_detail: List[str] = field(
         default_factory=lambda: [
@@ -429,6 +431,10 @@ class BotConfig:
                 )
             if config.INNER_VERSION in SpecifierSet(">=1.7.0"):
                 config.expression_style = personality_config.get("expression_style", config.expression_style)
+            if config.INNER_VERSION in SpecifierSet(">=1.7.0.3"):
+                config.enable_expression_learner = personality_config.get(
+                    "enable_expression_learner", config.enable_expression_learner
+                )
 
         def identity(parent: dict):
             identity_config = parent["identity"]

@@ -1,5 +1,5 @@
 [inner]
-version = "1.7.0.2"
+version = "1.7.0.3"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -46,7 +46,7 @@ personality_detail_level = 0 # 人设消息注入 prompt 详细等级 (0: 采用
 
 # 表达方式
 expression_style = "描述麦麦说话的表达风格，表达习惯"
-
+enable_expression_learner = true  # 是否启用新发言习惯注入，关闭则启用旧方法
 
 [identity] #アイデンティティがない 生まれないらららら
 # 兴趣爱好 未完善，有些条目未使用
