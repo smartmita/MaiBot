@@ -263,7 +263,8 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
     len_text = len(text)
     if len_text < 3:
         stripped_text = text.strip()
-        if not stripped_text: return []
+        if not stripped_text:
+            return []
         if len(stripped_text) == 1 and stripped_text in SEPARATORS:
             return []
         return [stripped_text]

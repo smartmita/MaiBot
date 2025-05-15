@@ -3,7 +3,6 @@ import asyncio
 import datetime
 import traceback
 import json
-import os
 from typing import Optional, Set, TYPE_CHECKING
 from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.common.logger_manager import get_logger
@@ -12,7 +11,6 @@ from src.chat.utils.chat_message_builder import build_readable_messages
 from .pfc_types import ConversationState
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
-from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.chat.utils.utils_image import image_path_to_base64 # 假设路径正确
 from maim_message import Seg, UserInfo # 从 maim_message 导入 Seg 和 UserInfo
 from src.chat.message_receive.message import MessageSending, MessageSet # PFC 的发送器依赖这些
@@ -747,7 +745,7 @@ async def handle_action(
                                     "user_info": bot_user_info.to_dict(),
                                     "processed_plain_text": f"[表情包: {emoji_description}]",
                                     "detailed_plain_text": f"[表情包: {emoji_path} - {emoji_description}]",
-                                    "raw_message": f"[CQ:image,file=base64://...]" # 示例
+                                    "raw_message": "[CQ:image,file=base64://...]" # 示例
                                 }
                                 observation_info.chat_history.append(bot_meme_message_dict)
                                 observation_info.chat_history_count = len(observation_info.chat_history)

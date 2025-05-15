@@ -473,7 +473,7 @@ def get_items_from_json(
         Tuple[bool, Union[Dict[str, Any], List[Dict[str, Any]]]]: (是否成功, 提取的字段字典或字典列表)
     """
     cleaned_content = content.strip()
-    result: Union[Dict[str, Any], List[Dict[str, Any]]] = {}
+    _result: Union[Dict[str, Any], List[Dict[str, Any]]] = {}
     markdown_match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", cleaned_content, re.IGNORECASE)
     if markdown_match:
         cleaned_content = markdown_match.group(1).strip()
@@ -605,7 +605,8 @@ def get_items_from_json(
             valid_single_object = False
             break
     
-    if not valid_single_object: return False, default_result.copy() # 如果字段缺失，则校验失败
+    if not valid_single_object:
+        return False, default_result.copy() # 如果字段缺失，则校验失败
 
     if required_types:
         for field, expected_type in required_types.items():
@@ -616,7 +617,8 @@ def get_items_from_json(
                 valid_single_object = False
                 break
     
-    if not valid_single_object: return False, default_result.copy() # 如果类型错误，则校验失败
+    if not valid_single_object:
+        return False, default_result.copy() # 如果类型错误，则校验失败
 
     for field in items:
         if field in current_single_result and \
