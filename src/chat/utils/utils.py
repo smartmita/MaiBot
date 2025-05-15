@@ -406,17 +406,17 @@ def process_llm_response(text: str) -> list[str]:
     else:
         protected_text = text
         kaomoji_mapping = {}
-    # # 提取被 () 或 [] 包裹且包含中文的内容
-    # pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
-    # # _extracted_contents = pattern.findall(text)
-    # _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
-    # # 去除 () 和 [] 及其包裹的内容
-    # cleaned_text = pattern.sub("", protected_text)
+    # 提取被 [] 包裹且包含中文的内容
+    pattern = re.compile(r"[\[](?=.*[一-鿿]).*?[\]）]")
+    # _extracted_contents = pattern.findall(text)
+    _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
+    # 去除 () 和 [] 及其包裹的内容
+    cleaned_text = pattern.sub("", protected_text)
 
-    # if cleaned_text == "":
-    #     return ["呃呃"]
+    if cleaned_text == "":
+        return ["呃呃"]
 
-    # logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
+    logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
     cleaned_text = protected_text
     # 对清理后的文本进行进一步处理
     max_length = global_config.response_max_length * 2
