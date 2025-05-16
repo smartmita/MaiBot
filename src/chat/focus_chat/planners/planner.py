@@ -3,7 +3,7 @@ import json  # <--- 确保导入 json
 import traceback
 from typing import List, Dict, Any, Optional
 from rich.traceback import install
-from MaiMBot.src.chat.message_receive.chat_stream import ChatStream
+from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from src.chat.focus_chat.heartflow_prompt_builder import prompt_builder
