@@ -143,7 +143,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         )
 
         conversation_instance.relationship_updater = PfcRelationshipUpdater(
-            private_name=conversation_instance.private_name, bot_name=global_config.BOT_NICKNAME
+            private_name=conversation_instance.private_name, bot_name=global_config.bot.nickname
         )
         conversation_instance.relationship_translator = PfcRepationshipTranslator(
             private_name=conversation_instance.private_name
@@ -151,7 +151,7 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcRelationship 初始化完成。")
 
         conversation_instance.emotion_updater = PfcEmotionUpdater(
-            private_name=conversation_instance.private_name, bot_name=global_config.BOT_NICKNAME
+            private_name=conversation_instance.private_name, bot_name=global_config.bot.nickname
         )
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) PfcEmotion 初始化完成。")
 

@@ -91,7 +91,6 @@ class HeartFChatting:
         self.action_manager = ActionManager()
         self.action_planner = ActionPlanner(log_prefix=self.log_prefix, action_manager=self.action_manager, stream_id=self.stream_id, chat_stream=self.chat_stream)
 
-
         # --- 处理器列表 ---
         self.processors: List[BaseProcessor] = []
         self._register_default_processors()
@@ -526,5 +525,3 @@ class HeartFChatting:
         if last_n is not None:
             history = history[-last_n:]
         return [cycle.to_dict() for cycle in history]
-
-

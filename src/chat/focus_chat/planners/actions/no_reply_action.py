@@ -29,7 +29,7 @@ class NoReplyAction(BaseAction):
     action_require = [
         "话题无关/无聊/不感兴趣/不懂",
         "最后一条消息是你自己发的且无人回应你",
-        "你发送了太多消息，且无人回复"
+        "你发送了太多消息，且无人回复",
     ]
     default = True
 
@@ -46,7 +46,7 @@ class NoReplyAction(BaseAction):
         total_no_reply_count: int = 0,
         total_waiting_time: float = 0.0,
         shutting_down: bool = False,
-        **kwargs
+        **kwargs,
     ):
         """初始化不回复动作处理器
 

@@ -42,7 +42,7 @@ class MainSystem:
 
     async def initialize(self):
         """初始化系统组件"""
-        logger.debug(f"正在唤醒{global_config.BOT_NICKNAME}......")
+        logger.debug(f"正在唤醒{global_config.bot.nickname}......")
 
         # 其他初始化任务
         await asyncio.gather(self._init_components())
@@ -83,10 +83,10 @@ class MainSystem:
 
         # 初始化日程
         bot_schedule.initialize(
-            name=global_config.BOT_NICKNAME,
-            personality=global_config.personality_core,
-            behavior=global_config.PROMPT_SCHEDULE_GEN,
-            interval=global_config.SCHEDULE_DOING_UPDATE_INTERVAL,
+            name=global_config.bot.nickname,
+            personality=global_config.personality.personality_core,
+            behavior=global_config.schedule.prompt_schedule_gen,
+            interval=global_config.schedule.schedule_doing_update_interval,
         )
         asyncio.create_task(bot_schedule.mai_schedule_start())
 
@@ -95,7 +95,7 @@ class MainSystem:
         asyncio.create_task(chat_manager._auto_save_task())
 
         # 使用HippocampusManager初始化海马体
-        self.hippocampus_manager.initialize(global_config=global_config)
+        self.hippocampus_manager.initialize()
         # await asyncio.sleep(0.5) #防止logger输出飞了
 
         # 将bot.py中的chat_bot.message_process消息处理函数注册到api.py的消息处理基类中
@@ -103,15 +103,15 @@ class MainSystem:
 
         # 初始化个体特征
         self.individuality.initialize(
-            bot_nickname=global_config.BOT_NICKNAME,
-            personality_core=global_config.personality_core,
-            personality_sides=global_config.personality_sides,
-            identity_detail=global_config.identity_detail,
-            height=global_config.height,
-            weight=global_config.weight,
-            age=global_config.age,
-            gender=global_config.gender,
-            appearance=global_config.appearance,
+            bot_nickname=global_config.bot.nickname,
+            personality_core=global_config.personality.personality_core,
+            personality_sides=global_config.personality.personality_sides,
+            identity_detail=global_config.identity.identity_detail,
+            height=global_config.identity.height,
+            weight=global_config.identity.weight,
+            age=global_config.identity.age,
+            gender=global_config.identity.gender,
+            appearance=global_config.identity.appearance,
         )
         logger.success("个体特征初始化成功")
 
@@ -124,7 +124,7 @@ class MainSystem:
             logger.success("全局消息管理器启动成功")
 
             # 启动心流系统主循环
-            if not global_config.enable_Legacy_HFC:
+            if not global_config.experimental.enable_Legacy_HFC:
                 asyncio.create_task(heartflow.heartflow_start_working())
                 logger.success("心流系统启动成功")
             else:
@@ -156,7 +156,7 @@ class MainSystem:
     async def build_memory_task():
         """记忆构建任务"""
         while True:
-            await asyncio.sleep(global_config.build_memory_interval)
+            await asyncio.sleep(global_config.memory.memory_build_interval)
             logger.info("正在进行记忆构建")
             await HippocampusManager.get_instance().build_memory()
 
@@ -164,16 +164,18 @@ class MainSystem:
     async def forget_memory_task():
         """记忆遗忘任务"""
         while True:
-            await asyncio.sleep(global_config.forget_memory_interval)
+            await asyncio.sleep(global_config.memory.forget_memory_interval)
             print("\033[1;32m[记忆遗忘]\033[0m 开始遗忘记忆...")
-            await HippocampusManager.get_instance().forget_memory(percentage=global_config.memory_forget_percentage)
+            await HippocampusManager.get_instance().forget_memory(
+                percentage=global_config.memory.memory_forget_percentage
+            )
             print("\033[1;32m[记忆遗忘]\033[0m 记忆遗忘完成")
 
     @staticmethod
     async def consolidate_memory_task():
         """记忆整合任务"""
         while True:
-            await asyncio.sleep(global_config.consolidate_memory_interval)
+            await asyncio.sleep(global_config.memory.consolidate_memory_interval)
             print("\033[1;32m[记忆整合]\033[0m 开始整合记忆...")
             await HippocampusManager.get_instance().consolidate_memory()
             print("\033[1;32m[记忆整合]\033[0m 记忆整合完成")

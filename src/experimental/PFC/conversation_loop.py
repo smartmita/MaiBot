@@ -176,7 +176,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
             if action in ["wait", "listening"] and new_msg_count_action_planning > 0:
                 should_interrupt_action_planning = True
                 interrupt_reason_action_planning = f"规划 {action} 期间收到 {new_msg_count_action_planning} 条新消息"
-            elif other_new_msg_count_action_planning > global_config.pfc_message_buffer_size:
+            elif other_new_msg_count_action_planning > global_config.pfc.pfc_message_buffer_size:
                 should_interrupt_action_planning = True
                 interrupt_reason_action_planning = (
                     f"规划 {action} 期间收到 {other_new_msg_count_action_planning} 条来自他人的新消息"
@@ -271,7 +271,7 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
                             f"[私聊][{conversation_instance.private_name}] (Loop) Found {len(other_new_messages_this_check)} 'other_new_messages_this_check'."
                         )
 
-                        if len(other_new_messages_this_check) > global_config.pfc_message_buffer_size:
+                        if len(other_new_messages_this_check) > global_config.pfc.pfc_message_buffer_size:
                             logger.info(
                                 f"[私聊][{conversation_instance.private_name}] (Loop) LLM动作 '{action}' 执行期间收到 {len(other_new_messages_this_check)} 条来自他人的新消息，将取消LLM任务。"
                             )

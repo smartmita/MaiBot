@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from src.common.logger_manager import get_logger
-from src.chat.utils.timer_calculator import Timer
 from src.chat.focus_chat.planners.actions.base_action import BaseAction, register_action
-from typing import Tuple, List, Optional
+from typing import Tuple, List
 from src.chat.heart_flow.observation.observation import Observation
 from src.chat.focus_chat.expressors.default_expressor import DefaultExpressor
 from src.chat.message_receive.chat_stream import ChatStream
@@ -22,14 +21,14 @@ class ReplyAction(BaseAction):
     处理构建和发送消息回复的动作。
     """
 
-    action_name:str = "reply"
-    action_description:str = "表达想法，可以只包含文本、表情或两者都有"
-    action_parameters:dict[str:str] = {
+    action_name: str = "reply"
+    action_description: str = "表达想法，可以只包含文本、表情或两者都有"
+    action_parameters: dict[str:str] = {
         "text": "你想要表达的内容（可选）",
         "emojis": "描述当前使用表情包的场景（可选）",
         "target": "你想要回复的原始文本内容（非必须，仅文本，不包含发送者)（可选）",
     }
-    action_require:list[str] = [
+    action_require: list[str] = [
         "有实质性内容需要表达",
         "有人提到你，但你还没有回应他",
         "在合适的时候添加表情（不要总是添加）",
@@ -38,7 +37,7 @@ class ReplyAction(BaseAction):
         "一次只回复一个人，一次只回复一个话题,突出重点",
         "如果是自己发的消息想继续，需自然衔接",
         "避免重复或评价自己的发言,不要和自己聊天",
-        "注意：回复尽量简短一些。可以参考贴吧，知乎和微博的回复风格，回复不要浮夸，不要用夸张修辞，平淡一些。"
+        "注意：回复尽量简短一些。可以参考贴吧，知乎和微博的回复风格，回复不要浮夸，不要用夸张修辞，平淡一些。",
     ]
     default = True
 
@@ -54,7 +53,7 @@ class ReplyAction(BaseAction):
         chat_stream: ChatStream,
         current_cycle: CycleDetail,
         log_prefix: str,
-        **kwargs
+        **kwargs,
     ):
         """初始化回复动作处理器
 
@@ -89,9 +88,9 @@ class ReplyAction(BaseAction):
             reasoning=self.reasoning,
             reply_data=self.action_data,
             cycle_timers=self.cycle_timers,
-            thinking_id=self.thinking_id
+            thinking_id=self.thinking_id,
         )
-    
+
     async def _handle_reply(
         self, reasoning: str, reply_data: dict, cycle_timers: dict, thinking_id: str
     ) -> tuple[bool, str]:

@@ -140,7 +140,7 @@ class IdleChat:
         self._lock: asyncio.Lock = asyncio.Lock()
 
         # LLM请求对象，用于生成主动对话内容
-        self.llm = LLMRequest(model=global_config.llm_normal, temperature=0.5, max_tokens=500, request_type="idle_chat")
+        self.llm = LLMRequest(model=global_config.model.normal, temperature=0.5, max_tokens=500, request_type="idle_chat")
 
         # 工作状态
         self.active_instances_count: int = 0
@@ -149,9 +149,9 @@ class IdleChat:
         self._task: Optional[asyncio.Task] = None
 
         # 配置参数 - 从global_config加载
-        self.min_cooldown = global_config.min_cooldown  # 最短冷却时间（默认2小时）
-        self.max_cooldown = global_config.max_cooldown  # 最长冷却时间（默认5小时）
-        self.check_interval = global_config.idle_check_interval * 60  # 检查间隔（默认10分钟，转换为秒）
+        self.min_cooldown = global_config.pfc.min_cooldown  # 最短冷却时间（默认2小时）
+        self.max_cooldown = global_config.pfc.max_cooldown  # 最长冷却时间（默认5小时）
+        self.check_interval = global_config.pfc.idle_check_interval * 60  # 检查间隔（默认10分钟，转换为秒）
         self.active_hours_start = 7  # 活动开始时间
         self.active_hours_end = 23  # 活动结束时间
 
@@ -162,7 +162,7 @@ class IdleChat:
     def start(self) -> None:
         """启动主动聊天检测"""
         # 检查是否启用了主动聊天功能
-        if not global_config.enable_idle_chat:
+        if not global_config.pfc.enable_idle_chat:
             logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置enable_idle_chat=False）")
             return
 
@@ -352,7 +352,7 @@ class IdleChat:
         try:
             while self._running:
                 # 检查是否启用了主动聊天功能
-                if not global_config.enable_idle_chat:
+                if not global_config.pfc.enable_idle_chat:
                     # 如果禁用了功能，等待一段时间后再次检查配置
                     await asyncio.sleep(60)  # 每分钟检查一次配置变更
                     continue
@@ -482,7 +482,7 @@ class IdleChat:
                 relationship_description = full_relationship_text.split("：")[1].replace("。", "")
 
             # 暂不使用
-            # if global_config.ENABLE_SCHEDULE_GEN:
+            # if global_config.schedule.enable:
             #     schedule_prompt = await global_prompt_manager.format_prompt(
             #         "schedule_prompt", schedule_info=bot_schedule.get_current_num_task(num=1, time_info=False)
             #     )
@@ -491,7 +491,7 @@ class IdleChat:
 
             # 构建提示词，暂存废弃部分这是你的日程{schedule_prompt}
             current_time = datetime.now().strftime("%H:%M")
-            prompt = f"""你是{global_config.BOT_NICKNAME}。
+            prompt = f"""你是{global_config.bot.nickname}。
             你正在与用户{self.private_name}进行QQ私聊，你们的关系是{relationship_description}
             现在时间{current_time}
 

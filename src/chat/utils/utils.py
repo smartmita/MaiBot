@@ -173,8 +173,8 @@ def db_message_to_str(message_dict: dict) -> str:
 
 def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
     """检查消息是否提到了机器人"""
-    keywords = [global_config.BOT_NICKNAME]
-    nicknames = global_config.BOT_ALIAS_NAMES
+    keywords = [global_config.bot.nickname]
+    nicknames = global_config.bot.alias_names
     reply_probability = 0.0
     is_at = False
     is_mentioned = False
@@ -194,18 +194,18 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
             )
 
     # 判断是否被@
-    if re.search(f"@[\s\S]*?（id:{global_config.BOT_QQ}）", message.processed_plain_text):
+    if re.search(f"@[\s\S]*?（id:{global_config.bot.qq_account}）", message.processed_plain_text):
         is_at = True
         is_mentioned = True
 
-    if is_at and global_config.at_bot_inevitable_reply:
+    if is_at and global_config.normal_chat.at_bot_inevitable_reply:
         reply_probability = 1.0
         logger.info("被@，回复概率设置为100%")
     else:
         if not is_mentioned:
             # 判断是否被回复
             if re.match(
-                f"\[回复 [\s\S]*?\({str(global_config.BOT_QQ)}\)：[\s\S]*?\]，说：",
+                f"\[回复 [\s\S]*?\({str(global_config.bot.qq_account)}\)：[\s\S]*?\]，说：",
                 message.processed_plain_text,
             ):
                 is_mentioned = True
@@ -219,7 +219,7 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
                 for nickname in nicknames:
                     if nickname in message_content:
                         is_mentioned = True
-        if is_mentioned and global_config.mentioned_bot_inevitable_reply:
+        if is_mentioned and global_config.normal_chat.mentioned_bot_inevitable_reply:
             reply_probability = 1.0
             logger.info("被提及，回复概率设置为100%")
     return is_mentioned, reply_probability
@@ -227,7 +227,8 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
 
 async def get_embedding(text, request_type="embedding"):
     """获取文本的embedding向量"""
-    llm = LLMRequest(model=global_config.embedding, request_type=request_type)
+    # TODO: API-Adapter修改标记
+    llm = LLMRequest(model=global_config.model.embedding, request_type=request_type)
     # return llm.get_embedding_sync(text)
     try:
         embedding = await llm.get_embedding(text)
@@ -294,7 +295,7 @@ def get_recent_group_speaker(chat_stream_id: int, sender, limit: int = 12) -> li
         user_info = UserInfo.from_dict(msg_db_data["user_info"])
         if (
             (user_info.platform, user_info.user_id) != sender
-            and user_info.user_id != global_config.BOT_QQ
+            and user_info.user_id != global_config.bot.qq_account
             and (user_info.platform, user_info.user_id, user_info.user_nickname) not in who_chat_in_group
             and len(who_chat_in_group) < 5
         ):  # 排除重复，排除消息发送者，排除bot，限制加载的关系数目
@@ -476,7 +477,6 @@ def split_into_sentences_w_remove_punctuation(original_text: str) -> list[str]:
             processed_sentences_after_merge.append(s)
 
     if perform_book_title_recovery_here and local_book_title_mapping:
-        # 假设 processed_sentences_after_merge 是最终的句子列表
         processed_sentences_after_merge = recover_book_titles(processed_sentences_after_merge, local_book_title_mapping)
     return processed_sentences_after_merge
 
@@ -510,7 +510,7 @@ def random_remove_punctuation(text: str) -> str:
 
 def process_llm_response(text: str) -> list[str]:
     # 先保护颜文字
-    if global_config.enable_kaomoji_protection:
+    if global_config.response_splitter.enable_kaomoji_protection:
         protected_text, kaomoji_mapping = protect_kaomoji(text)
         logger.trace(f"保护颜文字后的文本: {protected_text}")
     else:
@@ -528,8 +528,8 @@ def process_llm_response(text: str) -> list[str]:
 
     logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
     # 对清理后的文本进行进一步处理
-    max_length = global_config.response_max_length * 2
-    max_sentence_num = global_config.response_max_sentence_num
+    max_length = global_config.response_splitter.max_length * 2
+    max_sentence_num = global_config.response_splitter.max_sentence_num
     # 如果基本上是中文，则进行长度过滤
     if get_western_ratio(cleaned_text) < 0.1:
         if len(cleaned_text) > max_length:
@@ -537,20 +537,20 @@ def process_llm_response(text: str) -> list[str]:
             return ["懒得说"]
 
     typo_generator = ChineseTypoGenerator(
-        error_rate=global_config.chinese_typo_error_rate,
-        min_freq=global_config.chinese_typo_min_freq,
-        tone_error_rate=global_config.chinese_typo_tone_error_rate,
-        word_replace_rate=global_config.chinese_typo_word_replace_rate,
+        error_rate=global_config.chinese_typo.error_rate,
+        min_freq=global_config.chinese_typo.min_freq,
+        tone_error_rate=global_config.chinese_typo.tone_error_rate,
+        word_replace_rate=global_config.chinese_typo.word_replace_rate,
     )
 
-    if global_config.enable_response_splitter:
+    if global_config.response_splitter.enable:
         split_sentences = split_into_sentences_w_remove_punctuation(cleaned_text)
     else:
         split_sentences = [cleaned_text]
 
     sentences = []
     for sentence in split_sentences:
-        if global_config.chinese_typo_enable:
+        if global_config.chinese_typo.enable:
             typoed_text, typo_corrections = typo_generator.create_typo_sentence(sentence)
             sentences.append(typoed_text)
             if typo_corrections:
@@ -560,14 +560,14 @@ def process_llm_response(text: str) -> list[str]:
 
     if len(sentences) > max_sentence_num:
         logger.warning(f"分割后消息数量过多 ({len(sentences)} 条)，返回默认回复")
-        return [f"{global_config.BOT_NICKNAME}不知道哦"]
+        return [f"{global_config.bot.nickname}不知道哦"]
 
     # if extracted_contents:
     #     for content in extracted_contents:
     #         sentences.append(content)
 
     # 在所有句子处理完毕后，对包含占位符的列表进行恢复
-    if global_config.enable_kaomoji_protection:
+    if global_config.response_splitter.enable_kaomoji_protection:
         sentences = recover_kaomoji(sentences, kaomoji_mapping)
 
     return sentences

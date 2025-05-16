@@ -77,8 +77,9 @@ def init_prompt() -> None:
 
 class ExpressionLearner:
     def __init__(self) -> None:
+        # TODO: API-Adapter修改标记
         self.express_learn_model: LLMRequest = LLMRequest(
-            model=global_config.llm_normal,
+            model=global_config.model.normal,
             temperature=0.1,
             max_tokens=256,
             request_type="response_heartflow",
@@ -289,7 +290,7 @@ class ExpressionLearner:
         # 构建prompt
         prompt = await global_prompt_manager.format_prompt(
             "personality_expression_prompt",
-            personality=global_config.expression_style,
+            personality=global_config.personality.expression_style,
         )
         # logger.info(f"个性表达方式提取prompt: {prompt}")
 

@@ -125,7 +125,7 @@ class ChatObserver:
 
                     # 获取消息的发送者
                     user_info = message.get("user_info", {})
-                    if user_info and str(user_info.get("user_id")) != str(global_config.BOT_QQ):
+                    if user_info and str(user_info.get("user_id")) != str(global_config.bot.qq_account):
                         # 用户发送了消息，通知IdleChat
                         asyncio.create_task(IdleChat.register_user_response(self.private_name))
                         logger.debug(f"[私聊][{self.private_name}] 检测到用户消息，已通知IdleChat更新用户响应状态")
@@ -352,7 +352,7 @@ class ChatObserver:
         for msg in messages:
             try:
                 user_info = UserInfo.from_dict(msg.get("user_info", {}))
-                if user_info.user_id == global_config.BOT_QQ:
+                if user_info.user_id == global_config.bot.qq_account:
                     self.update_bot_speak_time(msg["time"])
                 else:
                     self.update_user_speak_time(msg["time"])

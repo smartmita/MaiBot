@@ -21,7 +21,7 @@ class PfcEmotionUpdater:
         self.bot_name = bot_name
         self.mood_mng = mood_manager
 
-        # LLM 实例 (根据 global_config.llm_summary 配置)
+        # LLM 实例 (根据 global_config.model.summary 配置)
         llm_config_summary = getattr(global_config, "llm_summary", None)
         if llm_config_summary and isinstance(llm_config_summary, dict):
             logger.debug(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")

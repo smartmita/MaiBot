@@ -5,10 +5,10 @@ from src.config.config import global_config
 from src.chat.message_receive.message import MessageRecv
 from src.chat.message_receive.storage import MessageStorage
 from src.chat.utils.utils import is_mentioned_bot_in_message
-from maim_message import Seg
+from maim_message import Seg, UserInfo
 from .heart_flow.heartflow import heartflow
 from src.common.logger_manager import get_logger
-from src.chat.message_receive.chat_stream import chat_manager
+from src.chat.message_receive.chat_stream import ChatStream, chat_manager
 from src.chat.message_receive.message_buffer import message_buffer
 from src.chat.utils.timer_calculator import Timer
 from src.chat.person_info.relationship_manager import relationship_manager
@@ -100,7 +100,7 @@ def _get_message_type(message: MessageRecv) -> str:
     return "seglist"
 
 
-def _check_ban_words(text: str, chat, userinfo) -> bool:
+def _check_ban_words(text: str, chat: ChatStream, userinfo: UserInfo) -> bool:
     """检查消息是否包含过滤词
 
     Args:
@@ -111,7 +111,7 @@ def _check_ban_words(text: str, chat, userinfo) -> bool:
     Returns:
         bool: 是否包含过滤词
     """
-    for word in global_config.ban_words:
+    for word in global_config.chat.ban_words:
         if word in text:
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
             logger.info(f"[{chat_name}]{userinfo.user_nickname}:{text}")
@@ -120,7 +120,7 @@ def _check_ban_words(text: str, chat, userinfo) -> bool:
     return False
 
 
-def _check_ban_regex(text: str, chat, userinfo) -> bool:
+def _check_ban_regex(text: str, chat: ChatStream, userinfo: UserInfo) -> bool:
     """检查消息是否匹配过滤正则表达式
 
     Args:
@@ -131,7 +131,7 @@ def _check_ban_regex(text: str, chat, userinfo) -> bool:
     Returns:
         bool: 是否匹配过滤正则
     """
-    for pattern in global_config.ban_msgs_regex:
+    for pattern in global_config.chat.ban_msgs_regex:
         if pattern.search(text):
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
             logger.info(f"[{chat_name}]{userinfo.user_nickname}:{text}")

@@ -26,9 +26,10 @@ logger = get_logger("expressor")
 class DefaultExpressor:
     def __init__(self, chat_id: str):
         self.log_prefix = "expressor"
+        # TODO: API-Adapter修改标记
         self.express_model = LLMRequest(
-            model=global_config.llm_normal,
-            temperature=global_config.llm_normal["temp"],
+            model=global_config.model.normal,
+            temperature=global_config.model.normal["temp"],
             max_tokens=256,
             request_type="response_heartflow",
         )
@@ -52,8 +53,8 @@ class DefaultExpressor:
         messageinfo = anchor_message.message_info
         thinking_time_point = parse_thinking_id_to_timestamp(thinking_id)
         bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
+            user_id=global_config.bot.qq_account,
+            user_nickname=global_config.bot.nickname,
             platform=messageinfo.platform,
         )
         # logger.debug(f"创建思考消息：{anchor_message}")
@@ -153,7 +154,7 @@ class DefaultExpressor:
         try:
             # 1. 获取情绪影响因子并调整模型温度
             arousal_multiplier = mood_manager.get_arousal_multiplier()
-            current_temp = float(global_config.llm_normal["temp"]) * arousal_multiplier
+            current_temp = float(global_config.model.normal["temp"]) * arousal_multiplier
             self.express_model.params["temperature"] = current_temp  # 动态调整温度
 
             # 2. 获取信息捕捉器
@@ -195,6 +196,7 @@ class DefaultExpressor:
 
             try:
                 with Timer("LLM生成", {}):  # 内部计时器，可选保留
+                    # TODO: API-Adapter修改标记
                     # logger.info(f"{self.log_prefix}[Replier-{thinking_id}]\nPrompt:\n{prompt}\n")
                     content, reasoning_content, model_name = await self.express_model.generate_response(prompt)
 
@@ -342,8 +344,8 @@ class DefaultExpressor:
 
         thinking_start_time = await self.heart_fc_sender.get_thinking_start_time(self.chat_id, thinking_id)
         bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
+            user_id=global_config.bot.qq_account,
+            user_nickname=global_config.bot.nickname,
             platform=self.chat_stream.platform,
         )
 

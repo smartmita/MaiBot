@@ -35,8 +35,9 @@ class Heartflow:
         self.subheartflow_manager: SubHeartflowManager = SubHeartflowManager(self.current_state)
 
         # LLM模型配置
+        # TODO: API-Adapter修改标记
         self.llm_model = LLMRequest(
-            model=global_config.llm_heartflow, temperature=0.6, max_tokens=1000, request_type="heart_flow"
+            model=global_config.model.heartflow, temperature=0.6, max_tokens=1000, request_type="heart_flow"
         )
 
         # 外部依赖模块

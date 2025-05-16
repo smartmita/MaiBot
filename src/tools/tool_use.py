@@ -15,7 +15,7 @@ logger = get_logger("tool_use")
 class ToolUser:
     def __init__(self):
         self.llm_model_tool = LLMRequest(
-            model=global_config.llm_tool_use, temperature=0.2, max_tokens=1000, request_type="tool_use"
+            model=global_config.model.tool_use, temperature=0.2, max_tokens=1000, request_type="tool_use"
         )
 
     @staticmethod
@@ -37,7 +37,7 @@ class ToolUser:
             # print(f"intol111111111111111111111111111111111222222222222mid_memory_info：{mid_memory_info}")
 
         # 这些信息应该从调用者传入，而不是从self获取
-        bot_name = global_config.BOT_NICKNAME
+        bot_name = global_config.bot.nickname
         prompt = ""
         prompt += mid_memory_info
         prompt += "你正在思考如何回复群里的消息。\n"

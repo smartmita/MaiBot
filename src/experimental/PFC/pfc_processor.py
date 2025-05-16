@@ -101,7 +101,7 @@ class PFCProcessor:
             chat_id = str(message.chat_stream.stream_id)
             private_name = str(message.message_info.user_info.user_nickname)  # 假设 UserInfo 有 user_nickname
 
-            if global_config.enable_pfc_chatting:
+            if global_config.pfc.enable:
                 await self.pfc_manager.get_or_create_conversation(chat_id, private_name)
 
         except Exception as e:
@@ -110,7 +110,7 @@ class PFCProcessor:
     @staticmethod
     def _check_ban_words(text: str, userinfo: UserInfo) -> bool:  # 明确 userinfo 类型
         """检查消息中是否包含过滤词"""
-        for word in global_config.ban_words:
+        for word in global_config.chat.ban_words:
             if word in text:
                 logger.info(f"[私聊]{userinfo.user_nickname}:{text}")  # 假设 UserInfo 有 user_nickname
                 logger.info(f"[过滤词识别]消息中含有{word}，filtered")
@@ -120,7 +120,7 @@ class PFCProcessor:
     @staticmethod
     def _check_ban_regex(text: str, userinfo: UserInfo) -> bool:  # 明确 userinfo 类型
         """检查消息是否匹配过滤正则表达式"""
-        for pattern in global_config.ban_msgs_regex:
+        for pattern in global_config.chat.ban_msgs_regex:
             if pattern.search(text):  # 假设 ban_msgs_regex 中的元素是已编译的正则对象
                 logger.info(f"[私聊]{userinfo.user_nickname}:{text}")  # _nickname
                 logger.info(f"[正则表达式过滤]消息匹配到{pattern.pattern}，filtered")  # .pattern 获取原始表达式字符串

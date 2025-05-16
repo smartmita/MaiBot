@@ -111,8 +111,8 @@ class LLMRequest:
     def __init__(self, model: dict, **kwargs):
         # 将大写的配置键转换为小写并从config中获取实际值
         try:
-            self.api_key = os.environ[model["key"]]
-            self.base_url = os.environ[model["base_url"]]
+            self.api_key = os.environ[f"{model['provider']}_KEY"]
+            self.base_url = os.environ[f"{model['provider']}_BASE_URL"]
         except AttributeError as e:
             logger.error(f"原始 model dict 信息：{model}")
             logger.error(f"配置错误：找不到对应的配置项 - {str(e)}")
@@ -500,11 +500,11 @@ class LLMRequest:
                 logger.warning(f"检测到403错误，模型从 {old_model_name} 降级为 {self.model_name}")
 
                 # 对全局配置进行更新
-                if global_config.llm_normal.get("name") == old_model_name:
-                    global_config.llm_normal["name"] = self.model_name
+                if global_config.model.normal.get("name") == old_model_name:
+                    global_config.model.normal["name"] = self.model_name
                     logger.warning(f"将全局配置中的 llm_normal 模型临时降级至{self.model_name}")
-                if global_config.llm_reasoning.get("name") == old_model_name:
-                    global_config.llm_reasoning["name"] = self.model_name
+                if global_config.model.reasoning.get("name") == old_model_name:
+                    global_config.model.reasoning["name"] = self.model_name
                     logger.warning(f"将全局配置中的 llm_reasoning 模型临时降级至{self.model_name}")
 
                 if payload and "model" in payload:
@@ -636,7 +636,7 @@ class LLMRequest:
             **params_copy,
         }
         if "max_tokens" not in payload and "max_completion_tokens" not in payload:
-            payload["max_tokens"] = global_config.model_max_output_length
+            payload["max_tokens"] = global_config.model.model_max_output_length
         # 如果 payload 中依然存在 max_tokens 且需要转换，在这里进行再次检查
         if self.model_name.lower() in self.MODELS_NEEDING_TRANSFORMATION and "max_tokens" in payload:
             payload["max_completion_tokens"] = payload.pop("max_tokens")

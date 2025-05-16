@@ -34,14 +34,14 @@ class MoodUpdateTask(AsyncTask):
     def __init__(self):
         super().__init__(
             task_name="Mood Update Task",
-            wait_before_start=global_config.mood_update_interval,
-            run_interval=global_config.mood_update_interval,
+            wait_before_start=global_config.mood.mood_update_interval,
+            run_interval=global_config.mood.mood_update_interval,
         )
 
         # 从配置文件获取衰减率
-        self.decay_rate_valence: float = 1 - global_config.mood_decay_rate
+        self.decay_rate_valence: float = 1 - global_config.mood.mood_decay_rate
         """愉悦度衰减率"""
-        self.decay_rate_arousal: float = 1 - global_config.mood_decay_rate
+        self.decay_rate_arousal: float = 1 - global_config.mood.mood_decay_rate
         """唤醒度衰减率"""
 
         self.last_update = time.time()

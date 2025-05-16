@@ -53,19 +53,20 @@ class ChattingObservation(Observation):
         self.talking_message = []
         self.talking_message_str = ""
         self.talking_message_str_truncate = ""
-        self.name = global_config.BOT_NICKNAME
-        self.nick_name = global_config.BOT_ALIAS_NAMES
-        self.max_now_obs_len = global_config.observation_context_size
-        self.overlap_len = global_config.compressed_length
-        self.mid_memorys = []
-        self.max_mid_memory_len = global_config.compress_length_limit
+        self.name = global_config.bot.nickname
+        self.nick_name = global_config.bot.alias_names
+        self.max_now_obs_len = global_config.chat.observation_context_size
+        self.overlap_len = global_config.focus_chat.compressed_length
+        self.mid_memories = []
+        self.max_mid_memory_len = global_config.focus_chat.compress_length_limit
         self.mid_memory_info = ""
         self.person_list = []
         self.oldest_messages = []
         self.oldest_messages_str = ""
         self.compressor_prompt = ""
+        # TODO: API-Adapter修改标记
         self.llm_summary = LLMRequest(
-            model=global_config.llm_observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
+            model=global_config.model.observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
         )
 
     async def initialize(self):
@@ -83,7 +84,7 @@ class ChattingObservation(Observation):
             for id in ids:
                 print(f"id：{id}")
                 try:
-                    for mid_memory in self.mid_memorys:
+                    for mid_memory in self.mid_memories:
                         if mid_memory["id"] == id:
                             mid_memory_by_id = mid_memory
                             msg_str = ""
@@ -101,7 +102,7 @@ class ChattingObservation(Observation):
 
         else:
             mid_memory_str = "之前的聊天内容：\n"
-            for mid_memory in self.mid_memorys:
+            for mid_memory in self.mid_memories:
                 mid_memory_str += f"{mid_memory['theme']}\n"
             return mid_memory_str + "现在群里正在聊：\n" + self.talking_message_str
 

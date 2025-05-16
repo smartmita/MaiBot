@@ -19,8 +19,9 @@ from ..utils.chat_message_builder import (
     build_readable_messages,
 )  # 导入 build_readable_messages
 from ..utils.utils import translate_timestamp_to_human_readable
-from .memory_config import MemoryConfig
 from rich.traceback import install
+
+from ...config.config import global_config
 
 install(extra_lines=3)
 
@@ -195,18 +196,16 @@ class Hippocampus:
         self.llm_summary = None
         self.entorhinal_cortex = None
         self.parahippocampal_gyrus = None
-        self.config = None
 
-    def initialize(self, global_config):
-        # 使用导入的 MemoryConfig dataclass 和其 from_global_config 方法
-        self.config = MemoryConfig.from_global_config(global_config)
+    def initialize(self):
         # 初始化子组件
         self.entorhinal_cortex = EntorhinalCortex(self)
         self.parahippocampal_gyrus = ParahippocampalGyrus(self)
         # 从数据库加载记忆图
         self.entorhinal_cortex.sync_memory_from_db()
-        self.llm_topic_judge = LLMRequest(self.config.llm_topic_judge, request_type="memory")
-        self.llm_summary = LLMRequest(self.config.llm_summary, request_type="memory")
+        # TODO: API-Adapter修改标记
+        self.llm_topic_judge = LLMRequest(global_config.model.topic_judge, request_type="memory")
+        self.llm_summary = LLMRequest(global_config.model.summary, request_type="memory")
 
     def get_all_node_names(self) -> list:
         """获取记忆图中所有节点的名字列表"""
@@ -792,7 +791,6 @@ class EntorhinalCortex:
     def __init__(self, hippocampus: Hippocampus):
         self.hippocampus = hippocampus
         self.memory_graph = hippocampus.memory_graph
-        self.config = hippocampus.config
 
     def get_memory_sample(self):
         """从数据库获取记忆样本"""
@@ -801,13 +799,13 @@ class EntorhinalCortex:
 
         # 创建双峰分布的记忆调度器
         sample_scheduler = MemoryBuildScheduler(
-            n_hours1=self.config.memory_build_distribution[0],
-            std_hours1=self.config.memory_build_distribution[1],
-            weight1=self.config.memory_build_distribution[2],
-            n_hours2=self.config.memory_build_distribution[3],
-            std_hours2=self.config.memory_build_distribution[4],
-            weight2=self.config.memory_build_distribution[5],
-            total_samples=self.config.build_memory_sample_num,
+            n_hours1=global_config.memory.memory_build_distribution[0],
+            std_hours1=global_config.memory.memory_build_distribution[1],
+            weight1=global_config.memory.memory_build_distribution[2],
+            n_hours2=global_config.memory.memory_build_distribution[3],
+            std_hours2=global_config.memory.memory_build_distribution[4],
+            weight2=global_config.memory.memory_build_distribution[5],
+            total_samples=global_config.memory.memory_build_sample_num,
         )
 
         timestamps = sample_scheduler.get_timestamp_array()
@@ -818,7 +816,7 @@ class EntorhinalCortex:
         for timestamp in timestamps:
             # 调用修改后的 random_get_msg_snippet
             messages = self.random_get_msg_snippet(
-                timestamp, self.config.build_memory_sample_length, max_memorized_time_per_msg
+                timestamp, global_config.memory.memory_build_sample_length, max_memorized_time_per_msg
             )
             if messages:
                 time_diff = (datetime.datetime.now().timestamp() - timestamp) / 3600
@@ -1099,7 +1097,6 @@ class ParahippocampalGyrus:
     def __init__(self, hippocampus: Hippocampus):
         self.hippocampus = hippocampus
         self.memory_graph = hippocampus.memory_graph
-        self.config = hippocampus.config
 
     async def memory_compress(self, messages: list, compress_rate=0.1):
         """压缩和总结消息内容，生成记忆主题和摘要。
@@ -1159,7 +1156,7 @@ class ParahippocampalGyrus:
 
         # 3. 过滤掉包含禁用关键词的topic
         filtered_topics = [
-            topic for topic in topics if not any(keyword in topic for keyword in self.config.memory_ban_words)
+            topic for topic in topics if not any(keyword in topic for keyword in global_config.memory.memory_ban_words)
         ]
 
         logger.debug(f"过滤后话题: {filtered_topics}")
@@ -1222,7 +1219,7 @@ class ParahippocampalGyrus:
             bar = "█" * filled_length + "-" * (bar_length - filled_length)
             logger.debug(f"进度: [{bar}] {progress:.1f}% ({i}/{len(memory_samples)})")
 
-            compress_rate = self.config.memory_compress_rate
+            compress_rate = global_config.memory.memory_compress_rate
             try:
                 compressed_memory, similar_topics_dict = await self.memory_compress(messages, compress_rate)
             except Exception as e:
@@ -1322,7 +1319,7 @@ class ParahippocampalGyrus:
             edge_data = self.memory_graph.G[source][target]
             last_modified = edge_data.get("last_modified")
 
-            if current_time - last_modified > 3600 * self.config.memory_forget_time:
+            if current_time - last_modified > 3600 * global_config.memory.memory_forget_time:
                 current_strength = edge_data.get("strength", 1)
                 new_strength = current_strength - 1
 
@@ -1430,8 +1427,8 @@ class ParahippocampalGyrus:
     async def operation_consolidate_memory(self):
         """整合记忆：合并节点内相似的记忆项"""
         start_time = time.time()
-        percentage = self.config.consolidate_memory_percentage
-        similarity_threshold = self.config.consolidation_similarity_threshold
+        percentage = global_config.memory.consolidate_memory_percentage
+        similarity_threshold = global_config.memory.consolidation_similarity_threshold
         logger.info(f"[整合] 开始检查记忆节点... 检查比例: {percentage:.2%}, 合并阈值: {similarity_threshold}")
 
         # 获取所有至少有2条记忆项的节点
@@ -1544,7 +1541,6 @@ class ParahippocampalGyrus:
 class HippocampusManager:
     _instance = None
     _hippocampus = None
-    _global_config = None
     _initialized = False
 
     @classmethod
@@ -1559,18 +1555,14 @@ class HippocampusManager:
             raise RuntimeError("HippocampusManager 尚未初始化，请先调用 initialize 方法")
         return cls._hippocampus
 
-    def initialize(self, global_config):
+    def initialize(self):
         """初始化海马体实例"""
         if self._initialized:
             return self._hippocampus
 
-        self._global_config = global_config
         self._hippocampus = Hippocampus()
-        self._hippocampus.initialize(global_config)
+        self._hippocampus.initialize()
         self._initialized = True
-
-        # 输出记忆系统参数信息
-        config = self._hippocampus.config
 
         # 输出记忆图统计信息
         memory_graph = self._hippocampus.memory_graph.G
@@ -1579,9 +1571,9 @@ class HippocampusManager:
 
         logger.success(f"""--------------------------------
                     记忆系统参数配置:
-                    构建间隔: {global_config.build_memory_interval}秒|样本数: {config.build_memory_sample_num},长度: {config.build_memory_sample_length}|压缩率: {config.memory_compress_rate}
-                    记忆构建分布: {config.memory_build_distribution}
-                    遗忘间隔: {global_config.forget_memory_interval}秒|遗忘比例: {global_config.memory_forget_percentage}|遗忘: {config.memory_forget_time}小时之后
+                    构建间隔: {global_config.memory.memory_build_interval}秒|样本数: {global_config.memory.memory_build_sample_num},长度: {global_config.memory.memory_build_sample_length}|压缩率: {global_config.memory.memory_compress_rate}
+                    记忆构建分布: {global_config.memory.memory_build_distribution}
+                    遗忘间隔: {global_config.memory.forget_memory_interval}秒|遗忘比例: {global_config.memory.memory_forget_percentage}|遗忘: {global_config.memory.memory_forget_time}小时之后
                     记忆图统计信息: 节点数量: {node_count}, 连接数量: {edge_count}
                     --------------------------------""")  # noqa: E501
 

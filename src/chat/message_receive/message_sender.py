@@ -279,7 +279,7 @@ class MessageManager:
                     )
 
                 # 检查是否超时
-                if thinking_time > global_config.thinking_timeout:
+                if thinking_time > global_config.normal_chat.thinking_timeout:
                     logger.warning(
                         f"[{chat_id}] 消息思考超时 ({thinking_time:.1f}秒)，移除消息 {message_earliest.message_info.message_id}"
                     )

@@ -13,7 +13,7 @@ from src.common.logger import get_module_logger, SCHEDULE_STYLE_CONFIG, LogConfi
 from src.chat.models.utils_model import LLMRequest  # noqa: E402
 from src.config.config import global_config  # noqa: E402
 
-TIME_ZONE = tz.gettz(global_config.TIME_ZONE)  # 设置时区
+TIME_ZONE = tz.gettz(global_config.schedule.time_zone)  # 设置时区
 
 
 schedule_config = LogConfig(
@@ -31,14 +31,14 @@ class ScheduleGenerator:
         # 使用离线LLM模型
         self.enable_output = None
         self.llm_scheduler_all = LLMRequest(
-            model=global_config.llm_scheduler_all,
-            temperature=global_config.llm_scheduler_all["temp"],
+            model=global_config.model.scheduler_all,
+            temperature=global_config.model.scheduler_all["temp"],
             max_tokens=7000,
             request_type="schedule",
         )
         self.llm_scheduler_doing = LLMRequest(
-            model=global_config.llm_scheduler_doing,
-            temperature=global_config.llm_scheduler_doing["temp"],
+            model=global_config.model.scheduler_doing,
+            temperature=global_config.model.scheduler_doing["temp"],
             max_tokens=2048,
             request_type="schedule",
         )
@@ -73,7 +73,7 @@ class ScheduleGenerator:
     async def mai_schedule_start(self):
         """启动日程系统，每5分钟执行一次move_doing，并在日期变化时重新检查日程"""
         try:
-            if global_config.ENABLE_SCHEDULE_GEN:
+            if global_config.schedule.enable:
                 logger.info(f"日程系统启动/刷新时间: {self.start_time.strftime('%Y-%m-%d %H:%M:%S')}")
                 # 初始化日程
                 await self.check_and_create_today_schedule()

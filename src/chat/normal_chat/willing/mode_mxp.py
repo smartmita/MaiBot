@@ -19,6 +19,7 @@ Mxp 模式：梦溪畔独家赞助
 下下策是询问一个菜鸟（@梦溪畔）
 """
 
+from src.config.config import global_config
 from .willing_manager import BaseWillingManager
 from typing import Dict
 import asyncio
@@ -50,8 +51,6 @@ class MxpWillingManager(BaseWillingManager):
 
         self.mention_willing_gain = 0.6  # 提及意愿增益
         self.interest_willing_gain = 0.3  # 兴趣意愿增益
-        self.emoji_response_penalty = self.global_config.emoji_response_penalty  # 表情包回复惩罚
-        self.down_frequency_rate = self.global_config.down_frequency_rate  # 降低回复频率的群组惩罚系数
         self.single_chat_gain = 0.12  # 单聊增益
 
         self.fatigue_messages_triggered_num = self.expected_replies_per_min  # 疲劳消息触发数量(int)
@@ -179,10 +178,10 @@ class MxpWillingManager(BaseWillingManager):
             probability = self._willing_to_probability(current_willing)
 
             if w_info.is_emoji:
-                probability *= self.emoji_response_penalty
+                probability *= global_config.normal_chat.emoji_response_penalty
 
-            if w_info.group_info and w_info.group_info.group_id in self.global_config.talk_frequency_down_groups:
-                probability /= self.down_frequency_rate
+            if w_info.group_info and w_info.group_info.group_id in global_config.chat_target.talk_frequency_down_groups:
+                probability /= global_config.normal_chat.down_frequency_rate
 
             self.temporary_willing = current_willing
 

@@ -127,7 +127,7 @@ class ActionHandler(ABC):
             "time": send_time,
             "user_info": {
                 "user_id": self.conversation.bot_qq_str,
-                "user_nickname": global_config.BOT_NICKNAME,
+                "user_nickname": global_config.bot.nickname,
                 "platform": self.conversation.chat_stream.platform
                 if self.conversation.chat_stream
                 else "unknown_platform",
@@ -138,7 +138,7 @@ class ActionHandler(ABC):
         observation_info.chat_history.append(bot_message_dict)
         observation_info.chat_history_count = len(observation_info.chat_history)
         self.logger.debug(
-            f"[私聊][{self.conversation.private_name}] {global_config.BOT_NICKNAME}发送的消息 ('{message_content[:30]}...')已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
+            f"[私聊][{self.conversation.private_name}] {global_config.bot.nickname}发送的消息 ('{message_content[:30]}...')已添加到 chat_history。当前历史数: {observation_info.chat_history_count}"
         )
 
         # 限制历史记录长度
@@ -422,7 +422,7 @@ class BaseTextReplyHandler(ActionHandler):
             current_time_value_for_check = observation_info.current_time_str or "获取时间失败"
 
             # 调用 ReplyChecker
-            if global_config.enable_pfc_reply_checker:
+            if global_config.pfc.enable_pfc_reply_checker:
                 self.logger.debug(f"{log_prefix} 调用 ReplyChecker 检查 (配置已启用)...")
                 is_suitable_check, reason_check, need_replan_check = await self.conversation.reply_checker.check(
                     reply=current_content_for_check,

@@ -101,7 +101,7 @@ class Mind:
             else self.individuality.personality.personality_core
         )
         mood_info = mai_state_info.get_mood_prompt()
-        bot_name = global_config.BOT_NICKNAME
+        bot_name = global_config.bot.nickname
 
         try:
             prompt = (await global_prompt_manager.get_prompt_async("mind_summary_prompt")).format(

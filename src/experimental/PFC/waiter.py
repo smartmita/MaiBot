@@ -17,7 +17,7 @@ class Waiter:
 
     def __init__(self, stream_id: str, private_name: str):
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-        self.name = global_config.BOT_NICKNAME
+        self.name = global_config.bot.nickname
         self.private_name = private_name
         # self.wait_accumulated_time = 0 # 不再需要累加计时
 

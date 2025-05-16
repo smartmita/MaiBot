@@ -76,8 +76,9 @@ class SubHeartflowManager:
 
         # 为 LLM 状态评估创建一个 LLMRequest 实例
         # 使用与 Heartflow 相同的模型和参数
+        # TODO: API-Adapter修改标记
         self.llm_state_evaluator = LLMRequest(
-            model=global_config.llm_heartflow,  # 与 Heartflow 一致
+            model=global_config.model.heartflow,  # 与 Heartflow 一致
             temperature=0.6,  # 与 Heartflow 一致
             max_tokens=1000,  # 与 Heartflow 一致 (虽然可能不需要这么多)
             request_type="subheartflow_state_eval",  # 保留特定的请求类型
@@ -278,7 +279,7 @@ class SubHeartflowManager:
             focused_limit = current_state.get_focused_chat_max_num()
 
             # --- 新增：检查是否允许进入 FOCUS 模式 --- #
-            if not global_config.allow_focus_mode:
+            if not global_config.chat.allow_focus_mode:
                 if int(time.time()) % 60 == 0:  # 每60秒输出一次日志避免刷屏
                     logger.trace("未开启 FOCUSED 状态 (allow_focus_mode=False)")
                 return  # 如果不允许，直接返回
@@ -766,7 +767,7 @@ class SubHeartflowManager:
         focused_limit = current_mai_state.get_focused_chat_max_num()
 
         # --- 检查是否允许 FOCUS 模式 --- #
-        if not global_config.allow_focus_mode:
+        if not global_config.chat.allow_focus_mode:
             # Log less frequently to avoid spam
             # if int(time.time()) % 60 == 0:
             #     logger.debug(f"{log_prefix_task} 配置不允许进入 FOCUSED 状态")

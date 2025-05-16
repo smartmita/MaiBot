@@ -155,7 +155,7 @@ class ObservationInfo:
         try:
             from ...config.config import global_config
 
-            self.bot_id = str(global_config.BOT_QQ) if global_config.BOT_QQ else None
+            self.bot_id = str(global_config.bot.qq_account) if global_config.bot.qq_account else None
             if not self.bot_id:
                 logger.error(f"[私聊][{self.private_name}] 未能从配置中获取 BOT_QQ ID！")
         except ImportError:
