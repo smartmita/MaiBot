@@ -84,9 +84,9 @@ class QAManager:
                     relation_search_res, paragraph_search_res, self.embed_manager
                 )
                 part_end_time = time.perf_counter()
-                logger.infoinfo(f"RAG检索用时：{part_end_time - part_start_time:.5f}s")
+                logger.info(f"RAG检索用时：{part_end_time - part_start_time:.5f}s")
             else:
-                logger.infoinfo("未找到相关关系，将使用文段检索结果")
+                logger.info("未找到相关关系，将使用文段检索结果")
                 result = paragraph_search_res
                 ppr_node_weights = None
 
@@ -95,7 +95,7 @@ class QAManager:
 
             for res in result:
                 raw_paragraph = self.embed_manager.paragraphs_embedding_store.store[res[0]].str
-                logger.info(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
+                print(f"找到相关文段，相关系数：{res[1]:.8f}\n{raw_paragraph}\n\n")
 
             return result, ppr_node_weights
         else:
