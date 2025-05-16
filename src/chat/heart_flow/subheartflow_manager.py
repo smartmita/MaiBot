@@ -427,7 +427,7 @@ class SubHeartflowManager:
                 f"{chat_status_prompt}\n"  # <-- 喵！用了新的状态信息~
                 f"你当前尚未加入 [{stream_name}] 群聊天。\n"
                 f"{_observation_summary}\n---\n"
-                f"基于以上信息，你想不想开始在这个群闲聊？\n"
+                f"基于以上信息，你想不想开始在这个群闲聊？注意，如果聊天记录是以你结束的，那么你可能刚刚聊完，可以不急着再次参与\n"
                 f"请说明理由，并以 JSON 格式回答，包含 'decision' (布尔值) 和 'reason' (字符串)。\n"
                 f'例如：{{"decision": true, "reason": "看起来挺热闹的，插个话"}}\n'
                 f'例如：{{"decision": false, "reason": "已经聊了好多，休息一下"}}\n'
