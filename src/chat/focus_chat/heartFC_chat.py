@@ -20,8 +20,6 @@ from src.chat.heart_flow.observation.working_observation import WorkingObservati
 from src.chat.focus_chat.info_processors.tool_processor import ToolProcessor
 from src.chat.focus_chat.expressors.default_expressor import DefaultExpressor
 from src.chat.focus_chat.memory_activator import MemoryActivator
-from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
-from src.plugins.group_nickname.nickname_manager import nickname_manager
 from src.chat.focus_chat.info_processors.base_processor import BaseProcessor
 from src.chat.focus_chat.planners.planner import ActionPlanner
 from src.chat.focus_chat.planners.action_factory import ActionManager
