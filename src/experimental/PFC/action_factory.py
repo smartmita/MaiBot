@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Type, TYPE_CHECKING
 
 # 从 action_handlers.py 导入具体的处理器类
-from .action_handlers import ( # 调整导入路径
+from .action_handlers import (  # 调整导入路径
     ActionHandler,
     DirectReplyHandler,
     SendNewMessageHandler,
@@ -17,10 +17,12 @@ from .action_handlers import ( # 调整导入路径
 )
 
 if TYPE_CHECKING:
-    from PFC.conversation import Conversation # 调整导入路径
+    from PFC.conversation import Conversation  # 调整导入路径
+
 
 class AbstractActionFactory(ABC):
     """抽象动作工厂接口。"""
+
     @abstractmethod
     def create_action_handler(self, action_type: str, conversation: "Conversation") -> ActionHandler:
         """
@@ -35,8 +37,10 @@ class AbstractActionFactory(ABC):
         """
         pass
 
+
 class StandardActionFactory(AbstractActionFactory):
     """标准的动作工厂实现。"""
+
     def create_action_handler(self, action_type: str, conversation: "Conversation") -> ActionHandler:
         """
         根据动作类型创建并返回具体的动作处理器实例。
@@ -53,10 +57,10 @@ class StandardActionFactory(AbstractActionFactory):
             "block_and_ignore": BlockAndIgnoreHandler,
             "wait": WaitHandler,
         }
-        handler_class = handler_map.get(action_type) # 获取对应的处理器类
+        handler_class = handler_map.get(action_type)  # 获取对应的处理器类
         # 如果找到对应的处理器类
         if handler_class:
-            return handler_class(conversation) # 创建并返回处理器实例
+            return handler_class(conversation)  # 创建并返回处理器实例
         else:
             # 如果未找到，返回处理未知动作的默认处理器
             return UnknownActionHandler(conversation)

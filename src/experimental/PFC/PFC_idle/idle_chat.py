@@ -536,7 +536,9 @@ class IdleChat:
             try:
                 segments = Seg(type="seglist", data=[Seg(type="text", data=content)])
                 logger.debug(f"[私聊][{self.private_name}]准备发送主动聊天消息: {content}")
-                await self.message_sender.send_message(chat_stream=chat_stream, segments=segments, reply_to_message=None, content=content)
+                await self.message_sender.send_message(
+                    chat_stream=chat_stream, segments=segments, reply_to_message=None, content=content
+                )
                 logger.info(f"[私聊][{self.private_name}]成功主动发起聊天: {content}")
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]发送主动聊天消息失败: {str(e)}")
