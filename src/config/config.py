@@ -353,6 +353,7 @@ class BotConfig:
     llm_nickname_mapping: Dict[str, str] = field(default_factory=lambda: {})
     llm_scheduler_all: Dict[str, str] = field(default_factory=lambda: {})
     llm_scheduler_doing: Dict[str, str] = field(default_factory=lambda: {})
+    llm_PFC_relationship_eval: Dict[str, str] = field(default_factory=lambda: {})
 
     api_urls: Dict[str, str] = field(default_factory=lambda: {})
 

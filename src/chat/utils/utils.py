@@ -559,7 +559,7 @@ def process_llm_response(text: str) -> list[str]:
         else:
             sentences.append(sentence)
 
-    if len(sentences) > (max_sentence_num * 2):
+    if len(sentences) > max_sentence_num:
         logger.warning(f"分割后消息数量过多 ({len(sentences)} 条)，返回默认回复")
         return [f"{global_config.BOT_NICKNAME}不知道哦"]
 
