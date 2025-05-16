@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 import time
 import asyncio
-import datetime
 import traceback
 import json
 import random
@@ -15,9 +14,7 @@ from .pfc_types import ConversationState
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from src.chat.utils.utils_image import image_path_to_base64
-from maim_message import Seg, UserInfo
-from src.chat.message_receive.message import MessageSending, MessageSet
-from src.chat.message_receive.message_sender import message_manager
+from maim_message import Seg
 
 if TYPE_CHECKING:
     from .conversation import Conversation
@@ -614,8 +611,10 @@ class DirectReplyHandler(BaseTextReplyHandler):
             
             # 统一调用发送后状态更新
             event_desc_parts = []
-            if sent_text_successfully and self.conversation.generated_reply : event_desc_parts.append(f"你回复了: '{self.conversation.generated_reply[:30]}...'")
-            if sent_emoji_successfully and full_emoji_desc: event_desc_parts.append(f"并发送了表情: '{full_emoji_desc}'")
+            if sent_text_successfully and self.conversation.generated_reply:
+                event_desc_parts.append(f"你回复了: '{self.conversation.generated_reply[:30]}...'")
+            if sent_emoji_successfully and full_emoji_desc:
+                event_desc_parts.append(f"并发送了表情: '{full_emoji_desc}'")
             event_desc = " ".join(event_desc_parts) if event_desc_parts else "机器人发送了消息"
             await self._update_post_send_states(observation_info, conversation_info, "direct_reply", event_desc)
 
@@ -702,8 +701,10 @@ class SendNewMessageHandler(BaseTextReplyHandler):
             final_reason = "; ".join(reason_parts) if reason_parts else "成功完成操作"
             
             event_desc_parts = []
-            if sent_text_successfully and self.conversation.generated_reply: event_desc_parts.append(f"你发送了新消息: '{self.conversation.generated_reply[:30]}...'")
-            if sent_emoji_successfully and full_emoji_desc: event_desc_parts.append(f"并发送了表情: '{full_emoji_desc}'")
+            if sent_text_successfully and self.conversation.generated_reply:
+                event_desc_parts.append(f"你发送了新消息: '{self.conversation.generated_reply[:30]}...'")
+            if sent_emoji_successfully and full_emoji_desc:
+                event_desc_parts.append(f"并发送了表情: '{full_emoji_desc}'")
             event_desc = " ".join(event_desc_parts) if event_desc_parts else "机器人发送了消息"
             await self._update_post_send_states(observation_info, conversation_info, "send_new_message", event_desc)
 
@@ -786,7 +787,9 @@ class SayGoodbyeHandler(ActionHandler):
                 # 注意：由于 should_continue 已设为 False，后续的 idle chat 更新可能意义不大，但情绪更新仍可进行
                 await self._update_post_send_states(observation_info, conversation_info, "say_goodbye", event_desc)
             else: # 如果发送失败
-                final_status = "recall"; final_reason = "发送告别语失败"; action_successful = False
+                final_status = "recall"
+                final_reason = "发送告别语失败"
+                action_successful = False
                 self.conversation.should_continue = True # 发送失败则不立即结束对话，让其自然流转
 
         return action_successful, final_status, final_reason
@@ -843,7 +846,8 @@ class SendMemesHandler(ActionHandler):
                 event_desc = f"你发送了一个表情包 ({full_emoji_description})"
                 await self._update_post_send_states(observation_info, conversation_info, "send_memes", event_desc)
             else: # 如果发送失败
-                final_status = "recall"; final_reason = f"{final_reason_prefix}失败：发送时出错"
+                final_status = "recall"
+                final_reason = f"{final_reason_prefix}失败：发送时出错"
         else: # 如果未能获取或准备表情
             final_reason = f"{final_reason_prefix}失败：未找到或准备表情失败 ({emoji_query})"
             # last_successful_reply_action 保持不变

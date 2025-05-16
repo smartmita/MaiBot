@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Type, TYPE_CHECKING
+from typing import Type, TYPE_CHECKING
 
 # 从 action_handlers.py 导入具体的处理器类
 from .action_handlers import ( # 调整导入路径
