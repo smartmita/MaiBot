@@ -1,3 +1,5 @@
+# TODO: 开机自启，遍历所有可发起的聊天流，而不是等待 PFC 实例结束
+# TODO: 优化 idle 逻辑 增强其与 PFC 模式的联动
 from typing import Optional, Dict, Set
 import asyncio
 import time
@@ -17,7 +19,7 @@ from src.chat.utils.chat_message_builder import build_readable_messages
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from src.chat.message_receive.chat_stream import ChatStream, chat_manager
-from maim_message import UserInfo
+from maim_message import UserInfo, Seg
 from ..pfc_relationship import PfcRepationshipTranslator
 from rich.traceback import install
 
@@ -161,7 +163,7 @@ class IdleChat:
         """启动主动聊天检测"""
         # 检查是否启用了主动聊天功能
         if not global_config.enable_idle_chat:
-            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置ENABLE_IDLE_CHAT=False）")
+            logger.info(f"[私聊][{self.private_name}]主动聊天功能已禁用（配置enable_idle_chat=False）")
             return
 
         if self._running:
@@ -262,8 +264,6 @@ class IdleChat:
             # 获取关系值
             relationship_value = 0
             try:
-
-
                 # 尝试获取person_id
                 person_id = None
                 try:
@@ -426,7 +426,6 @@ class IdleChat:
     async def _get_chat_stream(self) -> Optional[ChatStream]:
         """获取聊天流实例"""
         try:
-
             existing_chat_stream = chat_manager.get_stream(self.stream_id)
             if existing_chat_stream:
                 logger.debug(f"[私聊][{self.private_name}]从chat_manager找到现有聊天流")
@@ -535,8 +534,11 @@ class IdleChat:
 
             # 发送消息
             try:
+                segments = Seg(type="seglist", data=[Seg(type="text", data=content)])
                 logger.debug(f"[私聊][{self.private_name}]准备发送主动聊天消息: {content}")
-                await self.message_sender.send_message(chat_stream=chat_stream, content=content, reply_to_message=None)
+                await self.message_sender.send_message(
+                    chat_stream=chat_stream, segments=segments, reply_to_message=None, content=content
+                )
                 logger.info(f"[私聊][{self.private_name}]成功主动发起聊天: {content}")
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]发送主动聊天消息失败: {str(e)}")
