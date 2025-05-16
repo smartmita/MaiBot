@@ -71,8 +71,9 @@ def get_raw_msg_by_timestamp_random(
     # 随机选一条
     msg = random.choice(all_msgs)
     chat_id = msg["chat_id"]
+    timestamp_start = msg["time"]
     # 用 chat_id 获取该聊天在指定时间戳范围内的消息
-    return get_raw_msg_by_timestamp_with_chat(chat_id, timestamp_start, timestamp_end, limit, limit_mode)
+    return get_raw_msg_by_timestamp_with_chat(chat_id, timestamp_start, timestamp_end, limit, "earliest")
 
 
 def get_raw_msg_by_timestamp_with_users(
@@ -249,6 +250,8 @@ async def _build_readable_messages_internal(
     message_details_raw.sort(key=lambda x: x[0])  # 按时间戳(第一个元素)升序排序，越早的消息排在前面
 
     # 应用截断逻辑 (如果 truncate 为 True)
+    if not global_config.long_message_auto_truncate:
+        truncate = False
     message_details: List[Tuple[float, str, str]] = []
     n_messages = len(message_details_raw)
     if truncate and n_messages > 0:
@@ -331,7 +334,7 @@ async def _build_readable_messages_internal(
                     stripped_line = stripped_line[:-1]
                 # 如果内容被截断，结尾已经是 ...（内容太长），不再添加分号
                 if not stripped_line.endswith("（内容太长）"):
-                    output_lines.append(f"{stripped_line};")
+                    output_lines.append(f"{stripped_line}")
                 else:
                     output_lines.append(stripped_line)  # 直接添加截断后的内容
         output_lines.append("\n")  # 在每个消息块后添加换行，保持可读性
@@ -416,14 +419,24 @@ async def build_readable_messages(
 async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
     """
     构建匿名可读消息，将不同人的名称转为唯一占位符（A、B、C...），bot自己用SELF。
+    处理 回复<aaa:bbb> 和 @<aaa:bbb> 字段，将bbb映射为匿名占位符。
     """
     if not messages:
         return ""
 
-    # 分配占位符
     person_map = {}
-    current_char = ord('A')
+    current_char = ord("A")
     output_lines = []
+
+    def get_anon_name(platform, user_id):
+        if user_id == global_config.BOT_QQ:
+            return "SELF"
+        person_id = person_info_manager.get_person_id(platform, user_id)
+        if person_id not in person_map:
+            nonlocal current_char
+            person_map[person_id] = chr(current_char)
+            current_char += 1
+        return person_map[person_id]
 
     for msg in messages:
         user_info = msg.get("user_info", {})
@@ -435,25 +448,37 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
         if not all([platform, user_id, timestamp is not None]):
             continue
 
-        # 判断是否为bot
-        if user_id == global_config.BOT_QQ:
-            anon_name = "SELF"
-        else:
-            person_id = person_info_manager.get_person_id(platform, user_id)
-            if person_id not in person_map:
-                person_map[person_id] = chr(current_char)
-                current_char += 1
-            anon_name = person_map[person_id]
+        anon_name = get_anon_name(platform, user_id)
 
-        # 格式化时间
-        readable_time = translate_timestamp_to_human_readable(timestamp, mode="relative")
-        header = f"{readable_time}{anon_name}说:"
+        # 处理 回复<aaa:bbb>
+        reply_pattern = r"回复<([^:<>]+):([^:<>]+)>"
+
+        def reply_replacer(match):
+            # aaa = match.group(1)
+            bbb = match.group(2)
+            anon_reply = get_anon_name(platform, bbb)
+            return f"回复 {anon_reply}"
+
+        content = re.sub(reply_pattern, reply_replacer, content, count=1)
+
+        # 处理 @<aaa:bbb>
+        at_pattern = r"@<([^:<>]+):([^:<>]+)>"
+
+        def at_replacer(match):
+            # aaa = match.group(1)
+            bbb = match.group(2)
+            anon_at = get_anon_name(platform, bbb)
+            return f"@{anon_at}"
+
+        content = re.sub(at_pattern, at_replacer, content)
+
+        header = f"{anon_name}说 "
         output_lines.append(header)
         stripped_line = content.strip()
         if stripped_line:
             if stripped_line.endswith("。"):
                 stripped_line = stripped_line[:-1]
-            output_lines.append(f"{stripped_line};")
+            output_lines.append(f"{stripped_line}")
         output_lines.append("\n")
 
     formatted_string = "".join(output_lines).strip()

@@ -1,18 +1,18 @@
 # 麦麦！MaiCore-MaiMBot (编辑中)
 <br />
-<div style="text-align: center">
+<div align="center">
 
-  ![Python Version](https://img.shields.io/badge/Python-3.10+-blue)
-  ![License](https://img.shields.io/github/license/SengokuCola/MaiMBot?label=协议)
-  ![Status](https://img.shields.io/badge/状态-开发中-yellow)
-  ![Contributors](https://img.shields.io/github/contributors/MaiM-with-u/MaiBot.svg?style=flat&label=贡献者)
-  ![forks](https://img.shields.io/github/forks/MaiM-with-u/MaiBot.svg?style=flat&label=分支数)
-  ![stars](https://img.shields.io/github/stars/MaiM-with-u/MaiBot?style=flat&label=星标数)
-  ![issues](https://img.shields.io/github/issues/MaiM-with-u/MaiBot)
-
+![Python Version](https://img.shields.io/badge/Python-3.10+-blue)
+![License](https://img.shields.io/github/license/SengokuCola/MaiMBot?label=协议)
+![Status](https://img.shields.io/badge/状态-开发中-yellow)
+![Contributors](https://img.shields.io/github/contributors/MaiM-with-u/MaiBot.svg?style=flat&label=贡献者)
+![forks](https://img.shields.io/github/forks/MaiM-with-u/MaiBot.svg?style=flat&label=分支数)
+![stars](https://img.shields.io/github/stars/MaiM-with-u/MaiBot?style=flat&label=星标数)
+![issues](https://img.shields.io/github/issues/MaiM-with-u/MaiBot)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/DrSmoothl/MaiBot)
   </div>
 
-<p style="text-align: center">
+<p align="center">
   <a href="https://github.com/MaiM-with-u/MaiBot/">
     <img src="depends-data/maimai.png" alt="Logo" style="width: 200px">
   </a>
@@ -21,8 +21,8 @@
     画师：略nd
   </a>
 
-  <h3 style="text-align: center">MaiBot(麦麦)</h3>
-  <p style="text-align: center">
+  <h3 align="center">MaiBot(麦麦)</h3>
+  <p align="center">
     一款专注于<strong> 群组聊天 </strong>的赛博网友
     <br />
     <a href="https://docs.mai-mai.org"><strong>探索本项目的文档 »</strong></a>

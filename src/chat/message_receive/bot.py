@@ -6,6 +6,7 @@ from src.manager.mood_manager import mood_manager  # 导入情绪管理器
 from src.chat.message_receive.message import MessageRecv
 from src.experimental.PFC.pfc_processor import PFCProcessor
 from src.chat.focus_chat.heartflow_processor import HeartFCProcessor
+from src.experimental.Legacy_HFC.heartflow_processor import HeartFCProcessor as LegacyHeartFlowProcessor
 from src.chat.utils.prompt_builder import Prompt, global_prompt_manager
 from src.config.config import global_config
 
@@ -22,6 +23,7 @@ class ChatBot:
         self._started = False
         self.mood_manager = mood_manager  # 获取情绪管理器单例
         self.heartflow_processor = HeartFCProcessor()  # 新增
+        self.legacy_hfc_processor = LegacyHeartFlowProcessor()
         self.pfc_processor = PFCProcessor()
 
     async def _ensure_started(self):
@@ -66,12 +68,14 @@ class ChatBot:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
-            if groupinfo is None:
+            if groupinfo is None and global_config.enable_friend_whitelist:
                 logger.trace("检测到私聊消息，检查")
                 # 好友黑名单拦截
                 if userinfo.user_id not in global_config.talk_allowed_private:
                     logger.debug(f"用户{userinfo.user_id}没有私聊权限")
                     return
+            elif not global_config.enable_friend_whitelist:
+                logger.debug("私聊白名单模式未启用，跳过私聊权限检查。")
 
             # 群聊黑名单拦截
             if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
@@ -90,6 +94,11 @@ class ChatBot:
             else:
                 template_group_name = None
 
+            if not global_config.enable_Legacy_HFC:
+                hfc_processor = self.heartflow_processor
+            else:
+                hfc_processor = self.legacy_hfc_processor
+
             async def preprocess():
                 logger.trace("开始预处理消息...")
                 # 如果在私聊中
@@ -105,11 +114,11 @@ class ChatBot:
                         # 禁止PFC，进入普通的心流消息处理逻辑
                         else:
                             logger.trace("进入普通心流私聊处理")
-                            await self.heartflow_processor.process_message(message_data)
+                            await hfc_processor.process_message(message_data)
                 # 群聊默认进入心流消息处理逻辑
                 else:
                     logger.trace(f"检测到群聊消息，群ID: {groupinfo.group_id}")
-                    await self.heartflow_processor.process_message(message_data)
+                    await hfc_processor.process_message(message_data)
 
             if template_group_name:
                 async with global_prompt_manager.async_message_scope(template_group_name):

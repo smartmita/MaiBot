@@ -265,7 +265,7 @@ class PfcRepationshipTranslator:
             "初识",  # level_num 2
             "友好",  # level_num 3
             "喜欢",  # level_num 4
-            "暧昧",  # level_num 5
+            "依赖",  # level_num 5
         ]
 
         if 0 <= level_num < len(relationship_descriptions):
@@ -274,7 +274,7 @@ class PfcRepationshipTranslator:
             description = "普通"  # 默认或错误情况
             logger.warning(f"[私聊][{self.private_name}] 计算出的 level_num ({level_num}) 无效，关系描述默认为 '普通'")
 
-        return f"你们的关系是：{description}。"
+        return f"{description}。"
 
     @staticmethod
     def _calculate_relationship_level_num(relationship_value: float, private_name: str) -> int:

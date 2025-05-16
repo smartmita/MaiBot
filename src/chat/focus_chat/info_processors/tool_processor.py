@@ -14,7 +14,7 @@ from src.chat.heart_flow.observation.observation import Observation
 from src.chat.heart_flow.observation.working_observation import WorkingObservation
 from src.chat.focus_chat.info.structured_info import StructuredInfo
 
-logger = get_logger("tool_use")
+logger = get_logger("processor")
 
 
 def init_prompt():
@@ -45,6 +45,8 @@ def init_prompt():
 
 
 class ToolProcessor(BaseProcessor):
+    log_prefix = "工具执行器"
+
     def __init__(self, subheartflow_id: str):
         super().__init__()
         self.subheartflow_id = subheartflow_id

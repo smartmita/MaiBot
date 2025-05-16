@@ -14,15 +14,15 @@ class BaseProcessor(ABC):
     支持处理InfoBase和Observation类型的输入。
     """
 
+    log_prefix = "Base信息处理器"
+
     @abstractmethod
     def __init__(self):
         """初始化处理器"""
-        pass
 
     @abstractmethod
     async def process_info(
         self,
-        infos: List[InfoBase],
         observations: Optional[List[Observation]] = None,
         running_memorys: Optional[List[Dict]] = None,
         **kwargs: Any,

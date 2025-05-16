@@ -12,7 +12,7 @@ from typing import Dict
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 
-logger = get_logger("observation")
+logger = get_logger("processor")
 
 
 class ChattingInfoProcessor(BaseProcessor):
@@ -21,12 +21,14 @@ class ChattingInfoProcessor(BaseProcessor):
     用于处理Observation对象，将其转换为ObsInfo对象。
     """
 
+    log_prefix = "聊天信息处理"
+
     def __init__(self):
         """初始化观察处理器"""
+        super().__init__()
         self.llm_summary = LLMRequest(
             model=global_config.llm_observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
         )
-        super().__init__()
 
     async def process_info(
         self,
