@@ -103,8 +103,7 @@ class NicknameManager:
                 return
 
             logger.info("正在初始化 NicknameManager 组件...")
-            self.config = global_config
-            self.is_enabled = self.config.enable_nickname_mapping
+            self.is_enabled = global_config.group_nickname.enable_nickname_mapping
 
             # 数据库处理器
             person_info_collection = getattr(db, "person_info", None)
@@ -117,7 +116,7 @@ class NicknameManager:
             self.llm_mapper: Optional[LLMRequest] = None
             if self.is_enabled:
                 try:
-                    model_config = self.config.llm_nickname_mapping
+                    model_config = global_config.model.nickname_mapping
                     if model_config and model_config.get("name"):
                         self.llm_mapper = LLMRequest(
                             model=model_config,
@@ -139,12 +138,12 @@ class NicknameManager:
                     self.is_enabled = False
 
             # 队列和线程
-            self.queue_max_size = getattr(self.config, "nickname_queue_max_size", 100)
+            self.queue_max_size = global_config.group_nickname.nickname_queue_max_size
             # 使用 asyncio.Queue
             self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
             self._stop_event = threading.Event()  # stop_event 仍然使用 threading.Event，因为它是由另一个线程设置的
             self._nickname_thread: Optional[threading.Thread] = None
-            self.sleep_interval = getattr(self.config, "nickname_process_sleep_interval", 5)  # 超时时间
+            self.sleep_interval = global_config.group_nickname.nickname_process_sleep_interval  # 超时时间
 
             self._initialized = True
             logger.info("NicknameManager 初始化完成。")
@@ -222,7 +221,7 @@ class NicknameManager:
         log_prefix = f"[{current_chat_stream.stream_id}]"
         try:
             # 1. 获取历史记录
-            history_limit = getattr(self.config, "nickname_analysis_history_limit", 30)
+            history_limit = global_config.group_nickname.nickname_analysis_history_limit
             history_messages = get_raw_msg_before_timestamp_with_chat(
                 chat_id=current_chat_stream.stream_id,
                 timestamp=time.time(),
@@ -470,7 +469,7 @@ class NicknameManager:
     def _filter_llm_results(self, original_data: Dict[str, str], user_name_map: Dict[str, str]) -> Dict[str, str]:
         """过滤 LLM 返回的绰号映射结果。"""
         filtered_data = {}
-        bot_qq_str = str(self.config.BOT_QQ) if hasattr(self.config, "BOT_QQ") else None
+        bot_qq_str = global_config.bot.qq_account if global_config.bot.qq_account else None
 
         for user_id, nickname in original_data.items():
             if not isinstance(user_id, str):

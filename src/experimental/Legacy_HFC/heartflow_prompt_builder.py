@@ -487,17 +487,14 @@ class PromptBuilder:
         keywords_reaction_prompt = ""
         keywords_reaction_prompt = ""
         for rule in global_config.keyword_reaction.rules:
-            if rule.get("enable", False):
-                if any(keyword in message_txt.lower() for keyword in rule.get("keywords", [])):
-                    logger.info(
-                        f"检测到以下关键词之一：{rule.get('keywords', [])}，触发反应：{rule.get('reaction', '')}"
-                    )
-                    keywords_reaction_prompt += rule.get("reaction", "") + "，"
+            if rule.enable:
+                if any(keyword in message_txt for keyword in rule.keywords):
+                    logger.info(f"检测到以下关键词之一：{rule.keywords}，触发反应：{rule.reaction}")
+                    keywords_reaction_prompt += f"{rule.reaction}，"
                 else:
-                    for pattern in rule.get("regex", []):
-                        result = pattern.search(message_txt)
-                        if result:
-                            reaction = rule.get("reaction", "")
+                    for pattern in rule.regex:
+                        if result := pattern.search(message_txt):
+                            reaction = rule.reaction
                             for name, content in result.groupdict().items():
                                 reaction = reaction.replace(f"[{name}]", content)
                             logger.info(f"匹配到以下正则表达式：{pattern}，触发反应：{reaction}")

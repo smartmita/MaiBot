@@ -18,7 +18,7 @@ nickname = "麦麦"
 alias_names = ["麦叠", "牢麦"] #该选项还在调试中，暂时未生效
 
 [chat_target]
-talk_allowed = [
+talk_allowed_groups = [
     123,
     123,
 ]  #可以回复消息的群号码
@@ -55,8 +55,7 @@ weight = "50" # 体重（单位kg）
 appearance = "用一句或几句话描述外貌特征" # 外貌特征 该选项还在调试中，暂时未生效
 
 [schedule]
-enable_schedule_gen = true # 是否启用日程表
-enable_schedule_interaction = true # 日程表是否影响回复模式
+enable = true # 是否启用日程表
 prompt_schedule_gen = "用几句话描述描述性格特点或行动规律，这个特征会用来生成日程表"
 schedule_doing_update_interval = 900 # 日程表更新间隔 单位秒
 schedule_temperature = 0.1 # 日程表温度，建议0.1-0.5
@@ -199,20 +198,20 @@ talk_allowed_private = [] # 可以回复消息的QQ号
 rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
 
 [pfc]
-enable_pfc_chatting = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+enable = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
 pfc_message_buffer_size = 2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
 pfc_recent_history_display_count = 18  # PFC 对话最大可见上下文
 
-[[pfc.checker]]
+# pfc.checker
 enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 pfc_max_reply_attempts = 3  # 发言最多尝试次数
 pfc_max_chat_history_for_checker = 30  # checker聊天记录最大可见上文长度
 
-[[pfc.emotion]]
+# pfc.emotion
 pfc_emotion_update_intensity = 0.6  # 情绪更新强度
 pfc_emotion_history_count = 5  # 情绪更新最大可见上下文长度
 
-[[pfc.relationship]]
+# pfc.relationship
 pfc_relationship_incremental_interval = 10  # 关系值增值强度
 pfc_relationship_incremental_msg_count = 10  # 会话中，关系值判断最大可见上下文
 pfc_relationship_incremental_default_change = 1.0  # 会话中，关系值默认更新值（当 llm 返回错误时默认采用该值）
@@ -221,10 +220,10 @@ pfc_relationship_final_msg_count = 30  # 会话结束时，关系值判断最大
 pfc_relationship_final_default_change =5.0  # 会话结束时，关系值默认更新值
 pfc_relationship_final_max_change = 50.0  # 会话结束时，关系值最大可变值
 
-[[pfc.fallback]]
+# pfc.fallback
 pfc_historical_fallback_exclude_seconds = 45 # pfc 翻看聊天记录排除最近时长
 
-[[pfc.idle_chat]]
+# pfc.idle_chat
 enable_idle_chat = true # 是否启用 pfc 主动发言
 idle_check_interval = 10  # 检查间隔，10分钟检查一次
 min_cooldown = 7200      # 最短冷却时间，2小时 (7200秒)
@@ -319,6 +318,7 @@ provider = "SILICONFLOW"
 temp = 0.3
 pri_in = 2
 pri_out = 8
+max_tokens = 512
 
 #PFC聊天模型
 [model.pfc_chat]
@@ -329,7 +329,7 @@ pri_in = 2
 pri_out = 8
 
 #绰号映射生成模型
-[model.llm_nickname_mapping]
+[model.nickname_mapping]
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.7
@@ -337,7 +337,7 @@ pri_in = 1.26
 pri_out = 1.26
 
 #日程模型
-[model.llm_scheduler_all]
+[model.scheduler_all]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
@@ -345,7 +345,7 @@ pri_in = 2
 pri_out = 8
 
 #在干嘛模型
-[model.llm_scheduler_doing]
+[model.scheduler_doing]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
@@ -353,7 +353,7 @@ pri_in = 2
 pri_out = 8
 
 # PFC 关系评估LLM
-[model.llm_PFC_relationship_eval]
+[model.PFC_relationship_eval]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.4
