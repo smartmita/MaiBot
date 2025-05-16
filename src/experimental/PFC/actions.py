@@ -5,15 +5,15 @@ import traceback
 from typing import Optional, TYPE_CHECKING
 
 from src.common.logger_manager import get_logger
-from PFC.pfc_types import ConversationState # 调整导入路径
-from PFC.observation_info import ObservationInfo # 调整导入路径
-from PFC.conversation_info import ConversationInfo # 调整导入路径
+from .pfc_types import ConversationState # 调整导入路径
+from .observation_info import ObservationInfo # 调整导入路径
+from .conversation_info import ConversationInfo # 调整导入路径
 
 # 导入工厂类
-from PFC.action_factory import StandardActionFactory # 调整导入路径
+from .action_factory import StandardActionFactory # 调整导入路径
 
 if TYPE_CHECKING:
-    from PFC.conversation import Conversation # 调整导入路径
+    from .conversation import Conversation # 调整导入路径
 
 logger = get_logger("pfc_actions") # 模块级别日志记录器
 

@@ -10,9 +10,9 @@ from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.chat.utils.chat_message_builder import build_readable_messages
-from PFC.pfc_types import ConversationState
-from PFC.observation_info import ObservationInfo
-from PFC.conversation_info import ConversationInfo
+from .pfc_types import ConversationState
+from .observation_info import ObservationInfo
+from .conversation_info import ConversationInfo
 from src.chat.utils.utils_image import image_path_to_base64
 from maim_message import Seg, UserInfo
 from src.chat.message_receive.message import MessageSending, MessageSet
@@ -20,7 +20,7 @@ from src.chat.message_receive.message_sender import message_manager
 # PFC.message_sender 已经包含 DirectMessageSender，这里不再需要单独导入
 
 if TYPE_CHECKING:
-    from PFC.conversation import Conversation
+    from .conversation import Conversation
 
 logger = get_logger("pfc_action_handlers")
 
@@ -567,19 +567,18 @@ class SendMemesHandler(ActionHandler):
                 self.logger.info(f"获取到表情包: {emoji_path}, 描述: {emoji_description}")
 
                 if not self.conversation.chat_stream: raise RuntimeError("ChatStream 未初始化")
-                image_b64_content = image_path_to_base64(emoji_path)
-                if not image_b64_content: raise ValueError(f"无法转换图片 {emoji_path} 为Base64")
+                emoji_b64_cq = image_path_to_base64(emoji_path)
+                if not emoji_b64_cq: raise ValueError(f"无法转换图片 {emoji_path} 为Base64")
 
-                image_segment = Seg(type="image", data={"file": f"base64://{image_b64_content}"})
-                log_content_for_meme = f"[表情: {emoji_description}]"
-                send_success = await self._send_reply_or_segments([image_segment], log_content_for_meme)
+                image_segment = Seg(type="emoji", data=emoji_b64_cq)
+                send_success = await self._send_reply_or_segments([image_segment], emoji_description[-20:] + "...")
                 send_end_time = time.time()
 
                 if send_success:
                     action_successful = True
                     final_status = "done"
                     final_reason = f"{final_reason_prefix}成功发送 ({emoji_description})"
-                    await self._update_bot_message_in_history(send_end_time, log_content_for_meme, observation_info, "bot_meme_")
+                    await self._update_bot_message_in_history(send_end_time, emoji_description, observation_info, "bot_meme_")
                     event_desc = f"你发送了一个表情包 ({emoji_description})"
                     await self._update_post_send_states(send_end_time, observation_info, conversation_info, "send_memes", event_desc)
                 else:
