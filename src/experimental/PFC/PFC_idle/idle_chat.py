@@ -19,7 +19,7 @@ from src.chat.utils.chat_message_builder import build_readable_messages
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from src.chat.message_receive.chat_stream import ChatStream, chat_manager
-from maim_message import UserInfo
+from maim_message import UserInfo, Seg
 from ..pfc_relationship import PfcRepationshipTranslator
 from rich.traceback import install
 
@@ -534,8 +534,11 @@ class IdleChat:
 
             # 发送消息
             try:
+                segments = Seg(type="seglist", data=[Seg(type="text", data=content)])
                 logger.debug(f"[私聊][{self.private_name}]准备发送主动聊天消息: {content}")
-                await self.message_sender.send_message(chat_stream=chat_stream, content=content, reply_to_message=None)
+                await self.message_sender.send_message(
+                    chat_stream=chat_stream, segments=segments, reply_to_message=None, content=content
+                )
                 logger.info(f"[私聊][{self.private_name}]成功主动发起聊天: {content}")
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]发送主动聊天消息失败: {str(e)}")
