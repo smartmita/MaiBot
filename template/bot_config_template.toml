@@ -199,7 +199,7 @@ enable_kaomoji_protection = false # 是否启用颜文字保护
 model_max_output_length = 256 # 模型单次返回的最大token数
 
 [remote] #发送统计信息，主要是看全球有多少只麦麦
-enable = false
+enable = true
 
 [experimental] #实验性功能
 enable_Legacy_HFC = false  # 是否启用旧 HFC 处理器

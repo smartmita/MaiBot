@@ -278,7 +278,7 @@ class BotConfig:
 
     # experimental
     enable_Legacy_HFC: bool = False  # 是否启用旧 HFC 处理器
-    enable_friend_chat: bool = False  # 是否启用好友聊天
+    enable_friend_chat: bool = True  # 是否启用好友聊天
     # enable_think_flow: bool = False  # 是否启用思考流程
     enable_friend_whitelist: bool = True  # 是否启用好友白名单
     talk_allowed_private = set()
@@ -287,7 +287,7 @@ class BotConfig:
     )
 
     # pfc
-    enable_pfc_chatting: bool = False  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
+    enable_pfc_chatting: bool = True  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
     pfc_message_buffer_size: int = (
         2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
     )
@@ -317,7 +317,7 @@ class BotConfig:
     pfc_historical_fallback_exclude_seconds: int = 45  # pfc 翻看聊天记录排除最近时长
 
     # pfc.idle_chat
-    enable_idle_chat: bool = False  # 是否启用 pfc 主动发言
+    enable_idle_chat: bool = True  # 是否启用 pfc 主动发言
     idle_check_interval: int = 10  # 检查间隔，10分钟检查一次
     min_cooldown: int = 7200  # 最短冷却时间，2小时 (7200秒)
     max_cooldown: int = 18000  # 最长冷却时间，5小时 (18000秒)
