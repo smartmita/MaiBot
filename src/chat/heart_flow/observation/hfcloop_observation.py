@@ -23,19 +23,16 @@ class HFCloopObservation:
     def add_loop_info(self, loop_info: CycleDetail):
         # logger.debug(f"添加循环信息111111111111111111111111111111111111: {loop_info}")
         # print(f"添加循环信息111111111111111111111111111111111111: {loop_info}")
-        print(f"action_taken: {loop_info.action_taken}")
-        print(f"action_type: {loop_info.action_type}")
-        print(f"response_info: {loop_info.response_info}")
         self.history_loop.append(loop_info)
 
     async def observe(self):
         recent_active_cycles: List[CycleDetail] = []
         for cycle in reversed(self.history_loop):
             # 只关心实际执行了动作的循环
-            if cycle.action_taken:
+            action_taken = cycle.loop_action_info["action_taken"]
+            if action_taken:
                 recent_active_cycles.append(cycle)
-                # 最多找最近的3个活动循环
-                if len(recent_active_cycles) == 3:
+                if len(recent_active_cycles) == 5:
                     break
 
         cycle_info_block = ""
@@ -44,10 +41,10 @@ class HFCloopObservation:
 
         # 检查这最近的活动循环中有多少是连续的文本回复 (从最近的开始看)
         for cycle in recent_active_cycles:
-            if cycle.action_type == "reply":
+            action_type = cycle.loop_plan_info["action_result"]["action_type"]
+            if action_type == "reply":
                 consecutive_text_replies += 1
-                # 获取回复内容，如果不存在则返回'[空回复]'
-                response_text = cycle.response_info.get("response_text", "[空回复]")
+                response_text = cycle.loop_plan_info["action_result"]["action_data"].get("text", "[空回复]")
                 responses_for_prompt.append(response_text)
             else:
                 break
@@ -70,7 +67,7 @@ class HFCloopObservation:
 
         # 获取history_loop中最新添加的
         if self.history_loop:
-            last_loop = self.history_loop[-1]
+            last_loop = self.history_loop[0]
             start_time = last_loop.start_time
             end_time = last_loop.end_time
             if start_time is not None and end_time is not None:

@@ -71,8 +71,9 @@ def get_raw_msg_by_timestamp_random(
     # 随机选一条
     msg = random.choice(all_msgs)
     chat_id = msg["chat_id"]
+    timestamp_start = msg["time"]
     # 用 chat_id 获取该聊天在指定时间戳范围内的消息
-    return get_raw_msg_by_timestamp_with_chat(chat_id, timestamp_start, timestamp_end, limit, limit_mode)
+    return get_raw_msg_by_timestamp_with_chat(chat_id, timestamp_start, timestamp_end, limit, "earliest")
 
 
 def get_raw_msg_by_timestamp_with_users(
@@ -418,14 +419,24 @@ async def build_readable_messages(
 async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
     """
     构建匿名可读消息，将不同人的名称转为唯一占位符（A、B、C...），bot自己用SELF。
+    处理 回复<aaa:bbb> 和 @<aaa:bbb> 字段，将bbb映射为匿名占位符。
     """
     if not messages:
         return ""
 
-    # 分配占位符
     person_map = {}
     current_char = ord("A")
     output_lines = []
+
+    def get_anon_name(platform, user_id):
+        if user_id == global_config.BOT_QQ:
+            return "SELF"
+        person_id = person_info_manager.get_person_id(platform, user_id)
+        if person_id not in person_map:
+            nonlocal current_char
+            person_map[person_id] = chr(current_char)
+            current_char += 1
+        return person_map[person_id]
 
     for msg in messages:
         user_info = msg.get("user_info", {})
@@ -437,19 +448,31 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
         if not all([platform, user_id, timestamp is not None]):
             continue
 
-        # 判断是否为bot
-        if user_id == global_config.BOT_QQ:
-            anon_name = "SELF"
-        else:
-            person_id = person_info_manager.get_person_id(platform, user_id)
-            if person_id not in person_map:
-                person_map[person_id] = chr(current_char)
-                current_char += 1
-            anon_name = person_map[person_id]
+        anon_name = get_anon_name(platform, user_id)
 
-        # 格式化时间
-        readable_time = translate_timestamp_to_human_readable(timestamp, mode="relative")
-        header = f"{readable_time}{anon_name}说:"
+        # 处理 回复<aaa:bbb>
+        reply_pattern = r"回复<([^:<>]+):([^:<>]+)>"
+
+        def reply_replacer(match):
+            # aaa = match.group(1)
+            bbb = match.group(2)
+            anon_reply = get_anon_name(platform, bbb)
+            return f"回复 {anon_reply}"
+
+        content = re.sub(reply_pattern, reply_replacer, content, count=1)
+
+        # 处理 @<aaa:bbb>
+        at_pattern = r"@<([^:<>]+):([^:<>]+)>"
+
+        def at_replacer(match):
+            # aaa = match.group(1)
+            bbb = match.group(2)
+            anon_at = get_anon_name(platform, bbb)
+            return f"@{anon_at}"
+
+        content = re.sub(at_pattern, at_replacer, content)
+
+        header = f"{anon_name}说 "
         output_lines.append(header)
         stripped_line = content.strip()
         if stripped_line:

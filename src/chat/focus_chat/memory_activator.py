@@ -8,6 +8,7 @@ from src.chat.utils.prompt_builder import Prompt
 from datetime import datetime
 from src.chat.memory_system.Hippocampus import HippocampusManager
 from typing import List, Dict
+import difflib
 
 
 logger = get_logger("memory_activator")
@@ -82,7 +83,7 @@ class MemoryActivator:
             text=obs_info_text, max_memory_num=3, max_memory_length=2, max_depth=3, fast_retrieval=True
         )
 
-        logger.debug(f"获取到的记忆: {related_memory}")
+        # logger.debug(f"获取到的记忆: {related_memory}")
 
         # 激活时，所有已有记忆的duration+1，达到3则移除
         for m in self.running_memory[:]:
@@ -91,13 +92,20 @@ class MemoryActivator:
 
         if related_memory:
             for topic, memory in related_memory:
-                # 检查是否已存在相同topic和content的记忆
-                exists = any(m["topic"] == topic and m["content"] == memory for m in self.running_memory)
+                # 检查是否已存在相同topic或相似内容（相似度>=0.7）的记忆
+                exists = any(
+                    m["topic"] == topic or difflib.SequenceMatcher(None, m["content"], memory).ratio() >= 0.7
+                    for m in self.running_memory
+                )
                 if not exists:
                     self.running_memory.append(
                         {"topic": topic, "content": memory, "timestamp": datetime.now().isoformat(), "duration": 1}
                     )
                     logger.debug(f"添加新记忆: {topic} - {memory}")
+
+        # 限制同时加载的记忆条数，最多保留最后3条
+        if len(self.running_memory) > 3:
+            self.running_memory = self.running_memory[-3:]
 
         return self.running_memory
 

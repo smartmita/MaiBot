@@ -10,7 +10,7 @@ import os
 import json
 
 
-MAX_EXPRESSION_COUNT = 300
+MAX_EXPRESSION_COUNT = 100
 
 logger = get_logger("expressor")
 
@@ -65,9 +65,9 @@ def init_prompt() -> None:
 当"xxx"时，可以"xxx"
 
 例如：
-当"表达观点较复杂"时，使用"省略主语"的句法
+当"表达观点较复杂"时，使用"省略主语(3-6个字)"的句法
 当"不用详细说明的一般表达"时，使用"非常简洁的句子"的句法
-当"需要单纯简单的确认"时，使用"单字或几个字的肯定"的句法
+当"需要单纯简单的确认"时，使用"单字或几个字的肯定(1-2个字)"的句法
 
 注意不要总结你自己的发言
 现在请你概括
@@ -122,11 +122,11 @@ class ExpressionLearner:
         """
         学习并存储表达方式，分别学习语言风格和句法特点
         """
-        learnt_style: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="style", num=3)
+        learnt_style: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="style", num=15)
         if not learnt_style:
             return []
 
-        learnt_grammar: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="grammar", num=2)
+        learnt_grammar: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="grammar", num=15)
         if not learnt_grammar:
             return []
 
@@ -233,7 +233,7 @@ class ExpressionLearner:
             chat_str=random_msg_str,
         )
 
-        logger.info(f"学习{type_str}的prompt: {prompt}")
+        # logger.info(f"学习{type_str}的prompt: {prompt}")
 
         try:
             response, _ = await self.express_learn_model.generate_response_async(prompt)
@@ -291,7 +291,7 @@ class ExpressionLearner:
             "personality_expression_prompt",
             personality=global_config.expression_style,
         )
-        logger.info(f"个性表达方式提取prompt: {prompt}")
+        # logger.info(f"个性表达方式提取prompt: {prompt}")
 
         try:
             response, _ = await self.express_learn_model.generate_response_async(prompt)
