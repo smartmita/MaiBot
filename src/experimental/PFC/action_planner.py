@@ -159,14 +159,10 @@ class ActionPlanner:
         self.private_name = private_name
         # 初始化 LLM 请求对象
         try:
-            llm_config = global_config.model.pfc_action_planner
-            if not isinstance(llm_config, dict):
-                raise TypeError(f"LLM config 'pfc_action_planner' is not a dictionary: {llm_config}")
-
             self.llm = LLMRequest(
-                model=llm_config,
-                temperature=llm_config.get("temp", 0.7),
-                max_tokens=1500,
+                model=global_config.model.pfc_action_planner,
+                temperature=global_config.model.pfc_action_planner["temp"],
+                max_tokens=global_config.model.pfc_action_planner["max_tokens"],
                 request_type="action_planning",
             )
         except TypeError as e:

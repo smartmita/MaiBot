@@ -45,10 +45,9 @@ async def run_conversation_loop(conversation_instance: "Conversation"):
         try:
             global TIME_ZONE
             if TIME_ZONE is None:
-                configured_tz_loop = getattr(global_config, "TIME_ZONE", "Asia/Shanghai")
-                TIME_ZONE = tz.gettz(configured_tz_loop)
+                TIME_ZONE = global_config.schedule.time_zone
                 if TIME_ZONE is None:
-                    logger.error(f"循环中: 配置的时区 '{configured_tz_loop}' 无效，将使用 'Asia/Shanghai'")
+                    logger.error(f"循环中: 配置的时区 '{global_config.schedule.time_zone}' 无效，将使用 'Asia/Shanghai'")
                     TIME_ZONE = tz.gettz("Asia/Shanghai")
 
             current_time_dt = datetime.datetime.now(TIME_ZONE)

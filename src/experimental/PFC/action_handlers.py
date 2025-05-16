@@ -142,7 +142,7 @@ class ActionHandler(ABC):
         )
 
         # 限制历史记录长度
-        max_history_len = getattr(global_config, "pfc_max_chat_history_for_checker", 50)
+        max_history_len = global_config.pfc.pfc_max_chat_history_for_checker
         if len(observation_info.chat_history) > max_history_len:
             observation_info.chat_history = observation_info.chat_history[-max_history_len:]
             observation_info.chat_history_count = len(observation_info.chat_history)
@@ -616,7 +616,7 @@ class DirectReplyHandler(BaseTextReplyHandler):
         action_successful = False  # 整体动作是否成功
         final_status = "recall"  # 默认最终状态
         final_reason = "直接回复动作未成功执行"  # 默认最终原因
-        max_reply_attempts: int = getattr(global_config, "pfc_max_reply_attempts", 3)
+        max_reply_attempts: int = global_config.pfc.pfc_max_reply_attempts
 
         (
             sent_text_successfully,
@@ -697,7 +697,7 @@ class SendNewMessageHandler(BaseTextReplyHandler):
         action_successful = False  # 整体动作是否成功
         final_status = "recall"  # 默认最终状态
         final_reason = "发送新消息动作未成功执行"  # 默认最终原因
-        max_reply_attempts: int = getattr(global_config, "pfc_max_reply_attempts", 3)
+        max_reply_attempts: int = global_config.pfc.pfc_max_reply_attempts
 
         (
             sent_text_successfully,

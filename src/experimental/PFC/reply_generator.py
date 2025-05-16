@@ -240,7 +240,7 @@ class ReplyGenerator:
         # 我们先做一个合理的假设： “最近聊天记录” 字符串 chat_history_text 是基于
         # observation_info.chat_history 的一个有限的尾部片段生成的。
         # 假设这个片段的长度由 global_config.pfc.pfc_recent_history_display_count 控制，默认为20条。
-        recent_history_display_count = getattr(global_config, "pfc_recent_history_display_count", 20)
+        recent_history_display_count = global_config.pfc.pfc_recent_history_display_count
 
         if observation_info and observation_info.chat_history and len(observation_info.chat_history) > 0:
             # 获取用于生成“最近聊天记录”的实际消息片段

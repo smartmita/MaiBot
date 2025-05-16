@@ -53,7 +53,7 @@ async def find_most_relevant_historical_message(
         log_source_of_limit = "传入的绝对时间上限"
     else:
         # 如果没有传入绝对时间上限，可以设置一个默认的回退逻辑
-        fallback_exclude_seconds = getattr(global_config, "pfc_historical_fallback_exclude_seconds", 7200)  # 默认2小时
+        fallback_exclude_seconds = global_config.pfc.pfc_historical_fallback_exclude_seconds
         effective_search_upper_limit = time.time() - fallback_exclude_seconds
         log_source_of_limit = f"回退逻辑 (排除最近 {fallback_exclude_seconds} 秒)"
 
