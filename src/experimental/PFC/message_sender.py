@@ -37,7 +37,7 @@ class DirectMessageSender:
             reply_to_message: 要回复的消息（可选）
         """
         try:
-            # 获取麦麦的信息
+            # 获取{global_config.bot.nickname}的信息
             bot_user_info = UserInfo(
                 user_id=global_config.bot.qq_account,
                 user_nickname=global_config.bot.nickname,

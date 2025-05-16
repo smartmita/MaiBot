@@ -58,20 +58,20 @@ MODULE_LOGGER_CONFIGS = {
     "tool_use": TOOL_USE_STYLE_CONFIG,  # 工具使用
     "relation": RELATION_STYLE_CONFIG,  # 关系
     "config": CONFIG_STYLE_CONFIG,  # 配置
-    "heartflow": HEARTFLOW_STYLE_CONFIG,  # 麦麦大脑袋
+    "heartflow": HEARTFLOW_STYLE_CONFIG,  # {global_config.bot.nickname}大脑袋
     "schedule": SCHEDULE_STYLE_CONFIG,  # 在干嘛
-    "llm": LLM_STYLE_CONFIG,  # 麦麦组织语言
+    "llm": LLM_STYLE_CONFIG,  # {global_config.bot.nickname}组织语言
     "chat": CHAT_STYLE_CONFIG,  # 见闻
     "emoji": EMOJI_STYLE_CONFIG,  # 表情包
-    "sub_heartflow": SUB_HEARTFLOW_STYLE_CONFIG,  # 麦麦水群
-    "sub_heartflow_mind": SUB_HEARTFLOW_MIND_STYLE_CONFIG,  # 麦麦小脑袋
-    "subheartflow_manager": SUBHEARTFLOW_MANAGER_STYLE_CONFIG,  # 麦麦水群[管理]
+    "sub_heartflow": SUB_HEARTFLOW_STYLE_CONFIG,  # {global_config.bot.nickname}水群
+    "sub_heartflow_mind": SUB_HEARTFLOW_MIND_STYLE_CONFIG,  # {global_config.bot.nickname}小脑袋
+    "subheartflow_manager": SUBHEARTFLOW_MANAGER_STYLE_CONFIG,  # {global_config.bot.nickname}水群[管理]
     "base_tool": BASE_TOOL_STYLE_CONFIG,  # 工具使用
     "chat_stream": CHAT_STREAM_STYLE_CONFIG,  # 聊天流
     "person_info": PERSON_INFO_STYLE_CONFIG,  # 人物信息
     "willing": WILLING_STYLE_CONFIG,  # 意愿
     "pfc_action_planner": PFC_ACTION_PLANNER_STYLE_CONFIG,  # PFC私聊规划
-    "mai_state": MAI_STATE_CONFIG,  # 麦麦状态
+    "mai_state": MAI_STATE_CONFIG,  # {global_config.bot.nickname}状态
     "lpmm": LPMM_STYLE_CONFIG,  # LPMM
     "hfc": HFC_STYLE_CONFIG,  # HFC
     "observation": OBSERVATION_STYLE_CONFIG,  # 聊天观察

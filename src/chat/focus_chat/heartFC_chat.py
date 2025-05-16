@@ -23,6 +23,7 @@ from src.chat.focus_chat.memory_activator import MemoryActivator
 from src.chat.focus_chat.info_processors.base_processor import BaseProcessor
 from src.chat.focus_chat.planners.planner import ActionPlanner
 from src.chat.focus_chat.planners.action_factory import ActionManager
+from src.config.config import global_config
 
 install(extra_lines=3)
 
@@ -188,12 +189,12 @@ class HeartFChatting:
         try:
             exception = task.exception()
             if exception:
-                logger.error(f"{self.log_prefix} HeartFChatting: 麦麦脱离了聊天(异常): {exception}")
+                logger.error(f"{self.log_prefix} HeartFChatting: {global_config.bot.nickname}脱离了聊天(异常): {exception}")
                 logger.error(traceback.format_exc())  # Log full traceback for exceptions
             else:
-                logger.info(f"{self.log_prefix} HeartFChatting: 麦麦脱离了聊天 (外部停止)")
+                logger.info(f"{self.log_prefix} HeartFChatting: {global_config.bot.nickname}脱离了聊天 (外部停止)")
         except asyncio.CancelledError:
-            logger.info(f"{self.log_prefix} HeartFChatting: 麦麦脱离了聊天(任务取消)")
+            logger.info(f"{self.log_prefix} HeartFChatting: {global_config.bot.nickname}脱离了聊天(任务取消)")
         finally:
             self._loop_active = False
             self._loop_task = None
@@ -256,11 +257,11 @@ class HeartFChatting:
         except asyncio.CancelledError:
             # 设置了关闭标志位后被取消是正常流程
             if not self._shutting_down:
-                logger.warning(f"{self.log_prefix} 麦麦Focus聊天模式意外被取消")
+                logger.warning(f"{self.log_prefix} {global_config.bot.nickname}Focus聊天模式意外被取消")
             else:
-                logger.info(f"{self.log_prefix} 麦麦已离开Focus聊天模式")
+                logger.info(f"{self.log_prefix} {global_config.bot.nickname}已离开Focus聊天模式")
         except Exception as e:
-            logger.error(f"{self.log_prefix} 麦麦Focus聊天模式意外错误: {e}")
+            logger.error(f"{self.log_prefix} {global_config.bot.nickname}Focus聊天模式意外错误: {e}")
             print(traceback.format_exc())
 
     @contextlib.asynccontextmanager
@@ -397,7 +398,7 @@ class HeartFChatting:
                     action_type = "unknown"
                     action_str = "未知动作"
 
-                logger.info(f"{self.log_prefix} 麦麦决定'{action_str}', 原因'{reasoning}'")
+                logger.info(f"{self.log_prefix} {global_config.bot.nickname}决定'{action_str}', 原因'{reasoning}'")
 
                 success, reply_text = await self._handle_action(
                     action_type, reasoning, action_data, cycle_timers, thinking_id

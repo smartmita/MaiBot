@@ -8,7 +8,7 @@ from tqdm import tqdm
 from rich.console import Console
 from rich.table import Table
 from rich.traceback import install
-
+from src.config.config import global_config
 install(extra_lines=3)
 
 # 添加项目根目录到 Python 路径
@@ -263,8 +263,8 @@ if __name__ == "__main__":
 
     while True:
         console.print("\n请选择要执行的操作：")
-        console.print("[1] 麦麦开始学习")
-        console.print("[2] 麦麦全部忘光光（仅知识）")
+        console.print(f"[1] {global_config.bot.nickname}开始学习")
+        console.print(f"[2] {global_config.bot.nickname}全部忘光光（仅知识）")
         console.print("[q] 退出程序")
 
         choice = input("\n请输入选项: ").strip()

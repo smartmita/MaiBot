@@ -101,7 +101,7 @@ class MaiStateInfo:
             self.last_status_change_time = current_time
             self.last_min_check_time = current_time  # Reset 1-min check on any state change
             self.mai_status_history.append((new_status, current_time))
-            logger.info(f"麦麦状态更新为: {self.mai_status.value}")
+            logger.info(f"{global_config.bot.nickname}状态更新为: {self.mai_status.value}")
             return True
         else:
             return False

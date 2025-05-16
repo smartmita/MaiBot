@@ -200,7 +200,7 @@ class EmojiConfig(ConfigBase):
     """是否缓存表情包"""
 
     steal_emoji: bool = True
-    """是否偷取表情包，让麦麦可以发送她保存的这些表情包"""
+    """是否偷取表情包，让{global_config.bot.nickname}可以发送她保存的这些表情包"""
 
     content_filtration: bool = False
     """是否开启表情包过滤"""

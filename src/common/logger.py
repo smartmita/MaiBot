@@ -6,10 +6,15 @@ from types import ModuleType
 from pathlib import Path
 from dotenv import load_dotenv
 
+from src.config.config import global_config
+
 
 # 加载 .env 文件
 env_path = Path(os.getcwd()) / ".env"
 load_dotenv(dotenv_path=env_path)
+
+# 从全局配置中获取机器人昵称
+bot_nickname = global_config.bot.nickname
 
 # 保存原生处理器ID
 default_handler_id = None
@@ -194,18 +199,18 @@ SENDER_STYLE_CONFIG = {
 HEARTFLOW_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-yellow>麦麦大脑袋</light-yellow> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-yellow>{bot_nickname}大脑袋</light-yellow> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦大脑袋 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}大脑袋 | {{message}}",
     },
     "simple": {
         "console_format": (
-            "<level>{time:HH:mm:ss}</level> | <light-green>麦麦大脑袋</light-green> | <light-green>{message}</light-green>"
+            f"<level>{{time:HH:mm:ss}}</level> | <light-green>{bot_nickname}大脑袋</light-green> | <light-green>{{message}}</light-green>"
         ),  # noqa: E501
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦大脑袋 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}大脑袋 | {{message}}",
     },
 }
 
@@ -228,16 +233,16 @@ SCHEDULE_STYLE_CONFIG = {
 LLM_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-yellow>麦麦组织语言</light-yellow> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-yellow>{bot_nickname}组织语言</light-yellow> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦组织语言 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}组织语言 | {{message}}",
     },
     "simple": {
-        "console_format": "<level>{time:HH:mm:ss}</level> | <light-green>麦麦组织语言</light-green> | {message}",
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦组织语言 | {message}",
+        "console_format": f"<level>{{time:HH:mm:ss}}</level> | <light-green>{bot_nickname}组织语言</light-green> | {{message}}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}组织语言 | {{message}}",
     },
 }
 
@@ -295,16 +300,16 @@ REMOTE_STYLE_CONFIG = {
 SUB_HEARTFLOW_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-blue>麦麦水群</light-blue> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-blue>{bot_nickname}水群</light-blue> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}小脑袋 | {{message}}",
     },
     "simple": {
-        "console_format": "<level>{time:HH:mm:ss}</level> | <fg #3399FF>麦麦水群 | {message}</fg #3399FF>",  # noqa: E501
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群 | {message}",
+        "console_format": f"<level>{{time:HH:mm:ss}}</level> | <fg #3399FF>{bot_nickname}水群 | {{message}}</fg #3399FF>",  # noqa: E501
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}水群 | {{message}}",
     },
 }
 
@@ -328,32 +333,32 @@ INTEREST_CHAT_STYLE_CONFIG = {
 SUB_HEARTFLOW_MIND_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-blue>麦麦小脑袋</light-blue> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-blue>{bot_nickname}小脑袋</light-blue> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}小脑袋 | {{message}}",
     },
     "simple": {
-        "console_format": "<level>{time:HH:mm:ss}</level> | <fg #66CCFF>麦麦小脑袋 | {message}</fg #66CCFF>",  # noqa: E501
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦小脑袋 | {message}",
+        "console_format": f"<level>{{time:HH:mm:ss}}</level> | <fg #66CCFF>{bot_nickname}小脑袋 | {{message}}</fg #66CCFF>",  # noqa: E501
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}小脑袋 | {{message}}",
     },
 }
 
 SUBHEARTFLOW_MANAGER_STYLE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-blue>麦麦水群[管理]</light-blue> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-blue>{bot_nickname}水群[管理]</light-blue> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群[管理] | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}水群[管理] | {{message}}",
     },
     "simple": {
-        "console_format": "<level>{time:HH:mm:ss}</level> | <fg #005BA2>麦麦水群[管理] | {message}</fg #005BA2>",  # noqa: E501
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦水群[管理] | {message}",
+        "console_format": f"<level>{{time:HH:mm:ss}}</level> | <fg #005BA2>{bot_nickname}水群[管理] | {{message}}</fg #005BA2>",  # noqa: E501
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}水群[管理] | {{message}}",
     },
 }
 
@@ -499,16 +504,16 @@ EMOJI_STYLE_CONFIG = {
 MAI_STATE_CONFIG = {
     "advanced": {
         "console_format": (
-            "<white>{time:YYYY-MM-DD HH:mm:ss}</white> | "
-            "<level>{level: <8}</level> | "
-            "<light-blue>麦麦状态</light-blue> | "
-            "<level>{message}</level>"
+            f"<white>{{time:YYYY-MM-DD HH:mm:ss}}</white> | "
+            f"<level>{{level: <8}}</level> | "
+            f"<light-blue>{bot_nickname}状态</light-blue> | "
+            f"<level>{{message}}</level>"
         ),
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦状态 | {message}",
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}状态 | {{message}}",
     },
     "simple": {
-        "console_format": "<level>{time:HH:mm:ss}</level> | <fg #66CCFF>麦麦状态 | {message} </fg #66CCFF>",  # noqa: E501
-        "file_format": "{time:YYYY-MM-DD HH:mm:ss} | {level: <8} | {extra[module]: <15} | 麦麦状态 | {message}",
+        "console_format": f"<level>{{time:HH:mm:ss}}</level> | <fg #66CCFF>{bot_nickname}状态 | {{message}} </fg #66CCFF>",  # noqa: E501
+        "file_format": f"{{time:YYYY-MM-DD HH:mm:ss}} | {{level: <8}} | {{extra[module]: <15}} | {bot_nickname}状态 | {{message}}",
     },
 }
 

@@ -15,7 +15,7 @@ from src.main import MainSystem
 from rich.traceback import install
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 import atexit
-
+from src.config.config import global_config
 from src.manager.async_task_manager import async_task_manager
 
 install(extra_lines=3)
@@ -110,7 +110,7 @@ def scan_provider(env_config: dict):
 
 async def graceful_shutdown():
     try:
-        logger.info("正在优雅关闭麦麦...")
+        logger.info(f"正在优雅关闭{global_config.bot.nickname}...")
 
         # 停止所有异步任务
         await async_task_manager.stop_and_wait_all_tasks()
@@ -120,7 +120,7 @@ async def graceful_shutdown():
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
     except Exception as e:
-        logger.error(f"麦麦关闭失败: {e}")
+        logger.error(f"{global_config.bot.nickname}关闭失败: {e}")
 
 
 def check_eula():
