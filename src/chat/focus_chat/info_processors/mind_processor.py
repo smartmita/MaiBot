@@ -24,17 +24,16 @@ from src.chat.focus_chat.info_processors.processor_utils import (
 from typing import Dict
 from src.chat.focus_chat.info.info_base import InfoBase
 
-logger = get_logger("sub_heartflow")
+logger = get_logger("processor")
 
 
 def init_prompt():
     # --- Group Chat Prompt ---
     group_prompt = """
+你的名字是{bot_name}
 {memory_str}
 {extra_info}
 {relation_prompt}
-你的名字是{bot_name}
-{mood_info}
 {cycle_info_block}
 现在是{time_now}，你正在上网，和qq群里的网友们聊天，以下是正在进行的聊天内容：
 {chat_observe_info}
@@ -74,8 +73,11 @@ def init_prompt():
 
 
 class MindProcessor(BaseProcessor):
+    log_prefix = "聊天思考"
+
     def __init__(self, subheartflow_id: str):
         super().__init__()
+
         self.subheartflow_id = subheartflow_id
 
         self.llm_model = LLMRequest(
@@ -228,7 +230,7 @@ class MindProcessor(BaseProcessor):
             bot_name=individuality.name,
             time_now=time_now,
             chat_observe_info=chat_observe_info,
-            mood_info="mood_info",
+            # mood_info="mood_info",
             hf_do_next=spark_prompt,
             last_mind=previous_mind,
             cycle_info_block=hfcloop_observe_info,

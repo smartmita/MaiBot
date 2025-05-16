@@ -23,6 +23,10 @@ from src.common.logger import (
     MAI_STATE_CONFIG,
     LPMM_STYLE_CONFIG,
     HFC_STYLE_CONFIG,
+    OBSERVATION_STYLE_CONFIG,
+    PLANNER_STYLE_CONFIG,
+    PROCESSOR_STYLE_CONFIG,
+    ACTION_TAKEN_STYLE_CONFIG,
     TIANYI_STYLE_CONFIG,
     REMOTE_STYLE_CONFIG,
     TOPIC_STYLE_CONFIG,
@@ -35,7 +39,6 @@ from src.common.logger import (
     GET_KNOWLEDGE_TOOL_STYLE_CONFIG,
     GET_TIME_DATE_TOOL_STYLE_CONFIG,
     LPMM_GET_KNOWLEDGE_TOOL_STYLE_CONFIG,
-    OBSERVATION_STYLE_CONFIG,
     MESSAGE_BUFFER_STYLE_CONFIG,
     CHAT_MESSAGE_STYLE_CONFIG,
     CHAT_IMAGE_STYLE_CONFIG,
@@ -69,6 +72,10 @@ MODULE_LOGGER_CONFIGS = {
     "mai_state": MAI_STATE_CONFIG,  # 麦麦状态
     "lpmm": LPMM_STYLE_CONFIG,  # LPMM
     "hfc": HFC_STYLE_CONFIG,  # HFC
+    "observation": OBSERVATION_STYLE_CONFIG,  # 聊天观察
+    "planner": PLANNER_STYLE_CONFIG,  # 规划器
+    "processor": PROCESSOR_STYLE_CONFIG,  # 处理器
+    "action_taken": ACTION_TAKEN_STYLE_CONFIG,  # 动作
     "tianyi": TIANYI_STYLE_CONFIG,  # 天依
     "remote": REMOTE_STYLE_CONFIG,  # 远程
     "topic": TOPIC_STYLE_CONFIG,  # 话题
@@ -81,7 +88,6 @@ MODULE_LOGGER_CONFIGS = {
     "get_knowledge_tool": GET_KNOWLEDGE_TOOL_STYLE_CONFIG,  # 获取知识工具
     "get_time_date": GET_TIME_DATE_TOOL_STYLE_CONFIG,  # 获取时间日期工具
     "lpm_get_knowledge_tool": LPMM_GET_KNOWLEDGE_TOOL_STYLE_CONFIG,  # LPMM获取知识工具
-    "observation": OBSERVATION_STYLE_CONFIG,  # 聊天观察
     "message_buffer": MESSAGE_BUFFER_STYLE_CONFIG,  # 消息缓冲
     "chat_message": CHAT_MESSAGE_STYLE_CONFIG,  # 聊天消息
     "chat_image": CHAT_IMAGE_STYLE_CONFIG,  # 聊天图片

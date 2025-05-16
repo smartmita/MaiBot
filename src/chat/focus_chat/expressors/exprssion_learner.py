@@ -4,13 +4,13 @@ from typing import List, Dict, Optional, Any, Tuple
 from src.common.logger_manager import get_logger
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
-from src.chat.utils.chat_message_builder import get_raw_msg_by_timestamp_random, build_readable_messages, build_anonymous_messages
+from src.chat.utils.chat_message_builder import get_raw_msg_by_timestamp_random, build_anonymous_messages
 from src.chat.focus_chat.heartflow_prompt_builder import Prompt, global_prompt_manager
 import os
 import json
 
 
-MAX_EXPRESSION_COUNT = 300
+MAX_EXPRESSION_COUNT = 100
 
 logger = get_logger("expressor")
 
@@ -19,7 +19,7 @@ def init_prompt() -> None:
     learn_style_prompt = """
 {chat_str}
 
-请从上面这段群聊中概括除了人名为"麦麦"之外的人的语言风格，只考虑文字，不要考虑表情包和图片
+请从上面这段群聊中概括除了人名为"SELF"之外的人的语言风格，只考虑文字，不要考虑表情包和图片
 不要涉及具体的人名，只考虑语言风格
 语言风格包含特殊内容和情感
 思考有没有特殊的梗，一并总结成语言风格
@@ -57,7 +57,7 @@ def init_prompt() -> None:
     learn_grammar_prompt = """
 {chat_str}
 
-请从上面这段群聊中概括除了人名为"麦麦"之外的人的语法和句法特点，只考虑纯文字，不要考虑表情包和图片
+请从上面这段群聊中概括除了人名为"SELF"之外的人的语法和句法特点，只考虑纯文字，不要考虑表情包和图片
 不要总结【图片】，【动画表情】，[图片]，[动画表情]，不总结 表情符号 at @ 回复 和[回复]
 不要涉及具体的人名，只考虑语法和句法特点,
 语法和句法特点要包括，句子长短（具体字数），有何种语病，如何拆分句子。
@@ -65,9 +65,9 @@ def init_prompt() -> None:
 当"xxx"时，可以"xxx"
 
 例如：
-当"表达观点较复杂"时，使用"省略主语"的句法
+当"表达观点较复杂"时，使用"省略主语(3-6个字)"的句法
 当"不用详细说明的一般表达"时，使用"非常简洁的句子"的句法
-当"需要单纯简单的确认"时，使用"单字或几个字的肯定"的句法
+当"需要单纯简单的确认"时，使用"单字或几个字的肯定(1-2个字)"的句法
 
 注意不要总结你自己的发言
 现在请你概括
@@ -122,11 +122,11 @@ class ExpressionLearner:
         """
         学习并存储表达方式，分别学习语言风格和句法特点
         """
-        learnt_style: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="style", num=3)
+        learnt_style: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="style", num=15)
         if not learnt_style:
             return []
 
-        learnt_grammar: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="grammar", num=2)
+        learnt_grammar: Optional[List[Tuple[str, str, str]]] = await self.learn_and_store(type="grammar", num=15)
         if not learnt_grammar:
             return []
 
@@ -233,7 +233,7 @@ class ExpressionLearner:
             chat_str=random_msg_str,
         )
 
-        logger.info(f"学习{type_str}的prompt: {prompt}")
+        # logger.info(f"学习{type_str}的prompt: {prompt}")
 
         try:
             response, _ = await self.express_learn_model.generate_response_async(prompt)
@@ -291,7 +291,7 @@ class ExpressionLearner:
             "personality_expression_prompt",
             personality=global_config.expression_style,
         )
-        logger.info(f"个性表达方式提取prompt: {prompt}")
+        # logger.info(f"个性表达方式提取prompt: {prompt}")
 
         try:
             response, _ = await self.express_learn_model.generate_response_async(prompt)

@@ -123,7 +123,7 @@ class HeartFCSender:
 
             sent_msg = await send_message(message)
             await self.storage.store_message(message, message.chat_stream)
-            
+
             if sent_msg:
                 return sent_msg
             else:

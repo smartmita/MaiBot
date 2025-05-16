@@ -19,7 +19,7 @@ from src.chat.heart_flow.utils_chat import get_chat_type_and_target_info
 from src.chat.utils.prompt_builder import Prompt
 
 
-logger = get_logger(__name__)
+logger = get_logger("observation")
 
 
 Prompt(
