@@ -378,7 +378,7 @@ async def build_readable_messages(
     允许通过参数控制格式化行为。
     """
 
-    if global_config.enable_always_relative_history:
+    if global_config.experimental.enable_always_relative_history:
         timestamp_mode = "relative"
 
     if read_mark <= 0:

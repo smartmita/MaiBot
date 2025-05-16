@@ -7,13 +7,6 @@ from typing import Tuple, Union, Dict, Any, Set  # 引入 Set
 
 import aiohttp
 from aiohttp.client import ClientResponse
-
-# 相对路径导入，根据你的项目结构调整
-# 例如，如果 utils_model.py 在 src/utils/ 下，而 logger 在 src/common/ 下
-# from ..common.logger import get_module_logger
-# from ..common.database import db
-# from ..config.config import global_config
-# 假设它们在期望的路径
 from src.common.logger import get_module_logger
 from ...common.database import db
 from ...config.config import global_config
@@ -27,9 +20,6 @@ import os
 from rich.traceback import install
 
 install(extra_lines=3)
-
-# 尝试加载 .env 文件中的环境变量 (如果项目结构需要)
-# load_dotenv() # 如果你的 .env 文件不在标准位置，可能需要指定路径 load_dotenv(dotenv_path='path/to/.env')
 
 logger = get_module_logger("model_utils")
 
@@ -150,8 +140,8 @@ class LLMRequest:
 
     def __init__(self, model: dict, **kwargs):
         """初始化 LLMRequest 实例"""
-        # (代码不变)
-        self.model_key_name = model["key"]
+
+        self.model_key_name = f"{model['provider']}_KEY"
         self.model_name: str = model["name"]
         self.params = kwargs
         self.stream = model.get("stream", False)
@@ -161,7 +151,7 @@ class LLMRequest:
 
         try:
             raw_api_key_config = os.environ[self.model_key_name]
-            self.base_url = os.environ[model["base_url"]]
+            self.base_url = os.environ[f"{model['provider']}_BASE_URL"]
             self.is_gemini = "googleapis.com" in self.base_url.lower()
             if self.is_gemini:
                 logger.debug(f"模型 {self.model_name}: 检测到为 Gemini API (Base URL: {self.base_url})")
@@ -388,7 +378,7 @@ class LLMRequest:
     ) -> Dict[str, Any]:
         """配置请求参数，合并实例参数和调用时参数"""
         default_retry = {
-            "max_retries": global_config.api_polling_max_retries,
+            "max_retries": global_config.experimental.api_polling_max_retries,
             "base_wait": 10,
             "retry_codes": [429, 413, 500, 503],
             "abort_codes": [400, 401, 402, 403],
@@ -464,8 +454,8 @@ class LLMRequest:
         current_key = None
         keys_failed_429 = set()
         keys_abandoned_runtime = set()
-        key_switch_limit_429 = global_config.api_polling_max_retries
-        key_switch_limit_403 = global_config.api_polling_max_retries
+        key_switch_limit_429 = global_config.experimental.api_polling_max_retries
+        key_switch_limit_403 = global_config.experimental.api_polling_max_retries
 
         available_keys_pool = []
         is_key_list = isinstance(self._api_key_config, list)
@@ -1041,7 +1031,7 @@ class LLMRequest:
             }
             if "max_tokens" not in payload and "max_completion_tokens" not in payload:
                 if "max_tokens" not in params_copy and "max_completion_tokens" not in params_copy:
-                    payload["max_tokens"] = global_config.model_max_output_length
+                    payload["max_tokens"] = global_config.model.model_max_output_length
             if "max_completion_tokens" in payload:
                 payload["max_tokens"] = payload.pop("max_completion_tokens")
 
@@ -1326,7 +1316,6 @@ class LLMRequest:
 
         else:
             # --- 构建 OpenAI Tool Calling Payload ---
-            # (逻辑不变)
             logger.debug(f"为 OpenAI 兼容模型 ({self.model_name}) 构建工具调用请求。")
             payload = {
                 "model": self.model_name,
@@ -1338,7 +1327,7 @@ class LLMRequest:
             if "max_completion_tokens" in payload:
                 payload["max_tokens"] = payload.pop("max_completion_tokens")
             if "max_tokens" not in payload:
-                payload["max_tokens"] = global_config.model_max_output_length
+                payload["max_tokens"] = global_config.model.model_max_output_length
 
         # --- 执行请求 ---
         if payload is None:
@@ -1371,7 +1360,6 @@ class LLMRequest:
 
     async def get_embedding(self, text: str, user_id: str = "system", **kwargs) -> Union[list, None]:
         """异步方法：获取文本的embedding向量，支持覆盖参数 (Gemini Embedding 需注意模型名称)"""
-        # (代码不变)
         if len(text) < 1:
             logger.debug("该消息没有长度，不再发送获取embedding向量的请求")
             return None

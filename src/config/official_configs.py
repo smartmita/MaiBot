@@ -366,6 +366,12 @@ class ExperimentalConfig(ConfigBase):
     rename_person: bool = True
     """是否启用改名工具"""
 
+    api_polling_max_retries: int = 3
+    """API轮询最大重试次数"""
+
+    enable_always_relative_history: bool = False
+    """聊天记录总是使用 relative 模式"""
+
 
 @dataclass
 class ScheduleConfig(ConfigBase):
@@ -527,14 +533,14 @@ class ModelConfig(ConfigBase):
     tool_use: dict[str, Any] = field(default_factory=lambda: {})
     """工具使用模型配置"""
 
-    nickname_mapping: dict[str, str] = field(default_factory=lambda: {})
+    nickname_mapping: dict[str, Any] = field(default_factory=lambda: {})
     """绰号映射LLM配置"""
 
-    scheduler_all: dict[str, str] = field(default_factory=lambda: {})
+    scheduler_all: dict[str, Any] = field(default_factory=lambda: {})
     """全局日程LLM配置"""
 
-    scheduler_doing: dict[str, str] = field(default_factory=lambda: {})
+    scheduler_doing: dict[str, Any] = field(default_factory=lambda: {})
     """当前活动日程LLM配置"""
 
-    PFC_relationship_eval: dict[str, str] = field(default_factory=lambda: {})
+    PFC_relationship_eval: dict[str, Any] = field(default_factory=lambda: {})
     """PFC关系评估LLM配置"""

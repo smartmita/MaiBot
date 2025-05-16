@@ -32,7 +32,7 @@ from src.config.official_configs import (
     PFCConfig,
     ModelConfig,
     ScheduleConfig,
-    GroupNicknameConfig,
+    GroupNicknameConfig
 )
 
 install(extra_lines=3)
