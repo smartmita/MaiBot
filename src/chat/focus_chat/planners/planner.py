@@ -77,7 +77,6 @@ class ActionPlanner:
         self.action_manager = action_manager
         self.stream_id = stream_id
         self.chat_stream = chat_stream
-        self.action_manager = action_manager
 
     async def plan(self, all_plan_info: List[InfoBase], cycle_timers: dict) -> Dict[str, Any]:
         """
