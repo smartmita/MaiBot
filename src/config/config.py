@@ -1,6 +1,3 @@
-# TODO: 更多的可配置项
-# TODO: 所有模型单独分离，温度可配置
-# TODO: 原生多模态支持
 import os
 import re
 from dataclasses import dataclass, field
@@ -285,7 +282,6 @@ class BotConfig:
     # enable_think_flow: bool = False  # 是否启用思考流程
     enable_friend_whitelist: bool = True  # 是否启用好友白名单
     talk_allowed_private = set()
-    api_polling_max_retries: int = 3  # 神秘小功能
     rename_person: bool = (
         True  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
     )
@@ -424,13 +420,13 @@ class BotConfig:
             if config.INNER_VERSION in SpecifierSet(">=1.2.4"):
                 config.personality_core = personality_config.get("personality_core", config.personality_core)
                 config.personality_sides = personality_config.get("personality_sides", config.personality_sides)
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.personality_detail_level = personality_config.get(
                     "personality_detail_level", config.personality_sides
                 )
             if config.INNER_VERSION in SpecifierSet(">=1.7.0"):
                 config.expression_style = personality_config.get("expression_style", config.expression_style)
-            if config.INNER_VERSION in SpecifierSet(">=1.7.0.3"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.enable_expression_learner = personality_config.get(
                     "enable_expression_learner", config.enable_expression_learner
                 )
@@ -477,7 +473,7 @@ class BotConfig:
                 config.steal_emoji = emoji_config.get("steal_emoji", config.steal_emoji)
 
         def group_nickname(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.4"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 group_nickname_config = parent.get("group_nickname", {})
                 config.enable_nickname_mapping = group_nickname_config.get(
                     "enable_nickname_mapping", config.enable_nickname_mapping
@@ -521,7 +517,7 @@ class BotConfig:
             config.ban_words = chat_config.get("ban_words", config.ban_words)
             for r in chat_config.get("ban_msgs_regex", config.ban_msgs_regex):
                 config.ban_msgs_regex.add(re.compile(r))
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.2"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.allow_remove_duplicates = chat_config.get(
                     "allow_remove_duplicates", config.allow_remove_duplicates
                 )
@@ -691,7 +687,7 @@ class BotConfig:
                 config.consolidate_memory_percentage = memory_config.get(
                     "consolidate_memory_percentage", config.consolidate_memory_percentage
                 )
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.3"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.long_message_auto_truncate = memory_config.get(
                     "long_message_auto_truncate", config.long_message_auto_truncate
                 )
@@ -760,21 +756,17 @@ class BotConfig:
             config.enable_friend_chat = experimental_config.get("enable_friend_chat", config.enable_friend_chat)
             # config.enable_think_flow = experimental_config.get("enable_think_flow", config.enable_think_flow)
             config.talk_allowed_private = set(str(user) for user in experimental_config.get("talk_allowed_private", []))
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.enable_friend_whitelist = experimental_config.get(
                     "enable_friend_whitelist", config.enable_friend_whitelist
                 )
-            if config.INNER_VERSION in SpecifierSet(">=1.6.1.5"):
-                config.api_polling_max_retries = experimental_config.get(
-                    "api_polling_max_retries", config.api_polling_max_retries
-                )
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2.3"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.rename_person = experimental_config.get("rename_person", config.rename_person)
-            if config.INNER_VERSION in SpecifierSet(">=1.7.0.1"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 config.enable_Legacy_HFC = experimental_config.get("enable_Legacy_HFC", config.enable_Legacy_HFC)
 
         def pfc(parent: dict):
-            if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):
+            if config.INNER_VERSION in SpecifierSet(">=1.7.1"):
                 pfc_config = parent.get("pfc", {})
                 # 解析 [pfc] 下的直接字段
                 config.enable_pfc_chatting = pfc_config.get("enable_pfc_chatting", config.enable_pfc_chatting)

@@ -1,4 +1,3 @@
-# TODO: 原生多模态支持
 import time
 from abc import abstractmethod
 from dataclasses import dataclass

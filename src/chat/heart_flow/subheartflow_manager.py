@@ -284,7 +284,7 @@ class SubHeartflowManager:
                 return  # 如果不允许，直接返回
             # --- 结束新增 ---
 
-            logger.debug(f"当前状态 ({current_state.value}) 可以在{focused_limit}个群 专注聊天")
+            logger.info(f"当前状态 ({current_state.value}) 可以在{focused_limit}个群 专注聊天")
 
             if focused_limit <= 0:
                 # logger.debug(f"{log_prefix} 当前状态 ({current_state.value}) 不允许 FOCUSED 子心流")
@@ -402,7 +402,7 @@ class SubHeartflowManager:
             _mai_state_description = f"你当前状态: {current_mai_state.value}。"
             individuality = Individuality.get_instance()
             personality_prompt = individuality.get_prompt(x_person=2, level=3)
-            prompt_personality = f"你是{individuality.name}，{personality_prompt}"
+            prompt_personality = f"你正在扮演名为{individuality.name}的人类，{personality_prompt}"
 
             # --- 修改：在 prompt 中加入当前聊天计数和群名信息 (条件显示) ---
             chat_status_lines = []
