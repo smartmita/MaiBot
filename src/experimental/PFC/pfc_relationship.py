@@ -30,20 +30,20 @@ class PfcRelationshipUpdater:
 
         # LLM 实例 (为关系评估创建一个新的)
         # 尝试读取 llm_PFC_relationship_eval 配置，如果不存在则回退
-        llm_config_rel_eval = getattr(global_config, "llm_PFC_relationship_eval", None)
+        llm_config_rel_eval = global_config.model.PFC_relationship_eval
         if llm_config_rel_eval and isinstance(llm_config_rel_eval, dict):
             logger.info(f"[私聊][{self.private_name}] 使用 llm_PFC_relationship_eval 配置初始化关系评估LLM。")
             self.llm = LLMRequest(
-                model=llm_config_rel_eval,
-                temperature=llm_config_rel_eval.get("temp", 0.5),  # 判断任务通常用较低温度
-                max_tokens=llm_config_rel_eval.get("max_tokens", 512),
+                model=global_config.model.PFC_relationship_eval,
+                temperature=global_config.model.PFC_relationship_eval["temp"],
+                max_tokens=global_config.model.PFC_relationship_eval["max_tokens"],
                 request_type="pfc_relationship_evaluation",
             )
         else:
             logger.warning(
                 f"[私聊][{self.private_name}] 未找到 llm_PFC_relationship_eval 配置或配置无效，将回退使用 llm_PFC_action_planner 的配置。"
             )
-            llm_config_action_planner = getattr(global_config, "llm_PFC_action_planner", None)
+            llm_config_action_planner = global_config.model.pfc_action_planner
             if llm_config_action_planner and isinstance(llm_config_action_planner, dict):
                 self.llm = LLMRequest(
                     model=llm_config_action_planner,  # 使用 action_planner 的模型配置
@@ -56,14 +56,14 @@ class PfcRelationshipUpdater:
                 self.llm = None  # LLM 未初始化
 
         # 从 global_config 读取参数，若无则使用默认值
-        self.REL_INCREMENTAL_INTERVAL = getattr(global_config, "pfc_relationship_incremental_interval", 10)
-        self.REL_INCREMENTAL_MSG_COUNT = getattr(global_config, "pfc_relationship_incremental_msg_count", 10)
-        self.REL_INCREMENTAL_DEFAULT_CHANGE = getattr(global_config, "pfc_relationship_incremental_default_change", 1.0)
-        self.REL_INCREMENTAL_MAX_CHANGE = getattr(global_config, "pfc_relationship_incremental_max_change", 5.0)
+        self.REL_INCREMENTAL_INTERVAL = global_config.pfc.pfc_relationship_incremental_interval
+        self.REL_INCREMENTAL_MSG_COUNT = global_config.pfc.pfc_relationship_incremental_msg_count
+        self.REL_INCREMENTAL_DEFAULT_CHANGE = global_config.pfc.pfc_relationship_incremental_default_change
+        self.REL_INCREMENTAL_MAX_CHANGE = global_config.pfc.pfc_relationship_incremental_max_change
 
-        self.REL_FINAL_MSG_COUNT = getattr(global_config, "pfc_relationship_final_msg_count", 30)
-        self.REL_FINAL_DEFAULT_CHANGE = getattr(global_config, "pfc_relationship_final_default_change", 5.0)
-        self.REL_FINAL_MAX_CHANGE = getattr(global_config, "pfc_relationship_final_max_change", 50.0)
+        self.REL_FINAL_MSG_COUNT = global_config.pfc.pfc_relationship_final_msg_count
+        self.REL_FINAL_DEFAULT_CHANGE = global_config.pfc.pfc_relationship_final_default_change
+        self.REL_FINAL_MAX_CHANGE = global_config.pfc.pfc_relationship_final_max_change
 
     async def update_relationship_incremental(
         self,

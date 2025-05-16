@@ -25,7 +25,7 @@ def select_nicknames_for_prompt(all_nicknames_info: Dict[str, List[Dict[str, int
         return []
 
     candidates = []  # 存储 (用户名, 绰号, 次数, 权重)
-    smoothing_factor = getattr(global_config, "nickname_probability_smoothing", 1.0)  # 平滑因子，避免权重为0
+    smoothing_factor = global_config.group_nickname.nickname_probability_smoothing
 
     for user_name, nicknames in all_nicknames_info.items():
         if nicknames and isinstance(nicknames, list):
@@ -48,7 +48,7 @@ def select_nicknames_for_prompt(all_nicknames_info: Dict[str, List[Dict[str, int
         return []
 
     # 确定需要选择的数量
-    max_nicknames = getattr(global_config, "max_nicknames_in_prompt", 5)
+    max_nicknames = global_config.group_nickname.max_nicknames_in_prompt
     num_to_select = min(max_nicknames, len(candidates))
 
     try:

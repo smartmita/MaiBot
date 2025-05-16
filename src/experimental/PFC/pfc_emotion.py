@@ -22,7 +22,7 @@ class PfcEmotionUpdater:
         self.mood_mng = mood_manager
 
         # LLM 实例 (根据 global_config.model.summary 配置)
-        llm_config_summary = getattr(global_config, "llm_summary", None)
+        llm_config_summary = global_config.model.summary
         if llm_config_summary and isinstance(llm_config_summary, dict):
             logger.debug(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
             self.llm = LLMRequest(
@@ -37,8 +37,8 @@ class PfcEmotionUpdater:
             logger.error(f"[私聊][{self.private_name}] 未找到 llm_summary 配置或配置无效！情绪判断功能将受限。")
             self.llm = None  # LLM 未初始化
 
-        self.EMOTION_UPDATE_INTENSITY = getattr(global_config, "pfc_emotion_update_intensity", 0.6)
-        self.EMOTION_HISTORY_COUNT = getattr(global_config, "pfc_emotion_history_count", 5)
+        self.EMOTION_UPDATE_INTENSITY = global_config.pfc.pfc_emotion_update_intensity
+        self.EMOTION_HISTORY_COUNT = global_config.pfc.pfc_emotion_history_count
 
     async def update_emotion_based_on_context(
         self,
