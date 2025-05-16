@@ -485,7 +485,7 @@ class HeartFChatting:
         执行思考，异步触发Planner，尝试短时等待Planner结果，
         若无则执行默认动作，同时允许Planner后台完成。
         """
-        thinking_id_for_cycle = ""
+        _thinking_id_for_cycle = ""
         try:
             current_mind = await self._get_submind_thinking(cycle_timers)
             if self._current_cycle:
@@ -586,10 +586,12 @@ class HeartFChatting:
             if llm_error_from_planner and action != "error":
                 logger.warning(f"{self.log_prefix} Planner (ID: {planner_result.get('request_id', 'N/A')}) 返回LLM或解析错误: {reasoning}。强制执行 'no_reply'。")
                 action = "no_reply"
-                if self._current_cycle: self._current_cycle.action_type = "no_reply"
+                if self._current_cycle:
+                    self._current_cycle.action_type = "no_reply"
             elif action == "error":
                 logger.error(f"{self.log_prefix} Planner (ID: {planner_result.get('request_id', 'N/A')}) 决策返回错误状态: {reasoning}")
-                if self._current_cycle: self._current_cycle.action_taken = False
+                if self._current_cycle:
+                    self._current_cycle.action_taken = False
                 return False, ""
 
             action_str_log = {"text_reply": "回复", "emoji_reply": "回复表情", "no_reply": "不回复"}.get(action, "未知或错误动作")
