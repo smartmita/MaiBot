@@ -23,6 +23,8 @@ logger = get_module_logger("chat_utils")
 _L_REGEX = regex.compile(r"\p{L}")  # 匹配任何Unicode字母
 _HAN_CHAR_REGEX = regex.compile(r"\p{Han}")  # 匹配汉字 (Unicode属性)
 _Nd_REGEX = regex.compile(r"\p{Nd}")  # 新增：匹配Unicode数字 (Nd = Number, decimal digit)
+
+BOOK_TITLE_PLACEHOLDER_PREFIX = "__BOOKTITLE_"
 SEPARATORS = {"。", "，", ",", " ", ";", "\xa0", "\n", ".", "—", "！", "？"}
 KNOWN_ABBREVIATIONS_ENDING_WITH_DOT = {
     "Mr.",
@@ -301,10 +303,11 @@ def get_recent_group_speaker(chat_stream_id: int, sender, limit: int = 12) -> li
     return who_chat_in_group
 
 
-def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
+def split_into_sentences_w_remove_punctuation(original_text: str) -> list[str]:
     """将文本分割成句子，并根据概率合并"""
     # print(f"DEBUG: 输入文本 (repr): {repr(text)}")
-
+    text, local_book_title_mapping = protect_book_titles(original_text)
+    perform_book_title_recovery_here = True
     # 预处理
     text = regex.sub(r"\n\s*\n+", "\n", text)  # 合并多个换行符
     text = regex.sub(r"\n\s*([—。.,，;\s\xa0！？])", r"\1", text)
@@ -472,6 +475,9 @@ def split_into_sentences_w_remove_punctuation(text: str) -> list[str]:
             s = random_remove_punctuation(s)
             processed_sentences_after_merge.append(s)
 
+    if perform_book_title_recovery_here and local_book_title_mapping:
+        # 假设 processed_sentences_after_merge 是最终的句子列表
+        processed_sentences_after_merge = recover_book_titles(processed_sentences_after_merge, local_book_title_mapping)
     return processed_sentences_after_merge
 
 
@@ -917,3 +923,25 @@ def parse_text_timestamps(text: str, mode: str = "normal") -> str:
             result_text = re.sub(pattern_instance, readable_time, result_text, count=1)
 
         return result_text
+
+def protect_book_titles(text):
+    book_title_mapping = {}
+    book_title_pattern = re.compile(r"《(.*?)》") # 非贪婪匹配
+
+    def replace_func(match):
+        # 生成唯一占位符
+        placeholder = f"{BOOK_TITLE_PLACEHOLDER_PREFIX}{len(book_title_mapping)}__"
+        # 存储映射关系
+        book_title_mapping[placeholder] = match.group(0) # 存储包含书名号的完整匹配
+        return placeholder
+
+    protected_text = book_title_pattern.sub(replace_func, text)
+    return protected_text, book_title_mapping
+
+def recover_book_titles(sentences, book_title_mapping):
+    recovered_sentences = []
+    for sentence in sentences:
+        for placeholder, original_content in book_title_mapping.items():
+            sentence = sentence.replace(placeholder, original_content)
+        recovered_sentences.append(sentence)
+    return recovered_sentences
