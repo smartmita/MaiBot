@@ -66,16 +66,16 @@ class ChattingObservation(Observation):
         self.talking_message = []
         self.talking_message_str = ""
         self.talking_message_str_truncate = ""
-        self.name = global_config.BOT_NICKNAME
-        self.nick_name = global_config.BOT_ALIAS_NAMES
-        self.max_now_obs_len = global_config.observation_context_size
-        self.overlap_len = global_config.compressed_length
+        self.name = global_config.bot.nickname
+        self.nick_name = global_config.bot.alias_names
+        self.max_now_obs_len = global_config.chat.observation_context_size
+        self.overlap_len = global_config.focus_chat.compressed_length
         self.mid_memorys = []
-        self.max_mid_memory_len = global_config.compress_length_limit
+        self.max_mid_memory_len = global_config.focus_chat.compress_length_limit
         self.mid_memory_info = ""
         self.person_list = []
         self.llm_summary = LLMRequest(
-            model=global_config.llm_observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
+            model=global_config.model.observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
         )
 
     async def initialize(self):

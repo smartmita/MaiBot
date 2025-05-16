@@ -81,8 +81,8 @@ class MindProcessor(BaseProcessor):
         self.subheartflow_id = subheartflow_id
 
         self.llm_model = LLMRequest(
-            model=global_config.llm_sub_heartflow,
-            temperature=global_config.llm_sub_heartflow["temp"],
+            model=global_config.model.sub_heartflow,
+            temperature=global_config.model.sub_heartflow["temp"],
             max_tokens=800,
             request_type="sub_heart_flow",
         )

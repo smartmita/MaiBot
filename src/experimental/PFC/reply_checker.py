@@ -11,10 +11,10 @@ class ReplyChecker:
     """回复检查器 - 新版：仅检查机器人自身发言的精确重复"""
 
     def __init__(self, stream_id: str, private_name: str):
-        self.name = global_config.BOT_NICKNAME
+        self.name = global_config.bot.nickname
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-        self.bot_qq_str = str(global_config.BOT_QQ)
+        self.bot_qq_str = str(global_config.bot.qq_account)
 
     def _normalize_text(self, text: str) -> str:
         """
@@ -51,7 +51,7 @@ class ReplyChecker:
         """
         if not self.bot_qq_str:
             logger.error(
-                f"[私聊][{self.private_name}] ReplyChecker: BOT_QQ 未配置，无法检查{global_config.BOT_NICKNAME}自身消息。"
+                f"[私聊][{self.private_name}] ReplyChecker: BOT_QQ 未配置，无法检查{global_config.bot.nickname}自身消息。"
             )
             return True, "BOT_QQ未配置，跳过重复检查。", False  # 无法检查则默认通过
 
@@ -79,7 +79,7 @@ class ReplyChecker:
                     normalized_historical_text = self._normalize_text(historical_message_text)
 
                     logger.debug(
-                        f"[私聊][{self.private_name}] ReplyChecker: 历史记录 (反向索引 {i}) ({global_config.BOT_NICKNAME}): "
+                        f"[私聊][{self.private_name}] ReplyChecker: 历史记录 (反向索引 {i}) ({global_config.bot.nickname}): "
                         f"原始='{historical_message_text[:50]}...', 规范化后='{normalized_historical_text[:50]}...'"
                     )
                     if (
@@ -87,7 +87,7 @@ class ReplyChecker:
                     ):  # 确保规范化后不为空串才比较
                         logger.warning(f"[私聊][{self.private_name}] ReplyChecker: !!! 成功拦截一次复读 !!!")
                         logger.warning(
-                            f"[私聊][{self.private_name}] ReplyChecker 检测到{global_config.BOT_NICKNAME}自身重复消息 (规范化后内容相同): '{normalized_reply[:50]}...'"
+                            f"[私聊][{self.private_name}] ReplyChecker 检测到{global_config.bot.nickname}自身重复消息 (规范化后内容相同): '{normalized_reply[:50]}...'"
                         )
                         match_found = True
                         # 返回: 不合适, 原因, 不需要重规划 (让上层逻辑决定是否重试生成)

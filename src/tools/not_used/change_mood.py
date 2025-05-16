@@ -44,7 +44,7 @@ class ChangeMoodTool(BaseTool):
             _ori_response = ",".join(response_set)
             # _stance, emotion = await gpt._get_emotion_tags(ori_response, message_processed_plain_text)
             emotion = "平静"
-            mood_manager.update_mood_from_emotion(emotion, global_config.mood_intensity_factor)
+            mood_manager.update_mood_from_emotion(emotion, global_config.mood.mood_intensity_factor)
             return {"name": "change_mood", "content": f"你的心情刚刚变化了，现在的心情是: {emotion}"}
         except Exception as e:
             logger.error(f"心情改变工具执行失败: {str(e)}")

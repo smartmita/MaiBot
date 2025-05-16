@@ -38,7 +38,7 @@ class MessageBuffer:
 
     async def start_caching_messages(self, message: MessageRecv):
         """添加消息，启动缓冲"""
-        if not global_config.message_buffer:
+        if not global_config.chat.message_buffer:
             person_id = person_info_manager.get_person_id(
                 message.message_info.user_info.platform, message.message_info.user_info.user_id
             )
@@ -107,7 +107,7 @@ class MessageBuffer:
 
     async def query_buffer_result(self, message: MessageRecv) -> bool:
         """查询缓冲结果，并清理"""
-        if not global_config.message_buffer:
+        if not global_config.chat.message_buffer:
             return True
         person_id_ = self.get_person_id_(
             message.message_info.platform, message.message_info.user_info.user_id, message.message_info.group_info

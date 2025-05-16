@@ -242,7 +242,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     message_list_before_now = get_raw_msg_before_timestamp_with_chat(
         chat_id=chat_stream.stream_id,
         timestamp=time.time(),
-        limit=global_config.observation_context_size,
+        limit=global_config.chat.observation_context_size,
     )
     chat_talking_prompt = await build_readable_messages(
         message_list_before_now,
@@ -262,7 +262,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
         prompt_ger += "**不用输出对方的网名或绰号**"
     if random.random() < 0.00:
         prompt_ger += "你喜欢用反问句"
-    if is_group_chat and global_config.enable_expression_learner:
+    if is_group_chat and global_config.personality.enable_expression_learner:
         # 从/data/expression/对应chat_id/expressions.json中读取表达方式
         (
             learnt_style_expressions,
@@ -348,7 +348,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
             nickname_info=nickname_injection_str,
             chat_target=chat_target_1,  # Used in group template
             chat_talking_prompt=chat_talking_prompt,
-            bot_name=global_config.BOT_NICKNAME,
+            bot_name=global_config.bot.nickname,
             prompt_personality=prompt_personality,
             chat_target_2=chat_target_2,  # Used in group template
             current_mind_info=current_mind_info,
@@ -368,7 +368,7 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
             info_from_tools=structured_info_prompt,
             sender_name=effective_sender_name,  # Used in private template
             chat_talking_prompt=chat_talking_prompt,
-            bot_name=global_config.BOT_NICKNAME,
+            bot_name=global_config.bot.nickname,
             prompt_personality=prompt_personality,
             # chat_target and chat_target_2 are not used in private template
             current_mind_info=current_mind_info,
@@ -424,7 +424,7 @@ class PromptBuilder:
             who_chat_in_group = get_recent_group_speaker(
                 chat_stream.stream_id,
                 (chat_stream.user_info.platform, chat_stream.user_info.user_id) if chat_stream.user_info else None,
-                limit=global_config.observation_context_size,
+                limit=global_config.chat.observation_context_size,
             )
         elif chat_stream.user_info:
             who_chat_in_group.append(
@@ -471,7 +471,7 @@ class PromptBuilder:
         message_list_before_now = get_raw_msg_before_timestamp_with_chat(
             chat_id=chat_stream.stream_id,
             timestamp=time.time(),
-            limit=global_config.observation_context_size,
+            limit=global_config.chat.observation_context_size,
         )
         chat_talking_prompt = await build_readable_messages(
             message_list_before_now,
@@ -483,7 +483,7 @@ class PromptBuilder:
 
         # 关键词检测与反应
         keywords_reaction_prompt = ""
-        for rule in global_config.keywords_reaction_rules:
+        for rule in global_config.keyword_reaction.rules:
             if rule.get("enable", False):
                 if any(keyword in message_txt.lower() for keyword in rule.get("keywords", [])):
                     logger.info(
@@ -515,7 +515,7 @@ class PromptBuilder:
         end_time = time.time()
         logger.debug(f"知识检索耗时: {(end_time - start_time):.3f}秒")
 
-        if global_config.ENABLE_SCHEDULE_GEN:
+        if global_config.schedule.enable:
             schedule_prompt = await global_prompt_manager.format_prompt(
                 "schedule_prompt", schedule_info=bot_schedule.get_current_num_task(num=1, time_info=False)
             )
@@ -548,8 +548,8 @@ class PromptBuilder:
                 chat_target_2=chat_target_2,
                 chat_talking_prompt=chat_talking_prompt,
                 message_txt=message_txt,
-                bot_name=global_config.BOT_NICKNAME,
-                bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
+                bot_name=global_config.bot.nickname,
+                bot_other_names="/".join(global_config.bot.alias_names),
                 prompt_personality=prompt_personality,
                 mood_prompt=mood_prompt,
                 reply_style1=reply_style1_chosen,
@@ -571,8 +571,8 @@ class PromptBuilder:
                 schedule_prompt=schedule_prompt,
                 chat_talking_prompt=chat_talking_prompt,
                 message_txt=message_txt,
-                bot_name=global_config.BOT_NICKNAME,
-                bot_other_names="/".join(global_config.BOT_ALIAS_NAMES),
+                bot_name=global_config.bot.nickname,
+                bot_other_names="/".join(global_config.bot.alias_names),
                 prompt_personality=prompt_personality,
                 mood_prompt=mood_prompt,
                 reply_style1=reply_style1_chosen,
@@ -931,7 +931,7 @@ class PromptBuilder:
             planner_prompt_template = await global_prompt_manager.get_prompt_async("planner_prompt")
 
             prompt = planner_prompt_template.format(
-                bot_name=global_config.BOT_NICKNAME,
+                bot_name=global_config.bot.nickname,
                 nickname_info=nickname_info,
                 prompt_personality=prompt_personality,
                 chat_context_description=chat_context_description,

@@ -39,8 +39,8 @@ class DirectMessageSender:
         try:
             # 获取麦麦的信息
             bot_user_info = UserInfo(
-                user_id=global_config.BOT_QQ,
-                user_nickname=global_config.BOT_NICKNAME,
+                user_id=global_config.bot.qq_account,
+                user_nickname=global_config.bot.nickname,
                 platform=chat_stream.platform,
             )
 

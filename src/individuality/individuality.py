@@ -206,11 +206,11 @@ class Individuality:
         if not self.personality or not self.identity:
             return "个体特征尚未完全初始化。"
 
-        if global_config.personality_detail_level == 1:
+        if global_config.personality.personality_detail_level == 1:
             level = 1
-        elif global_config.personality_detail_level == 2:
+        elif global_config.personality.personality_detail_level == 2:
             level = 2
-        elif global_config.personality_detail_level == 3:
+        elif global_config.personality.personality_detail_level == 3:
             level = 3
         else:  # level = 0
             pass

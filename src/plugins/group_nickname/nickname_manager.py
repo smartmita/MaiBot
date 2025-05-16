@@ -154,7 +154,7 @@ class NicknameManager:
         if not self.is_enabled:
             logger.info("绰号处理功能已禁用，处理器未启动。")
             return
-        if global_config.max_nicknames_in_prompt == 0:  # 考虑有神秘的用户输入为0的可能性
+        if global_config.group_nickname.max_nicknames_in_prompt == 0:  # 考虑有神秘的用户输入为0的可能性
             logger.error("[错误] 绰号注入数量不合适，绰号处理功能已禁用！")
             return
 
@@ -210,7 +210,7 @@ class NicknameManager:
         if not self.is_enabled:
             return
 
-        if random.random() < global_config.nickname_analysis_probability:
+        if random.random() < global_config.group_nickname.nickname_analysis_probability:
             logger.debug("跳过绰号分析：随机概率未命中。")
             return
 
@@ -266,8 +266,8 @@ class NicknameManager:
                             None,
                         )
                         user_name_map[user_id] = (
-                            latest_nickname or f"{global_config.BOT_NICKNAME}"
-                            if user_id == global_config.BOT_QQ
+                            latest_nickname or f"{global_config.bot.nickname}"
+                            if user_id == global_config.bot.qq_account
                             else "未知"
                         )
 

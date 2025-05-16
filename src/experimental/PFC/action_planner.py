@@ -159,9 +159,9 @@ class ActionPlanner:
         self.private_name = private_name
         # 初始化 LLM 请求对象
         try:
-            llm_config = global_config.llm_PFC_action_planner
+            llm_config = global_config.model.pfc_action_planner
             if not isinstance(llm_config, dict):
-                raise TypeError(f"LLM config 'llm_PFC_action_planner' is not a dictionary: {llm_config}")
+                raise TypeError(f"LLM config 'pfc_action_planner' is not a dictionary: {llm_config}")
 
             self.llm = LLMRequest(
                 model=llm_config,
@@ -178,7 +178,7 @@ class ActionPlanner:
 
         # 获取个性化信息和机器人名称
         # self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
-        self.name = global_config.BOT_NICKNAME
+        self.name = global_config.bot.nickname
         # 获取 ChatObserver 实例 (单例模式)
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
 

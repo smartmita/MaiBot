@@ -36,7 +36,7 @@ class ImageManager:
             self._ensure_description_collection()
             self._ensure_image_dir()
             self._initialized = True
-            self._llm = LLMRequest(model=global_config.vlm, temperature=0.4, max_tokens=300, request_type="image")
+            self._llm = LLMRequest(model=global_config.model.vlm, temperature=0.4, max_tokens=300, request_type="image")
 
     def _ensure_image_dir(self):
         """确保图像存储目录存在"""
@@ -134,7 +134,7 @@ class ImageManager:
                 return f"[表情包，含义看起来是：{cached_description}]"
 
             # 根据配置决定是否保存图片
-            if global_config.save_emoji:
+            if global_config.emoji.cache_emoji:
                 # 生成文件名和路径
                 timestamp = int(time.time())
                 filename = f"{timestamp}_{image_hash[:8]}.{image_format}"
@@ -200,7 +200,7 @@ class ImageManager:
                 return "[图片]"
 
             # 根据配置决定是否保存图片
-            if global_config.save_pic:
+            if global_config.emoji.save_pic:
                 # 生成文件名和路径
                 timestamp = int(time.time())
                 filename = f"{timestamp}_{image_hash[:8]}.{image_format}"

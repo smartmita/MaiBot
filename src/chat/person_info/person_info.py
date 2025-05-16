@@ -60,8 +60,9 @@ person_info_default = {
 class PersonInfoManager:
     def __init__(self):
         self.person_name_list = {}
+        # TODO: API-Adapter修改标记
         self.qv_name_llm = LLMRequest(
-            model=global_config.llm_normal,
+            model=global_config.model.normal,
             max_tokens=256,
             request_type="qv_name",
         )
@@ -205,7 +206,7 @@ class PersonInfoManager:
         existing_names = ""
         while current_try < max_retries:
             individuality = Individuality.get_instance()
-            prompt_personality = individuality.get_prompt(x_person=2, level=3)
+            prompt_personality = individuality.get_prompt(x_person=2, level=1)
             bot_name = individuality.personality.bot_nickname
 
             qv_name_prompt = f"你是{bot_name}，{prompt_personality}"

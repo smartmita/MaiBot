@@ -35,7 +35,7 @@ class TelemetryHeartBeatTask(AsyncTask):
         info_dict = {
             "os_type": "Unknown",
             "py_version": platform.python_version(),
-            "mmc_version": global_config.MAI_VERSION,
+            "mmc_version": global_config.MMC_VERSION,
         }
 
         match platform.system():
@@ -133,10 +133,9 @@ class TelemetryHeartBeatTask(AsyncTask):
 
     async def run(self):
         # 发送心跳
-        if global_config.remote_enable:
-            if self.client_uuid is None:
-                if not await self._req_uuid():
-                    logger.error("获取UUID失败，跳过此次心跳")
-                    return
+        if global_config.telemetry.enable:
+            if self.client_uuid is None and not await self._req_uuid():
+                logger.error("获取UUID失败，跳过此次心跳")
+                return
 
             await self._send_heartbeat()

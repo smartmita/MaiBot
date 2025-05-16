@@ -222,8 +222,8 @@ class HeartFChatting:
         # --- 移除 gpt_instance, 直接初始化 LLM 模型 ---
         # self.gpt_instance = HeartFCGenerator() # <-- 移除
         self.model_normal = LLMRequest(  # <-- 新增 LLM 初始化
-            model=global_config.llm_normal,
-            temperature=global_config.llm_normal["temp"],
+            model=global_config.model.normal,
+            temperature=global_config.model.normal["temp"],
             max_tokens=256,
             request_type="response_heartflow",
         )
@@ -231,7 +231,7 @@ class HeartFChatting:
 
         # LLM规划器配置
         self.planner_llm = LLMRequest(
-            model=global_config.llm_plan,
+            model=global_config.model.plan,
             max_tokens=1000,
             request_type="action_planning",  # 用于动作规划
         )
@@ -876,7 +876,7 @@ class HeartFChatting:
             message_list_before_now = get_raw_msg_before_timestamp_with_chat(
                 chat_id=self.stream_id,
                 timestamp=time.time(),  # 使用当前时间作为参考点
-                limit=global_config.observation_context_size,  # 使用与 prompt 构建一致的 limit
+                limit=global_config.chat.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
             nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
@@ -1196,8 +1196,8 @@ class HeartFChatting:
         first_bot_msg: Optional[MessageSending] = None
         reply_message_ids = []  # 记录实际发送的消息ID
         bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
+            user_id=global_config.bot.qq_account,
+            user_nickname=global_config.bot.nickname,
             platform=anchor_message.message_info.platform,
         )
 
@@ -1263,8 +1263,8 @@ class HeartFChatting:
             thinking_time_point = round(time.time(), 2)  # 用于唯一ID
             message_segment = Seg(type="emoji", data=emoji_cq)
             bot_user_info = UserInfo(
-                user_id=global_config.BOT_QQ,
-                user_nickname=global_config.BOT_NICKNAME,
+                user_id=global_config.bot.qq_account,
+                user_nickname=global_config.bot.nickname,
                 platform=anchor_message.message_info.platform,
             )
             bot_message = MessageSending(
@@ -1318,7 +1318,7 @@ class HeartFChatting:
         try:
             # 1. 获取情绪影响因子并调整模型温度
             arousal_multiplier = mood_manager.get_arousal_multiplier()
-            current_temp = global_config.llm_normal["temp"] * arousal_multiplier
+            current_temp = global_config.model.normal["temp"] * arousal_multiplier
             self.model_normal.temperature = current_temp  # 动态调整温度
 
             # 2. 获取信息捕捉器
@@ -1401,8 +1401,8 @@ class HeartFChatting:
         chat = anchor_message.chat_stream
         messageinfo = anchor_message.message_info
         bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
+            user_id=global_config.bot.qq_account,
+            user_nickname=global_config.bot.nickname,
             platform=messageinfo.platform,
         )
 

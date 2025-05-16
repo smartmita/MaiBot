@@ -74,7 +74,7 @@ class Conversation:
 
         self._initialized: bool = False
 
-        self.bot_qq_str: Optional[str] = str(global_config.BOT_QQ) if global_config.BOT_QQ else None
+        self.bot_qq_str: Optional[str] = str(global_config.bot.qq_account) if global_config.bot.qq_account else None
         if not self.bot_qq_str:
             logger.error(f"[私聊][{self.private_name}] 严重错误：未能从配置中获取 BOT_QQ ID！")
 

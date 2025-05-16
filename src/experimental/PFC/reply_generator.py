@@ -160,13 +160,13 @@ class ReplyGenerator:
 
     def __init__(self, stream_id: str, private_name: str):
         self.llm = LLMRequest(
-            model=global_config.llm_PFC_chat,
-            temperature=global_config.llm_PFC_chat["temp"],
+            model=global_config.model.pfc_chat,
+            temperature=global_config.model.pfc_chat["temp"],
             max_tokens=300,  # 对于JSON输出，这个可能需要适当调整，但一般回复短，JSON结构也简单
             request_type="reply_generation",
         )
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
-        self.name = global_config.BOT_NICKNAME
+        self.name = global_config.bot.nickname
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
         self.reply_checker = ReplyChecker(stream_id, private_name)
@@ -239,7 +239,7 @@ class ReplyGenerator:
 
         # 我们先做一个合理的假设： “最近聊天记录” 字符串 chat_history_text 是基于
         # observation_info.chat_history 的一个有限的尾部片段生成的。
-        # 假设这个片段的长度由 global_config.pfc_recent_history_display_count 控制，默认为20条。
+        # 假设这个片段的长度由 global_config.pfc.pfc_recent_history_display_count 控制，默认为20条。
         recent_history_display_count = getattr(global_config, "pfc_recent_history_display_count", 20)
 
         if observation_info and observation_info.chat_history and len(observation_info.chat_history) > 0:

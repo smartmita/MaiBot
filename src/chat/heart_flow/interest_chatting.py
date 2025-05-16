@@ -20,9 +20,9 @@ MAX_REPLY_PROBABILITY = 1
 class InterestChatting:
     def __init__(
         self,
-        decay_rate=global_config.default_decay_rate_per_second,
+        decay_rate=global_config.focus_chat.default_decay_rate_per_second,
         max_interest=MAX_INTEREST,
-        trigger_threshold=global_config.reply_trigger_threshold,
+        trigger_threshold=global_config.focus_chat.reply_trigger_threshold,
         max_probability=MAX_REPLY_PROBABILITY,
     ):
         # 基础属性初始化

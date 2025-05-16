@@ -112,7 +112,7 @@ def _check_ban_words(text: str, chat, userinfo) -> bool:
     Returns:
         bool: 是否包含过滤词
     """
-    for word in global_config.ban_words:
+    for word in global_config.chat.ban_words:
         if word in text:
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
             logger.info(f"[{chat_name}]{userinfo.user_nickname}:{text}")
@@ -132,7 +132,7 @@ def _check_ban_regex(text: str, chat, userinfo) -> bool:
     Returns:
         bool: 是否匹配过滤正则
     """
-    for pattern in global_config.ban_msgs_regex:
+    for pattern in global_config.chat.ban_msgs_regex:
         if pattern.search(text):
             chat_name = chat.group_info.group_name if chat.group_info else "私聊"
             logger.info(f"[{chat_name}]{userinfo.user_nickname}:{text}")

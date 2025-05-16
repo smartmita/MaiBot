@@ -42,13 +42,14 @@ class GoalAnalyzer:
     """对话目标分析器"""
 
     def __init__(self, stream_id: str, private_name: str):
+        # TODO: API-Adapter修改标记
         self.llm = LLMRequest(
-            model=global_config.llm_normal, temperature=0.7, max_tokens=1000, request_type="conversation_goal"
+            model=global_config.model.normal, temperature=0.7, max_tokens=1000, request_type="conversation_goal"
         )
 
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
-        self.name = global_config.BOT_NICKNAME
-        self.nick_name = global_config.BOT_ALIAS_NAMES
+        self.name = global_config.bot.nickname
+        self.nick_name = global_config.bot.alias_names
         self.private_name = private_name
         self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
 

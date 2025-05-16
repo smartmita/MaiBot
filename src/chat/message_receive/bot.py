@@ -64,21 +64,21 @@ class ChatBot:
             userinfo = message.message_info.user_info
 
             # 用户黑名单拦截
-            if userinfo.user_id in global_config.ban_user_id:
+            if userinfo.user_id in global_config.chat_target.ban_user_id:
                 logger.debug(f"用户{userinfo.user_id}被禁止回复")
                 return
 
-            if groupinfo is None and global_config.enable_friend_whitelist:
+            if groupinfo is None and global_config.experimental.enable_friend_whitelist:
                 logger.trace("检测到私聊消息，检查")
                 # 好友黑名单拦截
-                if userinfo.user_id not in global_config.talk_allowed_private:
+                if userinfo.user_id not in global_config.experimental.talk_allowed_private:
                     logger.debug(f"用户{userinfo.user_id}没有私聊权限")
                     return
-            elif not global_config.enable_friend_whitelist:
+            elif not global_config.experimental.enable_friend_whitelist:
                 logger.debug("私聊白名单模式未启用，跳过私聊权限检查。")
 
             # 群聊黑名单拦截
-            if groupinfo is not None and groupinfo.group_id not in global_config.talk_allowed_groups:
+            if groupinfo is not None and groupinfo.group_id not in global_config.chat_target.talk_allowed_groups:
                 logger.trace(f"群{groupinfo.group_id}被禁止回复")
                 return
 
@@ -94,7 +94,7 @@ class ChatBot:
             else:
                 template_group_name = None
 
-            if not global_config.enable_Legacy_HFC:
+            if not global_config.experimental.enable_Legacy_HFC:
                 hfc_processor = self.heartflow_processor
             else:
                 hfc_processor = self.legacy_hfc_processor
@@ -105,10 +105,10 @@ class ChatBot:
                 if groupinfo is None:
                     logger.trace("检测到私聊消息")
                     # 是否在配置信息中开启私聊模式
-                    if global_config.enable_friend_chat:
+                    if global_config.experimental.enable_friend_chat:
                         logger.trace("私聊模式已启用")
                         # 是否进入PFC
-                        if global_config.enable_pfc_chatting:
+                        if global_config.pfc.enable:
                             logger.trace("进入PFC私聊处理流程")
                             await self.pfc_processor.process_message(message_data)
                         # 禁止PFC，进入普通的心流消息处理逻辑

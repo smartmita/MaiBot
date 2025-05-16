@@ -1,6 +1,6 @@
 from src.common.logger import LogConfig, WILLING_STYLE_CONFIG, LoguruLogger, get_module_logger
 from dataclasses import dataclass
-from src.config.config import global_config, BotConfig
+from src.config.config import global_config
 from src.chat.message_receive.chat_stream import ChatStream, GroupInfo
 from src.chat.message_receive.message import MessageRecv
 from src.chat.person_info.person_info import person_info_manager, PersonInfoManager
@@ -93,7 +93,6 @@ class BaseWillingManager(ABC):
         self.chat_reply_willing: Dict[str, float] = {}  # 存储每个聊天流的回复意愿(chat_id)
         self.ongoing_messages: Dict[str, WillingInfo] = {}  # 当前正在进行的消息(message_id)
         self.lock = asyncio.Lock()
-        self.global_config: BotConfig = global_config
         self.logger: LoguruLogger = logger
 
     def setup(self, message: MessageRecv, chat: ChatStream, is_mentioned_bot: bool, interested_rate: float):
@@ -173,7 +172,7 @@ def init_willing_manager() -> BaseWillingManager:
     Returns:
         对应mode的WillingManager实例
     """
-    mode = global_config.willing_mode.lower()
+    mode = global_config.normal_chat.willing_mode.lower()
     return BaseWillingManager.create(mode)
 
 

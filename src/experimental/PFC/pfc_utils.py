@@ -712,7 +712,7 @@ async def build_chat_history_text(observation_info: ObservationInfo, private_nam
         if hasattr(observation_info, "chat_history_str") and observation_info.chat_history_str:
             chat_history_text = observation_info.chat_history_str
         elif hasattr(observation_info, "chat_history") and observation_info.chat_history:
-            history_slice = observation_info.chat_history[-global_config.pfc_recent_history_display_count :]
+            history_slice = observation_info.chat_history[-global_config.pfc.pfc_recent_history_display_count :]
             chat_history_text = await build_readable_messages(
                 history_slice, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
             )
@@ -722,7 +722,7 @@ async def build_chat_history_text(observation_info: ObservationInfo, private_nam
         unread_count = getattr(observation_info, "new_messages_count", 0)
         unread_messages = getattr(observation_info, "unprocessed_messages", [])
         if unread_count > 0 and unread_messages:
-            bot_qq_str = str(global_config.BOT_QQ) if global_config.BOT_QQ else None  # 安全获取
+            bot_qq_str = str(global_config.bot.qq_account) if global_config.bot.qq_account else None  # 安全获取
             if bot_qq_str:
                 other_unread_messages = [
                     msg for msg in unread_messages if msg.get("user_info", {}).get("user_id") != bot_qq_str

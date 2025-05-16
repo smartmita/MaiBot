@@ -34,8 +34,9 @@ def init_prompt():
 
 class MemoryActivator:
     def __init__(self):
+        # TODO: API-Adapter修改标记
         self.summary_model = LLMRequest(
-            model=global_config.llm_summary, temperature=0.7, max_tokens=50, request_type="chat_observation"
+            model=global_config.model.summary, temperature=0.7, max_tokens=50, request_type="chat_observation"
         )
         self.running_memory = []
 

@@ -74,8 +74,8 @@ class NormalChat:
         messageinfo = message.message_info
 
         bot_user_info = UserInfo(
-            user_id=global_config.BOT_QQ,
-            user_nickname=global_config.BOT_NICKNAME,
+            user_id=global_config.bot.qq_account,
+            user_nickname=global_config.bot.nickname,
             platform=messageinfo.platform,
         )
 
@@ -122,8 +122,8 @@ class NormalChat:
                 message_id=thinking_id,
                 chat_stream=self.chat_stream,  # 使用 self.chat_stream
                 bot_user_info=UserInfo(
-                    user_id=global_config.BOT_QQ,
-                    user_nickname=global_config.BOT_NICKNAME,
+                    user_id=global_config.bot.qq_account,
+                    user_nickname=global_config.bot.nickname,
                     platform=message.message_info.platform,
                 ),
                 sender_info=message.message_info.user_info,
@@ -148,7 +148,7 @@ class NormalChat:
     # 改为实例方法
     async def _handle_emoji(self, message: MessageRecv, response: str):
         """处理表情包"""
-        if random() < global_config.emoji_chance:
+        if random() < global_config.normal_chat.emoji_chance:
             emoji_raw = await emoji_manager.get_emoji_for_text(response)
             if emoji_raw:
                 emoji_path, description = emoji_raw
@@ -161,8 +161,8 @@ class NormalChat:
                     message_id="mt" + str(thinking_time_point),
                     chat_stream=self.chat_stream,  # 使用 self.chat_stream
                     bot_user_info=UserInfo(
-                        user_id=global_config.BOT_QQ,
-                        user_nickname=global_config.BOT_NICKNAME,
+                        user_id=global_config.bot.qq_account,
+                        user_nickname=global_config.bot.nickname,
                         platform=message.message_info.platform,
                     ),
                     sender_info=message.message_info.user_info,
@@ -187,7 +187,7 @@ class NormalChat:
             label=emotion,
             stance=stance,  # 使用 self.chat_stream
         )
-        self.mood_manager.update_mood_from_emotion(emotion, global_config.mood_intensity_factor)
+        self.mood_manager.update_mood_from_emotion(emotion, global_config.mood.mood_intensity_factor)
 
     async def _reply_interested_message(self) -> None:
         """
@@ -432,7 +432,7 @@ class NormalChat:
     def _check_ban_words(text: str, chat: ChatStream, userinfo: UserInfo) -> bool:
         """检查消息中是否包含过滤词"""
         stream_name = chat_manager.get_stream_name(chat.stream_id) or chat.stream_id
-        for word in global_config.ban_words:
+        for word in global_config.chat.ban_words:
             if word in text:
                 logger.info(
                     f"[{stream_name}][{chat.group_info.group_name if chat.group_info else '私聊'}]"
@@ -447,7 +447,7 @@ class NormalChat:
     def _check_ban_regex(text: str, chat: ChatStream, userinfo: UserInfo) -> bool:
         """检查消息是否匹配过滤正则表达式"""
         stream_name = chat_manager.get_stream_name(chat.stream_id) or chat.stream_id
-        for pattern in global_config.ban_msgs_regex:
+        for pattern in global_config.chat.ban_msgs_regex:
             if pattern.search(text):
                 logger.info(
                     f"[{stream_name}][{chat.group_info.group_name if chat.group_info else '私聊'}]"

@@ -190,8 +190,8 @@ async def _build_readable_messages_internal(
 
         person_id = person_info_manager.get_person_id(platform, user_id)
         # 根据 replace_bot_name 参数决定是否替换机器人名称
-        if replace_bot_name and user_id == global_config.BOT_QQ:
-            person_name = f"{global_config.BOT_NICKNAME}(你)"
+        if replace_bot_name and user_id == global_config.bot.qq_account:
+            person_name = f"{global_config.bot.nickname}(你)"
         else:
             person_name = await person_info_manager.get_value(person_id, "person_name")
 
@@ -250,7 +250,7 @@ async def _build_readable_messages_internal(
     message_details_raw.sort(key=lambda x: x[0])  # 按时间戳(第一个元素)升序排序，越早的消息排在前面
 
     # 应用截断逻辑 (如果 truncate 为 True)
-    if not global_config.long_message_auto_truncate:
+    if not global_config.memory.long_message_auto_truncate:
         truncate = False
     message_details: List[Tuple[float, str, str]] = []
     n_messages = len(message_details_raw)
@@ -433,7 +433,7 @@ async def build_anonymous_messages(messages: List[Dict[str, Any]]) -> str:
     output_lines = []
 
     def get_anon_name(platform, user_id):
-        if user_id == global_config.BOT_QQ:
+        if user_id == global_config.bot.qq_account:
             return "SELF"
         person_id = person_info_manager.get_person_id(platform, user_id)
         if person_id not in person_map:
@@ -507,7 +507,7 @@ async def get_person_id_list(messages: List[Dict[str, Any]]) -> List[str]:
         user_id = user_info.get("user_id")
 
         # 检查必要信息是否存在 且 不是机器人自己
-        if not all([platform, user_id]) or user_id == global_config.BOT_QQ:
+        if not all([platform, user_id]) or user_id == global_config.bot.qq_account:
             continue
 
         person_id = person_info_manager.get_person_id(platform, user_id)

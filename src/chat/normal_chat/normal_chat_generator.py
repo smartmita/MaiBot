@@ -15,21 +15,22 @@ logger = get_logger("llm")
 
 class NormalChatGenerator:
     def __init__(self):
+        # TODO: API-Adapter修改标记
         self.model_reasoning = LLMRequest(
-            model=global_config.llm_reasoning,
+            model=global_config.model.reasoning,
             temperature=0.7,
             max_tokens=3000,
             request_type="response_reasoning",
         )
         self.model_normal = LLMRequest(
-            model=global_config.llm_normal,
-            temperature=global_config.llm_normal["temp"],
+            model=global_config.model.normal,
+            temperature=global_config.model.normal["temp"],
             max_tokens=256,
             request_type="response_reasoning",
         )
 
         self.model_sum = LLMRequest(
-            model=global_config.llm_summary, temperature=0.7, max_tokens=3000, request_type="relation"
+            model=global_config.model.summary, temperature=0.7, max_tokens=3000, request_type="relation"
         )
         self.current_model_type = "r1"  # 默认使用 R1
         self.current_model_name = "unknown model"
@@ -37,7 +38,7 @@ class NormalChatGenerator:
     async def generate_response(self, message: MessageThinking, thinking_id: str) -> Optional[Union[str, List[str]]]:
         """根据当前模型类型选择对应的生成函数"""
         # 从global_config中获取模型概率值并选择模型
-        if random.random() < global_config.model_reasoning_probability:
+        if random.random() < global_config.normal_chat.reasoning_model_probability:
             self.current_model_type = "深深地"
             current_model = self.model_reasoning
         else:
@@ -51,7 +52,7 @@ class NormalChatGenerator:
         model_response = await self._generate_response_with_model(message, current_model, thinking_id)
 
         if model_response:
-            logger.info(f"{global_config.BOT_NICKNAME}的回复是：{model_response}")
+            logger.info(f"{global_config.bot.nickname}的回复是：{model_response}")
             model_response = await self._process_response(model_response)
 
             return model_response
@@ -113,7 +114,7 @@ class NormalChatGenerator:
             - "中立"：不表达明确立场或无关回应
             2. 从"开心,愤怒,悲伤,惊讶,平静,害羞,恐惧,厌恶,困惑"中选出最匹配的1个情感标签
             3. 按照"立场-情绪"的格式直接输出结果，例如："反对-愤怒"
-            4. 考虑回复者的人格设定为{global_config.personality_core}
+            4. 考虑回复者的人格设定为{global_config.personality.personality_core}
 
             对话示例：
             被回复：「A就是笨」

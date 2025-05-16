@@ -26,8 +26,9 @@ class ChattingInfoProcessor(BaseProcessor):
     def __init__(self):
         """初始化观察处理器"""
         super().__init__()
+        # TODO: API-Adapter修改标记
         self.llm_summary = LLMRequest(
-            model=global_config.llm_observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
+            model=global_config.model.observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
         )
 
     async def process_info(
@@ -108,12 +109,12 @@ class ChattingInfoProcessor(BaseProcessor):
                 "created_at": datetime.now().timestamp(),
             }
 
-            obs.mid_memorys.append(mid_memory)
-            if len(obs.mid_memorys) > obs.max_mid_memory_len:
-                obs.mid_memorys.pop(0)  # 移除最旧的
+            obs.mid_memories.append(mid_memory)
+            if len(obs.mid_memories) > obs.max_mid_memory_len:
+                obs.mid_memories.pop(0)  # 移除最旧的
 
             mid_memory_str = "之前聊天的内容概述是：\n"
-            for mid_memory_item in obs.mid_memorys:  # 重命名循环变量以示区分
+            for mid_memory_item in obs.mid_memories:  # 重命名循环变量以示区分
                 time_diff = int((datetime.now().timestamp() - mid_memory_item["created_at"]) / 60)
                 mid_memory_str += (
                     f"距离现在{time_diff}分钟前(聊天记录id:{mid_memory_item['id']})：{mid_memory_item['theme']}\n"

@@ -191,8 +191,8 @@ class SubMind:
         self.subheartflow_id = subheartflow_id
 
         self.llm_model = LLMRequest(
-            model=global_config.llm_sub_heartflow,
-            temperature=global_config.llm_sub_heartflow["temp"],
+            model=global_config.model.sub_heartflow,
+            temperature=global_config.model.sub_heartflow["temp"],
             max_tokens=1000,
             request_type="sub_heart_flow",
         )
@@ -595,7 +595,7 @@ class SubMind:
                 message_list_for_nicknames = get_raw_msg_before_timestamp_with_chat(
                     chat_id=self.subheartflow_id,
                     timestamp=time.time(),
-                    limit=global_config.observation_context_size,
+                    limit=global_config.chat.observation_context_size,
                 )
                 nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
                     chat_stream, message_list_for_nicknames
@@ -684,7 +684,7 @@ class SubMind:
             logger.warning(f"{self.log_prefix} LLM返回空结果，思考失败。")
 
         # ---------- 7. 应用概率性去重和修饰 ----------
-        if global_config.allow_remove_duplicates:
+        if global_config.chat.allow_remove_duplicates:
             new_content = content  # 保存 LLM 直接输出的结果
             try:
                 similarity = calculate_similarity(previous_mind, new_content)

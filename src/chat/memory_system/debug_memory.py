@@ -7,7 +7,6 @@ import os
 # 添加项目根目录到系统路径
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
 from src.chat.memory_system.Hippocampus import HippocampusManager
-from src.config.config import global_config
 from rich.traceback import install
 
 install(extra_lines=3)
@@ -19,7 +18,7 @@ async def test_memory_system():
         # 初始化记忆系统
         print("开始初始化记忆系统...")
         hippocampus_manager = HippocampusManager.get_instance()
-        hippocampus_manager.initialize(global_config=global_config)
+        hippocampus_manager.initialize()
         print("记忆系统初始化完成")
 
         # 测试记忆构建

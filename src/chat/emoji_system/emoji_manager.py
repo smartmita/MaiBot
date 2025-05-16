@@ -369,14 +369,15 @@ class EmojiManager:
     def __init__(self):
         self._initialized = None
         self._scan_task = None
-        self.vlm = LLMRequest(model=global_config.vlm, temperature=0.3, max_tokens=1000, request_type="emoji")
+
+        self.vlm = LLMRequest(model=global_config.model.vlm, temperature=0.3, max_tokens=1000, request_type="emoji")
         self.llm_emotion_judge = LLMRequest(
-            model=global_config.llm_normal, max_tokens=600, request_type="emoji"
+            model=global_config.model.normal, max_tokens=600, request_type="emoji"
         )  # 更高的温度，更少的token（后续可以根据情绪来调整温度）
 
         self.emoji_num = 0
-        self.emoji_num_max = global_config.max_emoji_num
-        self.emoji_num_max_reach_deletion = global_config.max_reach_deletion
+        self.emoji_num_max = global_config.emoji.max_reg_num
+        self.emoji_num_max_reach_deletion = global_config.emoji.do_replace
         self.emoji_objects: list[MaiEmoji] = []  # 存储MaiEmoji对象的列表，使用类型注解明确列表元素类型
 
         logger.info("启动表情包管理器")
@@ -613,18 +614,18 @@ class EmojiManager:
                 logger.warning(f"[警告] 表情包目录不存在: {EMOJI_DIR}")
                 os.makedirs(EMOJI_DIR, exist_ok=True)
                 logger.info(f"[创建] 已创建表情包目录: {EMOJI_DIR}")
-                await asyncio.sleep(global_config.EMOJI_CHECK_INTERVAL * 60)
+                await asyncio.sleep(global_config.emoji.check_interval * 60)
                 continue
 
             # 检查目录是否为空
             files = os.listdir(EMOJI_DIR)
             if not files:
                 logger.warning(f"[警告] 表情包目录为空: {EMOJI_DIR}")
-                await asyncio.sleep(global_config.EMOJI_CHECK_INTERVAL * 60)
+                await asyncio.sleep(global_config.emoji.check_interval * 60)
                 continue
 
             # 检查是否需要处理表情包(数量超过最大值或不足)
-            if (self.emoji_num > self.emoji_num_max and global_config.max_reach_deletion) or (
+            if (self.emoji_num > self.emoji_num_max and global_config.emoji.do_replace) or (
                 self.emoji_num < self.emoji_num_max
             ):
                 try:
@@ -651,7 +652,7 @@ class EmojiManager:
                 except Exception as e:
                     logger.error(f"[错误] 扫描表情包目录失败: {str(e)}")
 
-            await asyncio.sleep(global_config.EMOJI_CHECK_INTERVAL * 60)
+            await asyncio.sleep(global_config.emoji.check_interval * 60)
 
     async def get_all_emoji_from_db(self):
         """获取所有表情包并初始化为MaiEmoji类对象，更新 self.emoji_objects"""
@@ -788,7 +789,7 @@ class EmojiManager:
 
             # 构建提示词
             prompt = (
-                f"{global_config.BOT_NICKNAME}的表情包存储已满({self.emoji_num}/{self.emoji_num_max})，"
+                f"{global_config.bot.nickname}的表情包存储已满({self.emoji_num}/{self.emoji_num_max})，"
                 f"需要决定是否删除一个旧表情包来为新表情包腾出空间。\n\n"
                 f"新表情包信息：\n"
                 f"描述: {new_emoji.description}\n\n"
@@ -871,10 +872,10 @@ class EmojiManager:
                 description, _ = await self.vlm.generate_response_for_image(prompt, image_base64, image_format)
 
             # 审核表情包
-            if global_config.EMOJI_CHECK:
+            if global_config.emoji.content_filtration:
                 prompt = f'''
                     这是一个表情包，请对这个表情包进行审核，标准如下：
-                    1. 必须符合"{global_config.EMOJI_CHECK_PROMPT}"的要求
+                    1. 必须符合"{global_config.emoji.filtration_prompt}"的要求
                     2. 不能是色情、暴力、等违法违规内容，必须符合公序良俗
                     3. 不能是任何形式的截图，聊天记录或视频截图
                     4. 不要出现5个以上文字
