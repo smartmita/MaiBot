@@ -6,14 +6,13 @@ from src.chat.utils.chat_message_builder import build_readable_messages, get_raw
 from src.chat.person_info.relationship_manager import relationship_manager
 from src.chat.utils.utils import get_embedding
 import time
-from typing import Union, Optional, Dict, Any
+from typing import Union, Optional
 from src.common.database import db
 from src.chat.utils.utils import get_recent_group_speaker
 from src.manager.mood_manager import mood_manager
 from src.chat.memory_system.Hippocampus import HippocampusManager
 from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.focus_chat.expressors.exprssion_learner import expression_learner
-import traceback
 import random
 from src.plugins.group_nickname.nickname_manager import nickname_manager
 

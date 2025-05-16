@@ -194,7 +194,7 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
             )
 
     # 判断是否被@
-    if re.search(f"@[\\s\\S]*?（id:{global_config.BOT_QQ}）", message.processed_plain_text):
+    if re.search(f"@[\s\S]*?（id:{global_config.BOT_QQ}）", message.processed_plain_text):
         is_at = True
         is_mentioned = True
 
@@ -205,7 +205,7 @@ def is_mentioned_bot_in_message(message: MessageRecv) -> tuple[bool, float]:
         if not is_mentioned:
             # 判断是否被回复
             if re.match(
-                f"\\[回复 [\\s\\S]*?\\({str(global_config.BOT_QQ)}\\)：[\\s\\S]*?\\]，说：",
+                f"\[回复 [\s\S]*?\({str(global_config.BOT_QQ)}\)：[\s\S]*?\]，说：",
                 message.processed_plain_text,
             ):
                 is_mentioned = True
@@ -430,11 +430,11 @@ def split_into_sentences_w_remove_punctuation(original_text: str) -> list[str]:
         return []
 
     if len_text < 12:
-        split_strength = 0.5
+        split_strength = 0.2
     elif len_text < 32:
-        split_strength = 0.7
+        split_strength = 0.5
     else:
-        split_strength = 0.9
+        split_strength = 0.7
     merge_probability = 1.0 - split_strength
 
     if merge_probability == 1.0 and len(preliminary_final_sentences) > 1:
@@ -497,13 +497,13 @@ def random_remove_punctuation(text: str) -> str:
         if char == "。" and i == text_len - 1:  # 结尾的句号
             if random.random() > 0.1:  # 90%概率删除结尾句号
                 continue
-        # elif char == "，":
-        #     rand = random.random()
-        #     if rand < 0.25:  # 25%概率删除逗号
-        #         continue
-        #     elif rand < 0.2:  # 20%概率把逗号变成空格
-        #         result += " "
-        #         continue
+        elif char == "，":
+            rand = random.random()
+            if rand < 0.25:  # 25%概率删除逗号
+                continue
+            elif rand < 0.2:  # 20%概率把逗号变成空格
+                result += " "
+                continue
         result += char
     return result
 
@@ -516,8 +516,8 @@ def process_llm_response(text: str) -> list[str]:
     else:
         protected_text = text
         kaomoji_mapping = {}
-    # 提取被 [] 包裹且包含中文的内容
-    pattern = re.compile(r"[\[](?=.*[一-鿿]).*?[\]）]")
+    # 提取被 () 或 [] 包裹且包含中文的内容
+    pattern = re.compile(r"[(\[（](?=.*[一-鿿]).*?[)\]）]")
     # _extracted_contents = pattern.findall(text)
     _extracted_contents = pattern.findall(protected_text)  # 在保护后的文本上查找
     # 去除 () 和 [] 及其包裹的内容
@@ -527,7 +527,6 @@ def process_llm_response(text: str) -> list[str]:
         return ["呃呃"]
 
     logger.debug(f"{text}去除括号处理后的文本: {cleaned_text}")
-    cleaned_text = protected_text
     # 对清理后的文本进行进一步处理
     max_length = global_config.response_max_length * 2
     max_sentence_num = global_config.response_max_sentence_num
@@ -559,7 +558,7 @@ def process_llm_response(text: str) -> list[str]:
         else:
             sentences.append(sentence)
 
-    if len(sentences) > (max_sentence_num * 2):
+    if len(sentences) > max_sentence_num:
         logger.warning(f"分割后消息数量过多 ({len(sentences)} 条)，返回默认回复")
         return [f"{global_config.BOT_NICKNAME}不知道哦"]
 
