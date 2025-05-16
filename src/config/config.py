@@ -289,6 +289,7 @@ class BotConfig:
     rename_person: bool = (
         True  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
     )
+    enable_always_relative_history: bool = False  # 聊天记录总是使用 relative 模式
 
     # pfc
     enable_pfc_chatting: bool = False  # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
@@ -773,6 +774,10 @@ class BotConfig:
                 config.rename_person = experimental_config.get("rename_person", config.rename_person)
             if config.INNER_VERSION in SpecifierSet(">=1.7.0.1"):
                 config.enable_Legacy_HFC = experimental_config.get("enable_Legacy_HFC", config.enable_Legacy_HFC)
+            if config.INNER_VERSION in SpecifierSet(">=1.7.0.4"):
+                config.enable_always_relative_history = experimental_config.get(
+                    "enable_always_relative_history", config.enable_always_relative_history
+                )
 
         def pfc(parent: dict):
             if config.INNER_VERSION in SpecifierSet(">=1.6.2.4"):

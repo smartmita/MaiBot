@@ -377,6 +377,10 @@ async def build_readable_messages(
     如果提供了 read_mark，则在相应位置插入已读标记。
     允许通过参数控制格式化行为。
     """
+
+    if global_config.enable_always_relative_history:
+        timestamp_mode = "relative"
+
     if read_mark <= 0:
         # 没有有效的 read_mark，直接格式化所有消息
         formatted_string, _ = await _build_readable_messages_internal(
