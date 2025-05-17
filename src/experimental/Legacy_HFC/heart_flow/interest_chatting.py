@@ -198,3 +198,36 @@ class InterestChatting:
                 finally:
                     self.update_task = None
                     self._is_running = False
+
+    async def reset_focus_triggers(self, reset_level: str = "full"):
+        """
+        重置或显著降低进入专注模式的触发器。
+
+        Args:
+            reset_level (str): 重置级别。
+                               'full' 会将 probability 和 interest 都设为0。
+                               'partial' 会将 probability 设为0，interest 减半。
+                                默认为 'full'。
+        """
+        log_prefix_reset = "[InterestChatting Reset]" # 给日志加个前缀，方便识别
+        logger.info(f"{log_prefix_reset} 正在重置专注聊天触发器，级别: {reset_level}")
+
+        if reset_level == "full":
+            self.start_hfc_probability = 0.0
+            self.interest_level = 0.0
+            self.is_above_threshold = False # 既然 interest_level 为0, 肯定不在阈值以上了
+            logger.info(f"{log_prefix_reset} start_hfc_probability 和 interest_level 已重置为 0.0")
+        elif reset_level == "partial":
+            self.start_hfc_probability = 0.0
+            self.interest_level /= 2 # 兴趣值减半
+            # 更新 is_above_threshold 的状态
+            self.is_above_threshold = self.interest_level >= self.trigger_threshold
+            logger.info(f"{log_prefix_reset} start_hfc_probability 重置为 0.0, interest_level 减半为 {self.interest_level:.2f}")
+        else:
+            logger.warning(f"{log_prefix_reset} 未知的重置级别: {reset_level}，未执行操作。")
+
+        # 重新计算一次概率（虽然上面已经设置了 probability，但保持逻辑一致性，特别是 is_above_threshold 的更新）
+        # 在 reset_level 为 "full" 或 "partial" 时，start_hfc_probability 已经被设为0，
+        # _update_reply_probability 如果 interest_level 低于阈值，会继续保持或尝试降低 probability，
+        # 所以这里调用是安全的，并且能确保 is_above_threshold 正确。
+        await self._update_reply_probability()

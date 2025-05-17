@@ -30,6 +30,7 @@ logger = get_logger("subheartflow_manager")
 # 子心流管理相关常量
 INACTIVE_THRESHOLD_SECONDS = 3600  # 子心流不活跃超时时间(秒)
 NORMAL_CHAT_TIMEOUT_SECONDS = 30 * 60  # 30分钟
+PLANNER_EXIT_COOLDOWN_SECONDS = 60
 
 
 async def _try_set_subflow_absent_internal(subflow: "SubHeartflow", log_prefix: str) -> bool:
@@ -298,6 +299,14 @@ class SubHeartflowManager:
             for sub_hf in list(self.subheartflows.values()):
                 flow_id = sub_hf.subheartflow_id
                 stream_name = chat_manager.get_stream_name(flow_id) or flow_id
+
+                if sub_hf.last_planner_initiated_exit_time > 0: # 大于0表示曾经被设置过
+                    time_since_planner_exit = time.time() - sub_hf.last_planner_initiated_exit_time
+                    if time_since_planner_exit < PLANNER_EXIT_COOLDOWN_SECONDS:
+                        logger.debug(
+                            f"{stream_name} 在 Planner 主动退出的冷却期内 ({time_since_planner_exit:.1f}s / {PLANNER_EXIT_COOLDOWN_SECONDS}s)，跳过进入专注模式的判断。"
+                        )
+                        continue # 跳过此 sub_hf，不进行后续判断
 
                 # 跳过非CHAT状态或已经是FOCUSED状态的子心流
                 if sub_hf.chat_state.chat_status == ChatState.FOCUSED:
@@ -669,17 +678,15 @@ class SubHeartflowManager:
             else:
                 logger.warning(f"尝试删除不存在的 SubHeartflow: {subheartflow_id}")
 
-    # --- 新增：处理 HFC 无回复回调的专用方法 --- #
+    # --- 处理 HFC 无回复回调的专用方法 --- #
     async def _handle_hfc_no_reply(self, subheartflow_id: Any):
         """处理来自 HeartFChatting 的连续无回复信号 (通过 partial 绑定 ID)"""
         # 注意：这里不需要再获取锁，因为 sbhf_focus_into_absent 内部会处理锁
         logger.debug(f"[管理器 HFC 处理器] 接收到来自 {subheartflow_id} 的 HFC 无回复信号")
         await self.sbhf_focus_into_absent_or_chat(subheartflow_id)
 
-    # --- 结束新增 --- #
-
-    # --- 新增：处理来自 HeartFChatting 的状态转换请求 --- #
-    async def sbhf_focus_into_absent_or_chat(self, subflow_id: Any):
+    # --- 处理来自 HeartFChatting 的状态转换请求 --- #
+    async def sbhf_focus_into_absent_or_chat(self, subflow_id: Any, is_planner_initiated: bool = False):
         """
         接收来自 HeartFChatting 的请求，将特定子心流的状态转换为 ABSENT 或 CHAT。
         通常在连续多次 "no_reply" 后被调用。
@@ -731,6 +738,19 @@ class SubHeartflowManager:
                     f"[状态转换请求] 接收到请求，将 {stream_name} (当前: {current_state.value}) 尝试转换为 {target_state.value} ({log_reason})"
                 )
                 try:
+                    # 在改变状态之前，重置专注相关的触发器
+                    if subflow.interest_chatting:
+                        logger.info(f"[状态转换请求] 为 {stream_name} 调用 reset_focus_triggers (完全重置)。")
+                        await subflow.interest_chatting.reset_focus_triggers(reset_level="full") # 或者 "partial"
+                    else:
+                        logger.warning(f"[状态转换请求] {stream_name} 没有 interest_chatting 实例，无法重置触发器。")
+                    if is_planner_initiated:
+                        subflow.last_planner_initiated_exit_time = time.time()
+                        logger.info(f"[状态转换请求] {stream_name} 因 Planner 主动退出，已记录冷却时间戳: {subflow.last_planner_initiated_exit_time}")
+                    else:
+                        # 如果不是 Planner 主动退出（比如不活跃超时），可以考虑是否需要重置或不处理这个时间戳
+                        # 当前我们只在 Planner 主动退出时设置它，所以其他情况它会保持旧值或初始值0.0
+                        pass
                     # 从HFC到CHAT时，清空兴趣字典
                     subflow.clear_interest_dict()
                     await subflow.change_chat_state(target_state)
@@ -752,9 +772,8 @@ class SubHeartflowManager:
                     f"[状态转换请求] 收到对 {stream_name} 的请求，但其状态为 {current_state.value} (非 FOCUSED)，不执行转换"
                 )
 
-    # --- 结束新增 --- #
 
-    # --- 新增：处理私聊从 ABSENT 直接到 FOCUSED 的逻辑 --- #
+    # --- 处理私聊从 ABSENT 直接到 FOCUSED 的逻辑 --- #
     async def sbhf_absent_private_into_focus(self):
         """检查 ABSENT 状态的私聊子心流是否有新活动，若有且未达 FOCUSED 上限，则直接转换为 FOCUSED。"""
         log_prefix_task = "[私聊激活检查]"
