@@ -144,11 +144,12 @@ def format_nickname_prompt_injection(selected_nicknames_with_info: List[Tuple[st
                 "group_card_name": group_card_name, # 存储该用户的群名称（对于同一个用户，群名称应该是一致的）
                 "nicknames": [] # 初始化绰号列表
             }
-        
-        # 添加格式化的绰号到列表中，避免重复添加（尽管上游选择逻辑可能已去重）
-        formatted_nickname = f"“{nickname}”"
-        if formatted_nickname not in grouped_by_user_details[user_key]["nicknames"]:
-            grouped_by_user_details[user_key]["nicknames"].append(formatted_nickname)
+
+        # 只有当 nickname 字段本身非空时，才将其视为一个有效的绰号进行添加
+        if nickname and nickname.strip(): # 检查 nickname 是否有实际内容
+            formatted_nickname = f"“{nickname}”"
+            if formatted_nickname not in grouped_by_user_details[user_key]["nicknames"]:
+                grouped_by_user_details[user_key]["nicknames"].append(formatted_nickname)
 
     # 构建最终的输出行
     for (user_name, user_id), details in grouped_by_user_details.items():
@@ -161,22 +162,18 @@ def format_nickname_prompt_injection(selected_nicknames_with_info: List[Tuple[st
         
         # 构建绰号部分，仅当存在绰号时添加
         called_as_part = ""
-        if nicknames_str:
+        if details["nicknames"]: # 直接检查列表是否为空
             called_as_part = f"，ta 可能被群友称为：{nicknames_str}"
         
-        # 组合行：确保只添加有内容的部分
-        # 格式：- 用户名(UID) [，群名称部分] [，绰号部分]
         line = f"- {user_name}({user_id})"
         if card_name_part:
             line += card_name_part
-        if called_as_part: # 只有在确实有绰号时才添加“可能被群友称为”
+        if called_as_part: # 只有在确实有有效绰号时才添加
             line += called_as_part
-        elif not card_name_part and not called_as_part: # 如果既没群名片也没绰号，但用户在列表里，也显示基础信息
-            pass # - 用户名(UID) 已经有了
-
+        
         prompt_lines.append(line)
 
-    if len(prompt_lines) > 1: # 如果不仅仅只有标题行
+    if len(prompt_lines) > 1:
         return "\n".join(prompt_lines) + "\n"
     else:
         return "" # 如果没有处理任何用户信息，则返回空字符串
