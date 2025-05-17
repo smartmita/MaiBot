@@ -301,13 +301,18 @@ class NicknameManager:
                 logger.warning(f"{log_prefix} 未找到上下文用户用于绰号注入。")
                 return ""
 
-            all_nicknames_data = await relationship_manager.get_users_group_nicknames(
+            # all_nicknames_data 的结构已改变
+            all_nicknames_data_with_uid = await relationship_manager.get_users_group_nicknames(
                 platform, list(user_ids_in_context), group_id
             )
+            # all_nicknames_data_with_uid 的格式: {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]}}
 
-            if all_nicknames_data:
-                selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
-                injection_str = format_nickname_prompt_injection(selected_nicknames)
+            if all_nicknames_data_with_uid:
+                # select_nicknames_for_prompt 需要接收新的数据结构，或者我们在这里转换
+                # 为了让 select_nicknames_for_prompt 的改动更清晰，我们在这里传递整个结构
+                selected_nicknames_with_uid = select_nicknames_for_prompt(all_nicknames_data_with_uid) # 注意这里
+                # selected_nicknames_with_uid 的预期格式: List[Tuple[str, str, str, int]] -> (用户名, user_id, 绰号, 次数)
+                injection_str = format_nickname_prompt_injection(selected_nicknames_with_uid) # 注意这里
                 if injection_str:
                     logger.debug(f"{log_prefix} 生成的绰号 Prompt 注入:\n{injection_str}")
                 return injection_str

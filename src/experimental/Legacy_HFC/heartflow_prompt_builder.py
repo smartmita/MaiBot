@@ -96,6 +96,7 @@ def init_prompt():
             2. 何时发送文字消息 (action: 'text_reply'):
             - {bot_name}的内心想法包含明确的、有实质内容的表达意愿，且当前时机适合发言。
             - 如果希望附带表情，可在 'emoji_query' 中指明表情的适用场合或主题，但注意不要滥用。
+            - 如果需要特别提及某人，可在 'at_user' 中指明 @ 对象的 uid，但请注意不要滥用。
         </principle_text_reply>
 
         <principle_emoji_reply>
@@ -131,13 +132,14 @@ def init_prompt():
     <format_instruction>
         你的决策必须以严格的 JSON 格式输出，并且只包含 JSON 内容，不要附加任何额外的文字、解释或Markdown标记。
         默认使用中文。
-        JSON 对象应包含以下三个字段: "action", "reasoning", "emoji_query"。
+        JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"at_user"。
     </format_instruction>
     <json_structure>
         {{
           "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一 (例如: '{example_action}')
           "reasoning": "string", // 详细说明你做出此决策的理由，以及是如何应用 <decision_principles> 中的原则的。
           "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。请遵循回复原则，避免滥用。
+          "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 信息从 <group_nicknames> 中获取，如无可用信息请勿使用该功能。该值仅能为纯数字字符串。请遵循回复原则，避免滥用。
         }}
     </json_structure>
     <final_request>
