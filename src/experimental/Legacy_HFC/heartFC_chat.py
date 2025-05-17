@@ -1252,7 +1252,7 @@ class HeartFChatting:
             # 为每个消息片段生成唯一ID
             part_message_id = f"{thinking_id}_{i}"
             if i == 0 and at_user != "":
-                message_segment = Seg(type="seglist", data=[Seg(type="at", data={"qq": at_user}),Seg(type="text", data=msg_text)])
+                message_segment = Seg(type="seglist", data=[Seg(type="at", data=at_user),Seg(type="text", data=" " + msg_text)])
             else:
                 message_segment = Seg(type="text", data=msg_text)
             bot_message = MessageSending(
