@@ -210,7 +210,7 @@ class HeartFCProcessor:
 
             # 7. 日志记录
             mes_name = chat.group_info.group_name if chat.group_info else "私聊"
-            current_time = time.strftime("%H点%M分%S秒", time.localtime(message.message_info.time))
+            current_time = time.strftime("%H:%M:%S", time.localtime(message.message_info.time))
             logger.info(
                 f"[{current_time}][{mes_name}]"
                 f"{userinfo.user_nickname}:"
