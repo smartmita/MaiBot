@@ -174,8 +174,8 @@ async def _build_readable_messages_internal(
 
     # --- 从全局配置读取名称显示模式 ---
     name_display_mode = 1 # 默认值
-    if hasattr(global_config, 'chat') and hasattr(global_config.chat, 'name_display_mode'):
-        name_display_mode = global_config.chat.name_display_mode
+    if hasattr(global_config, 'experimental') and hasattr(global_config.experimental, 'name_display_mode'):
+        name_display_mode = global_config.experimental.name_display_mode
     else:
         pass
 
