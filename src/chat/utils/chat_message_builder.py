@@ -172,6 +172,13 @@ async def _build_readable_messages_internal(
 
     message_details_raw: List[Tuple[float, str, str]] = []
 
+    # --- 从全局配置读取名称显示模式 ---
+    name_display_mode = 1 # 默认值
+    if hasattr(global_config, 'chat') and hasattr(global_config.chat, 'name_display_mode'):
+        name_display_mode = global_config.chat.name_display_mode
+    else:
+        pass
+
     # 1 & 2: 获取发送者信息并提取消息组件
     for msg in messages:
         user_info = msg.get("user_info", {})
@@ -182,7 +189,7 @@ async def _build_readable_messages_internal(
         user_cardname = user_info.get("user_cardname")
 
         timestamp = msg.get("time")
-        content = msg.get("processed_plain_text", "")  # 默认空字符串
+        original_content_for_processing = msg.get("processed_plain_text", "")  # 默认空字符串
 
         # 检查必要信息是否存在
         if not all([platform, user_id, timestamp is not None]):
@@ -190,59 +197,138 @@ async def _build_readable_messages_internal(
 
         person_id = person_info_manager.get_person_id(platform, user_id)
         # 根据 replace_bot_name 参数决定是否替换机器人名称
-        if replace_bot_name and user_id == global_config.bot.qq_account:
-            person_name = f"{global_config.bot.nickname}(你)"
-        else:
-            person_name = await person_info_manager.get_value(person_id, "person_name")
+        person_name_to_display = "某人" # 默认值
 
-        # 如果 person_name 未设置，则使用消息中的 nickname 或默认名称
-        if not person_name:
-            if user_cardname:
-                person_name = f"昵称：{user_cardname}"
-            elif user_nickname:
-                person_name = f"{user_nickname}"
-            else:
-                person_name = "某人"
+        if replace_bot_name and user_id == global_config.bot.qq_account:
+            person_name_to_display = f"{global_config.bot.nickname}(你)"
+        else:
+            # 根据配置模式处理普通用户的名称
+            if name_display_mode == 1: # 模式1: 老模式
+                llm_name = await person_info_manager.get_value(person_id, "person_name")
+                if llm_name:
+                    person_name_to_display = llm_name
+                elif user_cardname:
+                    person_name_to_display = f"昵称：{user_cardname}" # 老模式下带前缀
+                elif user_nickname:
+                    person_name_to_display = user_nickname
+                # else 保持 "某人"
+
+            elif name_display_mode == 2: # 模式2: 优先显示群名称
+                if user_cardname: # 直接使用群名片
+                    person_name_to_display = user_cardname
+                else: # 如果没有群名片，则回退
+                    llm_name = await person_info_manager.get_value(person_id, "person_name")
+                    if llm_name:
+                        person_name_to_display = llm_name
+                    elif user_nickname:
+                        person_name_to_display = user_nickname
+                    # else 保持 "某人"
+
+            # elif name_display_mode == 3: 等未来的模式
+
+            else: # 如果配置的模式未识别，默认使用模式1
+                # logger.warning(f"未知的 name_display_mode: {name_display_mode}，将为用户 {user_id} 使用默认模式 1。")
+                llm_name = await person_info_manager.get_value(person_id, "person_name")
+                if llm_name:
+                    person_name_to_display = llm_name
+                elif user_cardname:
+                    person_name_to_display = f"昵称：{user_cardname}"
+                elif user_nickname:
+                    person_name_to_display = user_nickname
+
+        processed_content = original_content_for_processing
 
         # 检查是否有 回复<aaa:bbb> 字段
         reply_pattern = r"回复<([^:<>]+):([^:<>]+)>"
-        match = re.search(reply_pattern, content)
-        if match:
-            aaa = match.group(1)
-            bbb = match.group(2)
-            reply_person_id = person_info_manager.get_person_id(platform, bbb)
-            reply_person_name = await person_info_manager.get_value(reply_person_id, "person_name")
-            if not reply_person_name:
-                reply_person_name = aaa
-            # 在内容前加上回复信息
-            content = re.sub(reply_pattern, f"回复 {reply_person_name}", content, count=1)
+        reply_match = re.search(reply_pattern, processed_content)
+        if reply_match:
+            original_tag_name_reply = reply_match.group(1)
+            target_user_id_reply_str = reply_match.group(2)
+            # 确保 platform 和 target_user_id_reply_str 类型正确传递给 get_person_id
+            # 通常 platform 是字符串，user_id 可能是字符串或数字，但 get_person_id 期望 (str, int)
+            # person_info.py中的 get_person_id 第二个参数是 int
+            try:
+                reply_person_id = person_info_manager.get_person_id(platform, int(target_user_id_reply_str))
+            except ValueError:
+                # logger.warning(f"无法将回复目标ID '{target_user_id_reply_str}' 转换为整数。")
+                reply_person_id = None # 或者其他错误处理
+
+            resolved_reply_name = original_tag_name_reply # 默认
+
+            if reply_person_id: # 只有当person_id有效时才尝试获取
+                if name_display_mode == 1:
+                    llm_name_reply = await person_info_manager.get_value(reply_person_id, "person_name")
+                    if llm_name_reply:
+                        resolved_reply_name = llm_name_reply
+                elif name_display_mode == 2:
+                    cardname_reply = await person_info_manager.get_value(reply_person_id, "user_cardname")
+                    if cardname_reply:
+                        resolved_reply_name = cardname_reply
+                    else:
+                        llm_name_reply = await person_info_manager.get_value(reply_person_id, "person_name")
+                        if llm_name_reply:
+                            resolved_reply_name = llm_name_reply
+                else: # 未知模式，按模式1处理
+                    llm_name_reply = await person_info_manager.get_value(reply_person_id, "person_name")
+                    if llm_name_reply:
+                        resolved_reply_name = llm_name_reply
+
+            processed_content = re.sub(reply_pattern, f"回复 {resolved_reply_name}", processed_content, count=1)
+
+        # 处理 @<aaa:bbb> 字段
+        at_pattern = r"@<([^:<>]+):([^:<>]+)>"
+        # 使用 finditer 来安全地替换所有匹配项
+        # 如果直接在循环中修改 processed_content，会导致 re.finditer 的索引出问题
+        # 所以我们构建新的内容
 
         # 检查是否有 @<aaa:bbb> 字段 @<{member_info.get('nickname')}:{member_info.get('user_id')}>
-        at_pattern = r"@<([^:<>]+):([^:<>]+)>"
-        at_matches = list(re.finditer(at_pattern, content))
+        # (这部分与原代码逻辑保持一致，但替换的名称会根据模式来)
+        at_matches = list(re.finditer(at_pattern, processed_content)) # 注意是在 processed_content 上操作
         if at_matches:
-            new_content = ""
+            new_content_parts = []
             last_end = 0
             for m in at_matches:
-                new_content += content[last_end : m.start()]
-                aaa = m.group(1)
-                bbb = m.group(2)
-                at_person_id = person_info_manager.get_person_id(platform, bbb)
-                at_person_name = await person_info_manager.get_value(at_person_id, "person_name")
-                if not at_person_name:
-                    at_person_name = aaa
-                new_content += f"@{at_person_name}"
+                new_content_parts.append(processed_content[last_end:m.start()])
+                original_tag_name_at = m.group(1)
+                target_user_id_at_str = m.group(2)
+                try:
+                    at_person_id = person_info_manager.get_person_id(platform, int(target_user_id_at_str))
+                except ValueError:
+                    at_person_id = None
+
+                resolved_at_name = original_tag_name_at # 默认
+
+                if at_person_id:
+                    if name_display_mode == 1:
+                        llm_name_at = await person_info_manager.get_value(at_person_id, "person_name")
+                        if llm_name_at:
+                            resolved_at_name = llm_name_at
+                    elif name_display_mode == 2:
+                        cardname_at = await person_info_manager.get_value(at_person_id, "user_cardname")
+                        if cardname_at:
+                            resolved_at_name = cardname_at
+                        else:
+                            llm_name_at = await person_info_manager.get_value(at_person_id, "person_name")
+                            if llm_name_at:
+                                resolved_at_name = llm_name_at
+                    else: # 未知模式，按模式1处理
+                        llm_name_at = await person_info_manager.get_value(at_person_id, "person_name")
+                        if llm_name_at:
+                            resolved_at_name = llm_name_at
+
+                new_content_parts.append(f"@{resolved_at_name}")
                 last_end = m.end()
-            new_content += content[last_end:]
-            content = new_content
+            new_content_parts.append(processed_content[last_end:])
+            processed_content = "".join(new_content_parts)
 
         target_str = "这是QQ的一个功能，用于提及某人，但没那么明显"
-        if target_str in content:
+        if target_str in processed_content:
             if random.random() < 0.6:
-                content = content.replace(target_str, "")
+                processed_content = processed_content.replace(target_str, "")
 
-        if content != "":
-            message_details_raw.append((timestamp, person_name, content))
+        if processed_content != "": # 使用处理后的内容
+            message_details_raw.append((timestamp, person_name_to_display, processed_content))
+
 
     if not message_details_raw:
         return "", []
@@ -329,14 +415,14 @@ async def _build_readable_messages_internal(
         for line in merged["content"]:
             stripped_line = line.strip()
             if stripped_line:  # 过滤空行
-                # 移除末尾句号，添加分号 - 这个逻辑似乎有点奇怪，暂时保留
-                if stripped_line.endswith("。"):
-                    stripped_line = stripped_line[:-1]
+                # 移除末尾句号，添加分号 - 这个逻辑似乎有点奇怪，杀一下看看
+                # if stripped_line.endswith("。"):
+                    # stripped_line = stripped_line[:-1]
                 # 如果内容被截断，结尾已经是 ...（内容太长），不再添加分号
-                if not stripped_line.endswith("（内容太长）"):
-                    output_lines.append(f"{stripped_line}")
-                else:
-                    output_lines.append(stripped_line)  # 直接添加截断后的内容
+                # if not stripped_line.endswith("（内容太长）"):
+                    # output_lines.append(f"{stripped_line}")
+                # else:
+                output_lines.append(stripped_line)  # 直接添加截断后的内容
         output_lines.append("\n")  # 在每个消息块后添加换行，保持可读性
 
     # 移除可能的多余换行，然后合并
