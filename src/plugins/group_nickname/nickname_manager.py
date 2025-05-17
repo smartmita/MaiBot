@@ -279,42 +279,110 @@ class NicknameManager:
     async def get_nickname_prompt_injection(self, chat_stream: ChatStream, message_list_before_now: List[Dict]) -> str:
         """
         获取并格式化用于 Prompt 注入的绰号信息字符串。
+        (增加了获取和传递群名片的逻辑)
         """
         if not self.is_enabled or not chat_stream or not chat_stream.group_info:
             return ""
 
         log_prefix = f"[{chat_stream.stream_id}]"
         try:
-            group_id = str(chat_stream.group_info.group_id)
+            group_id_str = str(chat_stream.group_info.group_id) # group_id 应该是字符串
             platform = chat_stream.platform
+            
             user_ids_in_context = {
-                str(msg["user_info"]["user_id"])
+                str(msg["user_info"]["user_id"]) # 确保 user_id 是字符串
                 for msg in message_list_before_now
                 if msg.get("user_info", {}).get("user_id")
             }
 
             if not user_ids_in_context:
-                recent_speakers = chat_stream.get_recent_speakers(limit=5)
+                recent_speakers = chat_stream.get_recent_speakers(limit=5) # get_recent_speakers返回的是 {user_id, platform, count}
                 user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
+
 
             if not user_ids_in_context:
                 logger.warning(f"{log_prefix} 未找到上下文用户用于绰号注入。")
                 return ""
 
-            # all_nicknames_data 的结构已改变
-            all_nicknames_data_with_uid = await relationship_manager.get_users_group_nicknames(
-                platform, list(user_ids_in_context), group_id
+            # 1. 从 relationship_manager 获取用户基本信息和已学习的绰号
+            # all_nicknames_data_with_uid 的结构: {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]}}
+            # person_name 通常是 LLM 记录的用户主要名称
+            users_learned_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                platform, list(user_ids_in_context), group_id_str
             )
-            # all_nicknames_data_with_uid 的格式: {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]}}
 
-            if all_nicknames_data_with_uid:
-                # select_nicknames_for_prompt 需要接收新的数据结构，或者我们在这里转换
-                # 为了让 select_nicknames_for_prompt 的改动更清晰，我们在这里传递整个结构
-                selected_nicknames_with_uid = select_nicknames_for_prompt(all_nicknames_data_with_uid) # 注意这里
-                # selected_nicknames_with_uid 的预期格式: List[Tuple[str, str, str, int]] -> (用户名, user_id, 绰号, 次数)
-                injection_str = format_nickname_prompt_injection(selected_nicknames_with_uid) # 注意这里
+            # 2. 为这些用户补充群名片信息
+            # 我们将构建一个新的字典 all_info_for_prompt，其键为 person_name (用户名)
+            # 值为 {"user_id": "uid", "group_card_name": "群名片", "nicknames": [...]}
+            all_info_for_prompt: Dict[str, Dict[str, Any]] = {}
+
+            if users_learned_nicknames_data:
+                for person_name, learned_data in users_learned_nicknames_data.items():
+                    user_id_str = learned_data.get("user_id")
+                    if not user_id_str: # 跳过没有user_id的情况
+                        continue
+
+                    try:
+                        # 尝试从原始消息列表中查找该用户的最新群名片，这通常比person_info更实时
+                        # message_list_before_now 是按时间升序的，所以反向查找
+                        user_cardname = ""
+                        for msg_info in reversed(message_list_before_now):
+                            msg_user_info = msg_info.get("user_info", {})
+                            if str(msg_user_info.get("user_id")) == user_id_str:
+                                if msg_user_info.get("user_cardname"):
+                                    user_cardname = msg_user_info.get("user_cardname")
+                                    break # 找到最新的就用
+                        
+                                             
+                    except Exception as e_card:
+                        logger.warning(f"{log_prefix} 获取用户 {user_id_str} 的群名片时出错: {e_card}")
+                        user_cardname = "" # 获取失败则为空
+
+                    all_info_for_prompt[person_name] = {
+                        "user_id": user_id_str,
+                        "group_card_name": user_cardname,
+                        "nicknames": learned_data.get("nicknames", [])
+                    }
+            else: # 如果 relationship_manager 没有返回任何用户数据
+                 # 但我们仍然有 user_ids_in_context, 尝试为他们获取群名片并构建基础结构
+                for uid_str in user_ids_in_context:
+                    user_cardname = ""
+                    person_name_from_pi = "" # 需要一个用户名作为主键
+                    try:
+                        # 尝试从历史消息获取群名片
+                        for msg_info in reversed(message_list_before_now):
+                            msg_user_info = msg_info.get("user_info", {})
+                            if str(msg_user_info.get("user_id")) == uid_str:
+                                if msg_user_info.get("user_cardname"):
+                                    user_cardname = msg_user_info.get("user_cardname")
+                                # 同时尝试获取一个用户名（例如QQ昵称或person_name）
+                                person_name_from_pi = msg_user_info.get("user_nickname","") #  fallback to QQ nickname
+                                # 如果有person_name，优先用 person_name
+                                temp_person_id = person_info_manager.get_person_id(platform, int(uid_str))
+                                llm_name = await person_info_manager.get_value(temp_person_id, "person_name")
+                                if llm_name:
+                                    person_name_from_pi = llm_name
+                                break
+                        
+                        if not person_name_from_pi: # 如果上面没获取到，给个默认
+                            person_name_from_pi = f"用户{uid_str}"
+
+                        if person_name_from_pi not in all_info_for_prompt: # 避免重复添加
+                            all_info_for_prompt[person_name_from_pi] = {
+                                "user_id": uid_str,
+                                "group_card_name": user_cardname,
+                                "nicknames": [] # 没有已学习的绰号
+                            }
+                    except Exception as e_fallback:
+                        logger.warning(f"{log_prefix} 在回退逻辑中为用户 {uid_str} 获取信息时出错: {e_fallback}")
+
+
+            if all_info_for_prompt:
+                # 将整合了群名片的数据传递给 select_nicknames_for_prompt
+                selected_nicknames_with_info = select_nicknames_for_prompt(all_info_for_prompt)
+                injection_str = format_nickname_prompt_injection(selected_nicknames_with_info)
                 if injection_str:
-                    logger.debug(f"{log_prefix} 生成的绰号 Prompt 注入:\n{injection_str}")
+                    logger.debug(f"{log_prefix} 生成的绰号 Prompt 注入 (含群名称):\n{injection_str}")
                 return injection_str
             else:
                 return ""
