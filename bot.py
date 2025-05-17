@@ -14,9 +14,11 @@ from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
 from rich.traceback import install
 from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.PFC.PFC_idle.idle_chat import IdleChat
+from src.chat.message_receive.chat_stream import chat_manager
 import atexit
 from src.config.config import global_config
-from src.manager.async_task_manager import async_task_manager
+from src.manager.async_task_manager import async_task_manager, AsyncTask
 
 install(extra_lines=3)
 
@@ -59,7 +61,7 @@ def easter_egg():
     from colorama import init, Fore
 
     init()
-    text = "多年以后，面对AI行刑队，张三将会回想起他2023年在会议上讨论人工智能的那个下午"
+    text = "你又一次唤醒了这个女孩，但之后，你们将何去何从呢？"
     rainbow_colors = [Fore.RED, Fore.YELLOW, Fore.GREEN, Fore.CYAN, Fore.BLUE, Fore.MAGENTA]
     rainbow_text = ""
     for i, char in enumerate(text):
@@ -230,9 +232,35 @@ def raw_main():
     # 注册 NicknameManager 的停止方法到 atexit，确保程序退出时线程能被清理
     atexit.register(nickname_manager.stop_processor)  # 注册实例的方法
     logger.info("已注册绰号处理管理器的退出处理程序。")
-
+    
+    # 初始化和启动IdleChat系统，遍历所有聊天流启动空闲聊天功能
+    class InitIdleChatTask(AsyncTask):
+        """初始化空闲聊天系统的任务"""
+        
+        def __init__(self):
+            super().__init__(task_name="init_idle_chat_system", wait_before_start=10)
+        
+        async def run(self):
+            logger.info("准备初始化空闲聊天系统...")
+            try:
+                # 直接调用IdleChat的initialize_all_streams方法
+                await IdleChat.initialize_all_streams()
+                logger.info("空闲聊天系统初始化完成")
+            except Exception as e:
+                logger.error(f"初始化空闲聊天系统时发生错误: {e}")
+                logger.error(traceback.format_exc())
+    
+    # 创建空闲聊天系统初始化任务，但不立即添加到任务管理器
+    # 将其作为MainSystem的属性，在事件循环启动后添加
+    idle_chat_init_task = InitIdleChatTask()
+    logger.info("已创建空闲聊天系统初始化任务")
+    
+    # 创建MainSystem实例并设置IdleChat任务
+    main_system = MainSystem()
+    main_system.idle_chat_init_task = idle_chat_init_task
+    
     # 返回MainSystem实例
-    return MainSystem()
+    return main_system
 
 
 if __name__ == "__main__":
@@ -248,7 +276,14 @@ if __name__ == "__main__":
         try:
             # 执行初始化和任务调度
             loop.run_until_complete(main_system.initialize())
+            
+            # 在事件循环已经启动的情况下添加IdleChat初始化任务
+            if hasattr(main_system, 'idle_chat_init_task'):
+                loop.run_until_complete(async_task_manager.add_task(main_system.idle_chat_init_task))
+                logger.info("已添加空闲聊天系统初始化任务到任务管理器")
+                
             loop.run_until_complete(main_system.schedule_tasks())
+            
         except KeyboardInterrupt:
             # loop.run_until_complete(global_api.stop())
             logger.warning("收到中断信号，正在优雅关闭...")
