@@ -75,6 +75,8 @@ class SubHeartflow:
 
         # 日志前缀 - Moved determination to initialize
         self.log_prefix = str(subheartflow_id)  # Initial default prefix
+        self.last_planner_initiated_exit_time: float = 0.0 # 记录最后一次由Planner发起的退出专注的时间
+        self.is_exiting_focus_by_planner: bool = False # 标志是否由Planner主动发起退出
 
     async def initialize(self):
         """异步初始化方法，创建兴趣流并确定聊天类型"""
@@ -189,6 +191,7 @@ class SubHeartflow:
                 sub_mind=self.sub_mind,
                 observations=self.observations,  # 传递所有观察者
                 on_consecutive_no_reply_callback=self.hfc_no_reply_callback,  # <-- Use stored callback
+                subflow_instance=self
             )
 
             # 初始化并启动 HeartFChatting

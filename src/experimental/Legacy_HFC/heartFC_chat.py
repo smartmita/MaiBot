@@ -6,9 +6,12 @@ import time
 import re
 import traceback
 from collections import deque
-from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine
+from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine, TYPE_CHECKING
 
 from rich.traceback import install
+# from .heart_flow.sub_heartflow import SubHeartflow
+if TYPE_CHECKING:
+    from .heart_flow.sub_heartflow import SubHeartflow
 
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
@@ -190,6 +193,7 @@ class HeartFChatting:
         sub_mind: SubMind,
         observations: list[Observation],
         on_consecutive_no_reply_callback: Callable[[], Coroutine[None, None, None]],
+        subflow_instance: "SubHeartflow"
     ):
         """
         HeartFChatting 初始化函数
@@ -206,6 +210,7 @@ class HeartFChatting:
         self.sub_mind: SubMind = sub_mind  # 关联的子思维
         self.observations: List[Observation] = observations  # 关联的观察列表，用于监控聊天流状态
         self.on_consecutive_no_reply_callback = on_consecutive_no_reply_callback
+        self.subflow_instance: "SubHeartflow" = subflow_instance
 
         # 日志前缀
         self.log_prefix: str = str(chat_id)  # Initial default, will be updated
@@ -577,7 +582,12 @@ class HeartFChatting:
                 # 调用表情回复处理，它只返回 bool
                 success = await handler(reasoning, emoji_query)
                 return success, ""  # thinking_id 为空字符串
-            elif action == "exit_focus_mode": # <-- 新增分支
+            elif action == "exit_focus_mode": 
+                if self._current_cycle and self._current_cycle.action_type == "exit_focus_mode":
+                    # 这个检查是在 _handle_action 内部，所以是可靠的
+                    # 我们需要在 SubHeartflowManager._handle_hfc_no_reply 里利用这个信息
+                    # 暂时先这样做：
+                    pass # 标记会在SubHeartflowManager中处理
                 # _handle_exit_focus_mode 只需要 reasoning 和 cycle_timers
                 success, thinking_id = await handler(reasoning, cycle_timers) # thinking_id 会是空字符串
                 return success, thinking_id
