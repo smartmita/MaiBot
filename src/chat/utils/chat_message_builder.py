@@ -185,8 +185,8 @@ async def _build_readable_messages_internal(
         platform = user_info.get("platform")
         user_id = user_info.get("user_id")
 
-        user_nickname = user_info.get("user_nickname")
-        user_cardname = user_info.get("user_cardname")
+        user_nickname = user_info.get("user_nickname") # QQ昵称
+        user_cardname = user_info.get("user_cardname") # 群名称
 
         timestamp = msg.get("time")
         original_content_for_processing = msg.get("processed_plain_text", "")  # 默认空字符串
@@ -216,13 +216,9 @@ async def _build_readable_messages_internal(
             elif name_display_mode == 2: # 模式2: 优先显示群名称
                 if user_cardname: # 直接使用群名片
                     person_name_to_display = user_cardname
-                else: # 如果没有群名片，则回退
-                    llm_name = await person_info_manager.get_value(person_id, "person_name")
-                    if llm_name:
-                        person_name_to_display = llm_name
-                    elif user_nickname:
-                        person_name_to_display = user_nickname
-                    # else 保持 "某人"
+                elif user_nickname: # 否则，使用当前消息发送者的QQ昵称
+                    person_name_to_display = user_nickname
+        
 
             # elif name_display_mode == 3: 等未来的模式
 
@@ -489,6 +485,7 @@ async def build_readable_messages(
             replace_bot_name,
             merge_messages,
             timestamp_mode,
+            truncate=truncate,
         )
 
         readable_read_mark = translate_timestamp_to_human_readable(read_mark, mode=timestamp_mode)
