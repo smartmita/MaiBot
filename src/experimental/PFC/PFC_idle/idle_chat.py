@@ -186,13 +186,29 @@ class IdleChat:
                     # 获取关系数据
                     try:
                         platform = "qq"  # 假设用户来自QQ平台
-                        rel_value, rel_level_num, rel_level_name = await relationship_manager.get_relationship_data(platform, instance.private_name)
-                        logger.debug(f"实例 {instance.private_name} 的关系数据: 值={rel_value:.2f}, 等级={rel_level_name}")
+                        # 获取关系值
+                        person_id = person_info_manager.get_person_id(platform, instance.private_name)
+                        rel_value = await person_info_manager.get_value(person_id, "relationship_value")
+                        # 确保关系值是浮点数
+                        if isinstance(rel_value, Decimal128):
+                            rel_value = float(rel_value.to_decimal())
+                        elif rel_value is None:
+                            rel_value = 0.0
+                        else:
+                            rel_value = float(rel_value)
+                        
+                        # 计算关系等级
+                        rel_level_num = relationship_manager.calculate_level_num(rel_value)
+                        relationship_level = ["厌恶", "冷漠", "一般", "友好", "喜欢", "依赖"]
+                        rel_level_name = relationship_level[rel_level_num]
+                        
+                        logger.info(f"[私聊][{instance.private_name}]关系值: {rel_value:.2f}, 关系等级: {rel_level_name}")
+                        relationship_description = rel_level_name
                     except Exception as e:
-                        logger.warning(f"获取实例 {instance.private_name} 的关系数据失败: {str(e)}")
-                        # 使用默认值
-                        rel_level_num = 2
-                        rel_value = 0.0
+                        logger.error(f"[私聊][{instance.private_name}]获取关系数据失败: {str(e)}")
+                        logger.error(traceback.format_exc())
+                        # 使用默认关系描述
+                        relationship_description = "普通"
                     
                     # 记录实例信息
                     instances_with_rel.append({
@@ -517,7 +533,22 @@ class IdleChat:
             # 获取关系数据
             try:
                 platform = "qq"  # 假设用户来自QQ平台
-                rel_value, rel_level_num, rel_level_name = await relationship_manager.get_relationship_data(platform, self.private_name)
+                # 获取关系值
+                person_id = person_info_manager.get_person_id(platform, self.private_name)
+                rel_value = await person_info_manager.get_value(person_id, "relationship_value")
+                # 确保关系值是浮点数
+                if isinstance(rel_value, Decimal128):
+                    rel_value = float(rel_value.to_decimal())
+                elif rel_value is None:
+                    rel_value = 0.0
+                else:
+                    rel_value = float(rel_value)
+                
+                # 计算关系等级
+                rel_level_num = relationship_manager.calculate_level_num(rel_value)
+                relationship_level = ["厌恶", "冷漠", "一般", "友好", "喜欢", "依赖"]
+                rel_level_name = relationship_level[rel_level_num]
+                
                 logger.info(f"[私聊][{self.private_name}]关系值: {rel_value:.2f}, 关系等级: {rel_level_name}")
                 relationship_description = rel_level_name
             except Exception as e:
