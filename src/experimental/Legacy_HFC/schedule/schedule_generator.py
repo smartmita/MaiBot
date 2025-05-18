@@ -482,7 +482,7 @@ class ScheduleGenerator:
                         if not piece_content.strip(): # 跳过内容为空的片段
                             continue
 
-                        knowledge_relevance_threshold = global_config.schedule.get("knowledge_relevance_threshold", 0.35) # 从配置读取，提供默认值
+                        knowledge_relevance_threshold = global_config.schedule.knowledge_relevance_threshold
                         
                         if piece_relevance >= knowledge_relevance_threshold:
                             # 2. 对每个独立知识片段的文本内容进行规范化
@@ -532,7 +532,7 @@ class ScheduleGenerator:
             # 按相关性排序所有收集到的独立知识片段
             final_knowledge_items_list.sort(key=lambda x: x["relevance"], reverse=True)
             
-            MAX_ITEMS_FOR_PROMPT = global_config.schedule.get("max_knowledge_items_for_schedule_prompt", 5)
+            MAX_ITEMS_FOR_PROMPT = global_config.schedule.max_knowledge_items_for_schedule_prompt
             logger.info(f"总共收集到 {len(final_knowledge_items_list)} 条去重后的独立知识，将选取最多 {MAX_ITEMS_FOR_PROMPT} 条。")
 
             all_retrieved_texts.append("--- 相关知识库信息 ---")

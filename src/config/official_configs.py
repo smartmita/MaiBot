@@ -395,6 +395,9 @@ class ScheduleConfig(ConfigBase):
     knowledge_relevance_threshold: float = 0.38
     """日程生成时，从知识库检索内容的相关性阈值"""
 
+    max_knowledge_items_for_schedule_prompt: int = 5
+    """日程优化Prompt中知识条目的最大数量"""
+
 
 @dataclass
 class GroupNicknameConfig(ConfigBase):
