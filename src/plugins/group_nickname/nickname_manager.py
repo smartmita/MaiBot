@@ -4,7 +4,7 @@ import random
 import time
 import json
 import re
-from typing import Dict, Optional, List, Any
+from typing import Dict, Optional, List, Any, Tuple
 from pymongo.errors import OperationFailure, DuplicateKeyError
 from src.common.logger_manager import get_logger
 from src.common.database import db
@@ -90,111 +90,207 @@ class NicknameManager:
                     cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self):
+    def __init__(self): # 标准单例实现
         """
         初始化 NicknameManager。
         使用锁和标志确保实际初始化只执行一次。
         """
         if hasattr(self, "_initialized") and self._initialized:
             return
-
         with self._lock:
             if hasattr(self, "_initialized") and self._initialized:
                 return
+            self._initialize_components() # 将实际初始化逻辑放入一个单独的方法
 
-            logger.info("正在初始化 NicknameManager 组件...")
-            self.is_enabled = global_config.group_nickname.enable_nickname_mapping
+    def _initialize_components(self): # 实际的初始化逻辑
+        logger.info("正在初始化 NicknameManager 组件...")
+        self.is_enabled = global_config.group_nickname.enable_nickname_mapping
 
-            # 数据库处理器
-            person_info_collection = getattr(db, "person_info", None)
-            self.db_handler = NicknameDB(person_info_collection)
-            if not self.db_handler.is_available():
-                logger.error("数据库处理器初始化失败，NicknameManager 功能受限。")
+        person_info_collection = getattr(db, "person_info", None)
+        self.db_handler = NicknameDB(person_info_collection)
+        if not self.db_handler.is_available():
+            logger.error("数据库处理器初始化失败，NicknameManager 功能受限。")
+            self.is_enabled = False
+
+        self.llm_mapper: Optional[LLMRequest] = None
+        if self.is_enabled:
+            try:
+                model_config = global_config.model.nickname_mapping
+                if model_config and model_config.get("name"):
+                    self.llm_mapper = LLMRequest(
+                        model=model_config,
+                        temperature=model_config.get("temp", 0.5),
+                        max_tokens=model_config.get("max_tokens", 256),
+                        request_type="nickname_mapping",
+                    )
+                    logger.info("绰号映射 LLM 映射器初始化成功。")
+                else:
+                    logger.warning("绰号映射 LLM 配置无效或缺失 'name'，功能禁用。")
+                    self.is_enabled = False
+            except KeyError as ke:
+                logger.error(f"初始化绰号映射 LLM 时缺少配置项: {ke}，功能禁用。", exc_info=True)
+                self.llm_mapper = None
+                self.is_enabled = False
+            except Exception as e:
+                logger.error(f"初始化绰号映射 LLM 映射器失败: {e}，功能禁用。", exc_info=True)
+                self.llm_mapper = None
                 self.is_enabled = False
 
-            # LLM 映射器
-            self.llm_mapper: Optional[LLMRequest] = None
-            if self.is_enabled:
-                try:
-                    model_config = global_config.model.nickname_mapping
-                    if model_config and model_config.get("name"):
-                        self.llm_mapper = LLMRequest(
-                            model=model_config,
-                            temperature=model_config.get("temp", 0.5),
-                            max_tokens=model_config.get("max_tokens", 256),
-                            request_type="nickname_mapping",
-                        )
-                        logger.info("绰号映射 LLM 映射器初始化成功。")
-                    else:
-                        logger.warning("绰号映射 LLM 配置无效或缺失 'name'，功能禁用。")
-                        self.is_enabled = False
-                except KeyError as ke:
-                    logger.error(f"初始化绰号映射 LLM 时缺少配置项: {ke}，功能禁用。", exc_info=True)
-                    self.llm_mapper = None
-                    self.is_enabled = False
-                except Exception as e:
-                    logger.error(f"初始化绰号映射 LLM 映射器失败: {e}，功能禁用。", exc_info=True)
-                    self.llm_mapper = None
-                    self.is_enabled = False
+        self.queue_max_size = global_config.group_nickname.nickname_queue_max_size
+        self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
+        self._stop_event = threading.Event()
+        self._nickname_thread: Optional[threading.Thread] = None
+        self.sleep_interval = global_config.group_nickname.nickname_process_sleep_interval
+        self._initialized = True
+        logger.info("NicknameManager 初始化完成。")
 
-            # 队列和线程
-            self.queue_max_size = global_config.group_nickname.nickname_queue_max_size
-            # 使用 asyncio.Queue
-            self.nickname_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size)
-            self._stop_event = threading.Event()  # stop_event 仍然使用 threading.Event，因为它是由另一个线程设置的
-            self._nickname_thread: Optional[threading.Thread] = None
-            self.sleep_interval = global_config.group_nickname.nickname_process_sleep_interval  # 超时时间
+    async def _get_user_primary_identifiers(
+        self,
+        uid_str: str,
+        platform: str, # 保留，以备将来使用
+        message_list_before_now: List[Dict],
+    ) -> Tuple[str, str]:
+        """
+        辅助方法：为给定的 UID 获取其主要的“显示名”和“群名片”。
+        严格按照 “QQ网名 > 群名片（如果QQ网名获取不到，则群名片作为显示名）> QQ号” 的优先级确定显示名。
+        LLM名（person_name）不在此处使用。
 
-            self._initialized = True
-            logger.info("NicknameManager 初始化完成。")
+        返回: (main_display_name, group_card_name_for_info)
+        """
+        main_display_name = f"用户{uid_str}" # 最终备用，如果其他都获取不到
+        actual_group_card_name = "" # 存储从历史记录中实际获取的群名片
+        latest_qq_nickname_from_history = ""
 
-    def start_processor(self):
-        """启动后台处理线程（如果已启用且未运行）。"""
-        if not self.is_enabled:
-            logger.info("绰号处理功能已禁用，处理器未启动。")
-            return
-        if global_config.group_nickname.max_nicknames_in_prompt == 0:  # 考虑有神秘的用户输入为0的可能性
-            logger.error("[错误] 绰号注入数量不合适，绰号处理功能已禁用！")
-            return
+        # 从 message_list_before_now 获取最新的群名片和QQ昵称
+        for msg_info in reversed(message_list_before_now): # 从最新消息开始找
+            msg_user_info = msg_info.get("user_info", {})
+            if str(msg_user_info.get("user_id")) == uid_str:
+                # 只要找到该用户的任何一条消息，就尝试获取这两个信息
+                if msg_user_info.get("user_nickname"): 
+                    latest_qq_nickname_from_history = msg_user_info.get("user_nickname")
+                if msg_user_info.get("user_cardname"): 
+                    actual_group_card_name = msg_user_info.get("user_cardname")
+            
+                # 找到了该用户的最新一条相关消息，信息已提取完毕，可以跳出循环
+                logger.debug(f"[PIDGetter] For UID '{uid_str}': Found in history - QQNickname='{latest_qq_nickname_from_history}', CardName='{actual_group_card_name}'")
+                break 
+    
+        # 确定 main_display_name (您期望的“用户名”，即聊天记录中看到的，优先QQ网名)
+        if latest_qq_nickname_from_history:
+            main_display_name = latest_qq_nickname_from_history
+            logger.debug(f"[PIDGetter] For UID '{uid_str}': Using QQNickname '{main_display_name}' as main_display_name.")
+        elif actual_group_card_name: # 如果QQ网名没取到，但有群名片，则群名片作为主显示名
+            main_display_name = actual_group_card_name
+            logger.debug(f"[PIDGetter] For UID '{uid_str}': QQNickname empty, using CardName '{main_display_name}' as main_display_name.")
+        else: # 如果两者都获取不到，则main_display_name 维持 f"用户{uid_str}"
+            logger.debug(f"[PIDGetter] For UID '{uid_str}': Both QQNickname and CardName empty, main_display_name defaults to '{main_display_name}'.")
 
-        if self._nickname_thread is None or not self._nickname_thread.is_alive():
-            logger.info("正在启动绰号处理器线程...")
-            self._stop_event.clear()
-            self._nickname_thread = threading.Thread(
-                target=self._run_processor_in_thread,  # 线程目标函数不变
-                daemon=True,
+        # group_card_name_for_info 就是我们从历史记录中获取的 actual_group_card_name
+        # 如果用户在群内没有设置群名片，QQ的行为通常是显示其QQ网名。
+        # 在这种情况下，actual_group_card_name 可能是空的，或者等于 latest_qq_nickname_from_history。
+        # 我们需要确保即使 actual_group_card_name 为空，如果 main_display_name 是QQ昵称，那么“群名片”应该显示这个QQ昵称。
+        # 或者如果您的意思是，如果群里没设置，就显示QQ昵称，那 actual_group_card_name 字段就应该反映这一点。
+    
+        # 修正：如果实际群名片为空，并且QQ昵称存在，则群名片信息应该显示QQ昵称（模拟QQ行为）
+        # 但这与“ta在这个群的群名称为”的语义有点冲突，如果群名片真的没设置，应该就是空。
+        # 我们先保持 group_card_name_for_info 就是 actual_group_card_name 的原始值。
+        # 如果您希望在 actual_group_card_name 为空时，让"群名称"部分显示QQ昵称，那需要在这里调整。
+        # 暂时，我们让它真实反映获取到的群名片。
+        group_card_name_for_info = actual_group_card_name
+
+        logger.debug(f"[PIDGetter] Final for UID '{uid_str}': main_display_name='{main_display_name}', group_card_name_for_info='{group_card_name_for_info}'")
+        return main_display_name, group_card_name_for_info
+
+
+    async def get_nickname_prompt_injection(self, chat_stream: ChatStream, message_list_before_now: List[Dict]) -> str:
+        if not self.is_enabled or not chat_stream or not chat_stream.group_info:
+            return ""
+
+        log_prefix = f"[{chat_stream.stream_id if chat_stream else 'UnknownStream'}:{chat_stream.group_info.group_id if chat_stream and chat_stream.group_info else 'UnknownGroup'}]"
+        logger.debug(f"{log_prefix} Attempting to get nickname prompt injection (Strict Name Logic).")
+
+        try:
+            group_id_str = str(chat_stream.group_info.group_id)
+            platform = chat_stream.platform
+            
+            current_user_ids_in_context = set()
+            for msg in message_list_before_now: # 从当前上下文消息中获取用户
+                msg_user_info = msg.get("user_info", {})
+                uid_str = str(msg_user_info.get("user_id", ""))
+                if uid_str:
+                    current_user_ids_in_context.add(uid_str)
+            
+            if not current_user_ids_in_context and chat_stream: # 如果消息列表为空，尝试从 ChatStream 获取最近发言者
+                recent_speakers = chat_stream.get_recent_speakers(limit=global_config.group_nickname.max_nicknames_in_prompt)
+                current_user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
+            
+            logger.debug(f"{log_prefix} User IDs in context for injection: {current_user_ids_in_context}")
+            if not current_user_ids_in_context:
+                logger.warning(f"{log_prefix} No user IDs found for nickname injection.")
+                return ""
+
+            # 获取这些用户已学习的绰号
+            # users_with_learned_nicknames_data 的键是 person_name (LLM名)，值包含 user_id 和 nicknames 列表
+            # 我们仍然需要这个数据来获取“已学习的绰号”
+            users_with_learned_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                platform, list(current_user_ids_in_context), group_id_str
             )
-            self._nickname_thread.start()
-            logger.info(f"绰号处理器线程已启动 (ID: {self._nickname_thread.ident})")
-        else:
-            logger.warning("绰号处理器线程已在运行中。")
+            logger.debug(f"{log_prefix} Learned nicknames data from relationship_manager: {users_with_learned_nicknames_data}")
 
-    def stop_processor(self):
-        """停止后台处理线程。"""
-        if self._nickname_thread and self._nickname_thread.is_alive():
-            logger.info("正在停止绰号处理器线程...")
-            self._stop_event.set()  # 设置停止事件，_processing_loop 会检测到
-            try:
-                # 不需要清空 asyncio.Queue，让循环自然结束或被取消
-                # self.empty_queue(self.nickname_queue)
-                self._nickname_thread.join(timeout=10)  # 等待线程结束
-                if self._nickname_thread.is_alive():
-                    logger.warning("绰号处理器线程在超时后仍未停止。")
-            except Exception as e:
-                logger.error(f"停止绰号处理器线程时出错: {e}", exc_info=True)
-            finally:
-                if self._nickname_thread and not self._nickname_thread.is_alive():
-                    logger.info("绰号处理器线程已成功停止。")
-                self._nickname_thread = None
-        else:
-            logger.info("绰号处理器线程未在运行或已被清理。")
+            # all_info_for_prompt 的键现在是 main_display_name (网名/群名片/用户UID)
+            # 值是 {"user_id": "uid_str", "group_card_name": "card", "nicknames": [{"绰号": 次数}, ...]}
+            all_info_for_prompt: Dict[str, Dict[str, Any]] = {}
+            used_main_display_keys = set() # 用于确保主键的唯一性
 
-    # def empty_queue(self, q: asyncio.Queue):
-    #     while not q.empty():
-    #         # Depending on your program, you may want to
-    #         # catch QueueEmpty
-    #         q.get_nowait()
-    #         q.task_done()
+            for uid_str in current_user_ids_in_context:
+                main_display_name, group_card_name_for_info = await self._get_user_primary_identifiers(
+                    uid_str, platform, message_list_before_now
+                )
+                
+                # 处理 main_display_name 键的冲突 (极小概率，但保险)
+                original_main_display_name = main_display_name
+                counter = 1
+                while main_display_name in used_main_display_keys:
+                    main_display_name = f"{original_main_display_name}_{counter}"
+                    counter += 1
+                used_main_display_keys.add(main_display_name)
+
+                if original_main_display_name != main_display_name:
+                     logger.warning(f"{log_prefix} Main display name key conflict for '{original_main_display_name}' (UID: {uid_str}), new key is '{main_display_name}'.")
+
+                # 查找该 uid_str 对应的已学习绰号
+                learned_nicknames_list = []
+                if users_with_learned_nicknames_data:
+                    for _llm_name_key, data_val in users_with_learned_nicknames_data.items():
+                        if data_val.get("user_id") == uid_str:
+                            learned_nicknames_list = data_val.get("nicknames", [])
+                            break 
+                
+                all_info_for_prompt[main_display_name] = {
+                    "user_id": uid_str,
+                    "group_card_name": group_card_name_for_info,
+                    "nicknames": learned_nicknames_list 
+                }
+                logger.debug(f"{log_prefix} Compiled info for display_key '{main_display_name}' (UID: {uid_str}): {all_info_for_prompt[main_display_name]}")
+
+            if all_info_for_prompt:
+                logger.debug(f"{log_prefix} Data being passed to select_nicknames_for_prompt: {all_info_for_prompt}")
+                # select_nicknames_for_prompt 的输入 all_nicknames_info_with_uid 的键现在是 main_display_name
+                # 它返回的元组的第一个元素也将是这个 main_display_name
+                selected_nicknames_with_info = select_nicknames_for_prompt(all_info_for_prompt)
+                injection_str = format_nickname_prompt_injection(selected_nicknames_with_info)
+                if injection_str:
+                    logger.info(f"{log_prefix} Generated nickname prompt injection (Strict Name Logic):\n{injection_str}")
+                else:
+                    logger.debug(f"{log_prefix} No nickname injection string generated (select_nicknames_for_prompt returned empty or all items filtered).")
+                return injection_str
+            else:
+                logger.warning(f"{log_prefix} No information gathered for prompt injection for any user in context.")
+                return ""
+
+        except Exception as e:
+            logger.error(f"{log_prefix} Exception in get_nickname_prompt_injection (Strict Name Logic): {e}", exc_info=True)
+            return ""
 
     async def trigger_nickname_analysis(
         self,
@@ -241,6 +337,46 @@ class NicknameManager:
             # 3. 获取群组和平台信息
             group_id = str(current_chat_stream.group_info.group_id)
             platform = current_chat_stream.platform
+
+            user_name_map_for_llm: Dict[str,str] = {} 
+            temp_user_ids_for_map = set()
+            history_messages = get_raw_msg_before_timestamp_with_chat( # 确保 history_messages 在这里获取
+                chat_id=current_chat_stream.stream_id,
+                timestamp=time.time(),
+                limit=global_config.group_nickname.nickname_analysis_history_limit,
+            )
+            for msg in history_messages: 
+                msg_user_info = msg.get("user_info", {})
+                uid_str = str(msg_user_info.get("user_id", ""))
+                if uid_str:
+                    temp_user_ids_for_map.add(uid_str)
+        
+            for uid_str_for_map in temp_user_ids_for_map:
+                main_display_name_for_map, _ = await self._get_user_primary_identifiers( # 使用新的辅助函数
+                    uid_str_for_map, 
+                    current_chat_stream.platform, # 使用 current_chat_stream 的 platform
+                    history_messages # 传递这段特定的历史给辅助函数
+                )
+                user_name_map_for_llm[uid_str_for_map] = main_display_name_for_map
+        
+            chat_history_str = await build_readable_messages( # chat_history_str 的构建也放在获取 history_messages 之后
+                messages=history_messages,
+                replace_bot_name=True,
+                merge_messages=False,
+                timestamp_mode="relative",
+                read_mark=0.0,
+                truncate=False, 
+            )
+            bot_reply_str = " ".join(bot_reply) if bot_reply else ""
+            group_id = str(current_chat_stream.group_info.group_id)
+            platform = current_chat_stream.platform # 确保 platform 从 current_chat_stream 获取
+
+            item = (chat_history_str, bot_reply_str, platform, group_id, user_name_map_for_llm) # 使用新的 map
+            await self._add_to_queue(item, platform, group_id)
+            logger.debug(f"{log_prefix} Queued item for nickname analysis. User name map for LLM: {user_name_map_for_llm}")
+
+
+            
             # 4. 构建用户 ID 到名称的映射 (user_name_map)
             user_ids_in_history = {
                 str(msg["user_info"]["user_id"]) for msg in history_messages if msg.get("user_info", {}).get("user_id")
@@ -279,75 +415,165 @@ class NicknameManager:
     async def get_nickname_prompt_injection(self, chat_stream: ChatStream, message_list_before_now: List[Dict]) -> str:
         """
         获取并格式化用于 Prompt 注入的绰号信息字符串。
+        (增加了获取和传递群名片的逻辑)
         """
         if not self.is_enabled or not chat_stream or not chat_stream.group_info:
             return ""
 
         log_prefix = f"[{chat_stream.stream_id}]"
         try:
-            group_id = str(chat_stream.group_info.group_id)
+            group_id_str = str(chat_stream.group_info.group_id) # group_id 应该是字符串
             platform = chat_stream.platform
-            user_ids_in_context = {
+            
+            current_user_ids_in_context = { # 重命名以示区分
                 str(msg["user_info"]["user_id"])
                 for msg in message_list_before_now
                 if msg.get("user_info", {}).get("user_id")
             }
+            logger.debug(f"{log_prefix} User IDs in current message_list_before_now: {current_user_ids_in_context}")
 
-            if not user_ids_in_context:
-                recent_speakers = chat_stream.get_recent_speakers(limit=5)
-                user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
+            if not current_user_ids_in_context:
+                # 如果 message_list_before_now 为空或不含用户信息，尝试从 chat_stream 获取最近发言者
+                recent_speakers = chat_stream.get_recent_speakers(limit=global_config.group_nickname.max_nicknames_in_prompt) # 获取更多一些候选
+                current_user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
+                logger.debug(f"{log_prefix} User IDs after checking recent speakers: {current_user_ids_in_context}")
 
-            if not user_ids_in_context:
-                logger.warning(f"{log_prefix} 未找到上下文用户用于绰号注入。")
+            if not current_user_ids_in_context:
+                logger.warning(f"{log_prefix} No user IDs found for nickname injection.")
                 return ""
 
-            all_nicknames_data = await relationship_manager.get_users_group_nicknames(
-                platform, list(user_ids_in_context), group_id
-            )
+            # all_info_for_prompt 的键将是 person_name (LLM名或备用名)
+            # 值是 {"user_id": "uid_str", "group_card_name": "card", "nicknames": [{"绰号": 次数}, ...]}
+            all_info_for_prompt: Dict[str, Dict[str, Any]] = {}
 
-            if all_nicknames_data:
-                selected_nicknames = select_nicknames_for_prompt(all_nicknames_data)
-                injection_str = format_nickname_prompt_injection(selected_nicknames)
+            # 1. 获取已学习的绰号信息 (这可能只包含部分在 current_user_ids_in_context 中的用户)
+            users_with_learned_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                platform, list(current_user_ids_in_context), group_id_str # 查询当前上下文中所有人的绰号
+            )
+            logger.debug(f"{log_prefix} Learned nicknames data from relationship_manager: {users_with_learned_nicknames_data}")
+
+            # 2. 整合信息：优先使用 users_with_learned_nicknames_data，然后为其他在上下文中的用户补充基础信息
+            for uid_str in current_user_ids_in_context:
+                person_name_key = None
+                user_cardname = ""
+                learned_nicknames_list = []
+
+                # 检查此 uid_str 是否在 users_with_learned_nicknames_data 的结果中
+                # (需要遍历，因为 users_with_learned_nicknames_data 的键是 person_name)
+                found_in_learned_data = False
+                if users_with_learned_nicknames_data:
+                    for pn_key, data_val in users_with_learned_nicknames_data.items():
+                        if data_val.get("user_id") == uid_str:
+                            person_name_key = pn_key
+                            learned_nicknames_list = data_val.get("nicknames", [])
+                            found_in_learned_data = True
+                            # 群名片仍然需要从 message_list_before_now 或其他途径获取，因为 relationship_manager 可能不返回
+                            break 
+                
+                # 统一获取群名片和 person_name_key (如果之前没找到)
+                # 优先从当前消息上下文获取最新的群名片和用户名(LLM名 > QQ昵称)
+                temp_person_name_for_key_lookup = None # 用于查找的用户名
+                for msg_info in reversed(message_list_before_now): # message_list_before_now 更可靠
+                    msg_user_info = msg_info.get("user_info", {})
+                    if str(msg_user_info.get("user_id")) == uid_str:
+                        if msg_user_info.get("user_cardname"):
+                            user_cardname = msg_user_info.get("user_cardname")
+                        
+                        # 确定 person_name_key
+                        if not person_name_key: # 如果之前没从 relationship_manager 的结果中获得 person_name
+                            # 尝试从 person_info 获取LLM名
+                            try:
+                                temp_person_id_for_pi = person_info_manager.get_person_id(platform, int(uid_str))
+                                llm_name = await person_info_manager.get_value(temp_person_id_for_pi, "person_name")
+                                if llm_name:
+                                    temp_person_name_for_key_lookup = llm_name
+                            except ValueError: # uid_str 不是数字的情况（理论上QQ号是数字）
+                                logger.warning(f"{log_prefix} User ID '{uid_str}' is not a valid integer for person_info_manager.")
+                            except Exception as e_pi_name:
+                                logger.warning(f"{log_prefix} Error getting person_name for UID '{uid_str}': {e_pi_name}")
+
+                            if not temp_person_name_for_key_lookup and msg_user_info.get("user_nickname"):
+                                temp_person_name_for_key_lookup = msg_user_info.get("user_nickname") # 备用QQ昵称
+                            
+                            if not temp_person_name_for_key_lookup:
+                                temp_person_name_for_key_lookup = f"用户{uid_str}" # 最终备用
+                            
+                            person_name_key = temp_person_name_for_key_lookup
+                        break # 找到该用户的最新消息即可
+
+                if not person_name_key: # 如果遍历完 message_list 还是没有 person_name_key (例如该用户不在近期消息里，但在 recent_speakers 里)
+                    # 再次尝试从 person_info 获取LLM名
+                    try:
+                        temp_person_id_for_pi = person_info_manager.get_person_id(platform, int(uid_str))
+                        llm_name = await person_info_manager.get_value(temp_person_id_for_pi, "person_name")
+                        if llm_name:
+                            person_name_key = llm_name
+                    except Exception: pass # 忽略错误
+                    if not person_name_key:
+                        person_name_key = f"用户{uid_str}" # 最终的最终备用
+
+                # 确保 person_name_key 的唯一性，如果冲突则添加后缀
+                original_person_name_key = person_name_key
+                counter = 1
+                while person_name_key in all_info_for_prompt and all_info_for_prompt[person_name_key].get("user_id") != uid_str : # 确保不是因为同一个用户被多次处理
+                    person_name_key = f"{original_person_name_key}_{counter}"
+                    counter +=1
+                
+                if original_person_name_key != person_name_key:
+                     logger.warning(f"{log_prefix} Person name key conflict for '{original_person_name_key}', new key is '{person_name_key}' for user_id '{uid_str}'.")
+                
+                # 存入或更新 all_info_for_prompt
+                # 如果用户已在 all_info_for_prompt 中（通过不同的 person_name_key 但相同的 uid_str），则不应重复添加
+                # 但我们的循环是基于 uid_str，所以每个 uid_str 只会处理一次
+                all_info_for_prompt[person_name_key] = {
+                    "user_id": uid_str,
+                    "group_card_name": user_cardname, # 这是新获取或已有的
+                    "nicknames": learned_nicknames_list  # 来自 relationship_manager 或为空列表
+                }
+                logger.debug(f"{log_prefix} Compiled info for person_name_key '{person_name_key}' (UID: {uid_str}): card='{user_cardname}', learned_nicknames_count={len(learned_nicknames_list)}")
+
+
+            if all_info_for_prompt:
+                logger.debug(f"{log_prefix} Data being passed to select_nicknames_for_prompt: {all_info_for_prompt}")
+                selected_nicknames_with_info = select_nicknames_for_prompt(all_info_for_prompt) # select_nicknames_for_prompt 需要能处理 nicknames 为空的情况
+                injection_str = format_nickname_prompt_injection(selected_nicknames_with_info)
                 if injection_str:
-                    logger.debug(f"{log_prefix} 生成的绰号 Prompt 注入:\n{injection_str}")
+                    logger.info(f"{log_prefix} Generated nickname prompt injection (with group names):\n{injection_str}")
+                else:
+                    logger.debug(f"{log_prefix} No nickname injection string generated.")
                 return injection_str
             else:
+                logger.warning(f"{log_prefix} No information gathered for prompt injection for any user in context.")
                 return ""
 
         except Exception as e:
-            logger.error(f"{log_prefix} 获取绰号注入时出错: {e}", exc_info=True)
+            logger.error(f"{log_prefix} Exception in get_nickname_prompt_injection: {e}", exc_info=True)
             return ""
 
     # 私有/内部方法
 
-    async def _add_to_queue(self, item: tuple, platform: str, group_id: str):
-        """将项目异步添加到内部处理队列 (asyncio.Queue)。"""
+    async def _add_to_queue(self, item: tuple, platform: str, group_id: str): # 保持不变
         try:
-            # 使用 await put()，如果队列满则异步等待
             await self.nickname_queue.put(item)
             logger.debug(
                 f"已将项目添加到平台 '{platform}' 群组 '{group_id}' 的绰号队列。当前大小: {self.nickname_queue.qsize()}"
             )
         except asyncio.QueueFull:
-            # 理论上 await put() 不会直接抛 QueueFull，除非 maxsize=0
-            # 但保留以防万一或未来修改
             logger.warning(
                 f"绰号队列已满 (最大={self.queue_max_size})。平台 '{platform}' 群组 '{group_id}' 的项目被丢弃。"
             )
         except Exception as e:
             logger.error(f"将项目添加到绰号队列时出错: {e}", exc_info=True)
 
-    async def _analyze_and_update_nicknames(self, item: tuple):
-        """处理单个队列项目：调用 LLM 分析并更新数据库。"""
+    async def _analyze_and_update_nicknames(self, item: tuple): # 保持不变
         if not isinstance(item, tuple) or len(item) != 5:
             logger.warning(f"从队列接收到无效项目: {type(item)}")
             return
 
         chat_history_str, bot_reply, platform, group_id, user_name_map = item
-        # 使用 asyncio.get_running_loop().call_soon(threading.get_ident) 可能不准确，线程ID是同步概念
-        # 可以考虑移除线程ID日志或寻找异步安全的获取标识符的方式
-        log_prefix = f"[{platform}:{group_id}]"  # 简化日志前缀
-        logger.debug(f"{log_prefix} 开始处理绰号分析任务...")
+        log_prefix = f"[{platform}:{group_id}]"
+        logger.debug(f"{log_prefix} 开始处理绰号分析任务 (user_name_map: {user_name_map})...")
+
 
         if not self.llm_mapper:
             logger.error(f"{log_prefix} LLM 映射器不可用，无法执行分析。")
@@ -356,191 +582,173 @@ class NicknameManager:
             logger.error(f"{log_prefix} 数据库处理器不可用，无法更新计数。")
             return
 
-        # 1. 调用 LLM 分析 (内部逻辑不变)
         analysis_result = await self._call_llm_for_analysis(chat_history_str, bot_reply, user_name_map)
 
-        # 2. 如果分析成功且找到映射，则更新数据库 (内部逻辑不变)
         if analysis_result.get("is_exist") and analysis_result.get("data"):
-            nickname_map_to_update = analysis_result["data"]
+            nickname_map_to_update = analysis_result["data"] # 预期是 { "uid_str": "nickname", ... }
             logger.info(f"{log_prefix} LLM 找到绰号映射，准备更新数据库: {nickname_map_to_update}")
 
-            for user_id_str, nickname in nickname_map_to_update.items():
-                if not user_id_str or not nickname:
-                    logger.warning(f"{log_prefix} 跳过无效条目: user_id='{user_id_str}', nickname='{nickname}'")
+            for user_id_str_from_llm, nickname in nickname_map_to_update.items():
+                if not user_id_str_from_llm or not nickname: # nickname 也不能为空
+                    logger.warning(f"{log_prefix} 跳过无效条目: user_id='{user_id_str_from_llm}', nickname='{nickname}'")
                     continue
-                if not user_id_str.isdigit():
-                    logger.warning(f"{log_prefix} 无效的用户ID格式 (非纯数字): '{user_id_str}'，跳过。")
-                    continue
-                user_id_int = int(user_id_str)
-
+                
+                person_id = None
                 try:
-                    person_id = person_info_manager.get_person_id(platform, user_id_str)
-                    if not person_id:
-                        logger.error(
-                            f"{log_prefix} 无法为 platform='{platform}', user_id='{user_id_str}' 生成 person_id，跳过此用户。"
-                        )
-                        continue
-                    self.db_handler.upsert_person(person_id, user_id_int, platform)
+                    # 假设 LLM 返回的 key (user_id_str_from_llm) 确实是数字UID字符串
+                    person_id = person_info_manager.get_person_id(platform, int(user_id_str_from_llm))
+                except ValueError:
+                     logger.error(f"{log_prefix} 无法将LLM返回的键 '{user_id_str_from_llm}' 转换为整数以获取person_id。")
+                     continue 
+                except Exception as e_get_pid:
+                    logger.error(f"{log_prefix} 获取 person_id 失败 for key '{user_id_str_from_llm}': {e_get_pid}")
+                    continue
+
+                if not person_id:
+                    logger.error(f"{log_prefix} 无法为 platform='{platform}', key='{user_id_str_from_llm}' 生成 person_id，跳过此用户。")
+                    continue
+                try:
+                    # 存储时使用 int(user_id_str_from_llm) 作为原始用户ID
+                    self.db_handler.upsert_person(person_id, int(user_id_str_from_llm), platform)
                     self.db_handler.update_group_nickname_count(person_id, group_id, nickname)
+                    logger.info(f"{log_prefix} Updated nickname count for person_id='{person_id}', group='{group_id}', nickname='{nickname}'")
                 except (OperationFailure, DuplicateKeyError) as db_err:
-                    logger.exception(
-                        f"{log_prefix} 数据库操作失败 ({type(db_err).__name__}): 用户 {user_id_str}, 绰号 {nickname}. 错误: {db_err}"
-                    )
+                    logger.exception(f"{log_prefix} 数据库操作失败: 用户key {user_id_str_from_llm}, 绰号 {nickname}. Error: {db_err}")
                 except Exception as e:
-                    logger.exception(f"{log_prefix} 处理用户 {user_id_str} 的绰号 '{nickname}' 时发生意外错误：{e}")
+                    logger.exception(f"{log_prefix} 处理用户key {user_id_str_from_llm} 的绰号 '{nickname}' 时发生意外错误：{e}")
         else:
             logger.debug(f"{log_prefix} LLM 未找到可靠的绰号映射或分析失败。")
-
-    async def _call_llm_for_analysis(
+            
+    async def _call_llm_for_analysis( # 基本保持不变
         self,
         chat_history_str: str,
         bot_reply: str,
-        user_name_map: Dict[str, str],
+        user_name_map: Dict[str, str], 
     ) -> Dict[str, Any]:
-        """
-        内部方法：调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射。
-        """
         if not self.llm_mapper:
             logger.error("LLM 映射器未初始化，无法执行分析。")
             return {"is_exist": False}
 
-        prompt = _build_mapping_prompt(chat_history_str, bot_reply, user_name_map)
-        logger.debug(f"构建的绰号映射 Prompt:\n{prompt}...")
-
+        prompt = _build_mapping_prompt(chat_history_str, bot_reply, user_name_map) # user_name_map 是 uid -> display_name
+        logger.debug(f"构建的绰号映射 Prompt (传递给LLM的user_name_map: {user_name_map}):\n{prompt[:500]}...")
         try:
             response_content, _, _ = await self.llm_mapper.generate_response(prompt)
             logger.debug(f"LLM 原始响应 (绰号映射): {response_content}")
-
-            if not response_content:
-                logger.warning("LLM 返回了空的绰号映射内容。")
-                return {"is_exist": False}
-
+            if not response_content: return {"is_exist": False}
             response_content = response_content.strip()
-            markdown_code_regex = re.compile(r"^```(?:\w+)?\s*\n(.*?)\n\s*```$", re.DOTALL | re.IGNORECASE)
-            match = markdown_code_regex.match(response_content)
-            if match:
-                response_content = match.group(1).strip()
-            elif response_content.startswith("{") and response_content.endswith("}"):
-                pass  # 可能是纯 JSON
-            else:
+            match = re.match(r"^```(?:\w+)?\s*\n(.*?)\n\s*```$", response_content, re.DOTALL | re.IGNORECASE)
+            if match: response_content = match.group(1).strip()
+            elif not (response_content.startswith("{") and response_content.endswith("}")):
                 json_match = re.search(r"\{.*\}", response_content, re.DOTALL)
-                if json_match:
-                    response_content = json_match.group(0)
-                else:
-                    logger.warning(f"LLM 响应似乎不包含有效的 JSON 对象。响应: {response_content}")
-                    return {"is_exist": False}
-
+                if json_match: response_content = json_match.group(0)
+                else: return {"is_exist": False}
+            if not response_content: return {"is_exist": False}
             result = json.loads(response_content)
-
-            if not isinstance(result, dict):
-                logger.warning(f"LLM 响应不是一个有效的 JSON 对象 (字典类型)。响应内容: {response_content}")
-                return {"is_exist": False}
-
+            if not isinstance(result, dict): return {"is_exist": False}
             is_exist = result.get("is_exist")
-
             if is_exist is True:
                 original_data = result.get("data")
                 if isinstance(original_data, dict) and original_data:
-                    logger.info(f"LLM 找到的原始绰号映射: {original_data}")
-                    filtered_data = self._filter_llm_results(original_data, user_name_map)
-                    if not filtered_data:
-                        logger.info("所有找到的绰号映射都被过滤掉了。")
-                        return {"is_exist": False}
-                    else:
-                        logger.info(f"过滤后的绰号映射: {filtered_data}")
-                        return {"is_exist": True, "data": filtered_data}
-                else:
-                    logger.warning(f"LLM 响应格式错误: is_exist=True 但 data 无效。原始 data: {original_data}")
-                    return {"is_exist": False}
-            elif is_exist is False:
-                logger.info("LLM 明确指示未找到可靠的绰号映射 (is_exist=False)。")
+                    filtered_data = self._filter_llm_results(original_data, user_name_map) # user_name_map is uid -> display_name
+                    if not filtered_data: return {"is_exist": False}
+                    return {"is_exist": True, "data": filtered_data} # data is { "uid_str": "nickname" }
                 return {"is_exist": False}
-            else:
-                logger.warning(f"LLM 响应格式错误: 'is_exist' 的值 '{is_exist}' 无效。")
-                return {"is_exist": False}
-
-        except json.JSONDecodeError as json_err:
-            logger.error(f"解析 LLM 响应 JSON 失败: {json_err}\n原始响应: {response_content}")
+            elif is_exist is False: return {"is_exist": False}
             return {"is_exist": False}
-        except Exception as e:
-            logger.error(f"绰号映射 LLM 调用或处理过程中发生意外错误: {e}", exc_info=True)
-            return {"is_exist": False}
+        except json.JSONDecodeError as json_err: logger.error(f"解析LLM JSON失败: {json_err}\n原始: {response_content[:200]}"); return {"is_exist": False}
+        except Exception as e: logger.error(f"LLM调用或处理错: {e}", exc_info=True); return {"is_exist": False}
 
-    def _filter_llm_results(self, original_data: Dict[str, str], user_name_map: Dict[str, str]) -> Dict[str, str]:
-        """过滤 LLM 返回的绰号映射结果。"""
+
+    def _filter_llm_results(self, original_data: Dict[str, str], user_name_map_for_context: Dict[str, str]) -> Dict[str, str]: # user_name_map_for_context is uid -> display_name
         filtered_data = {}
         bot_qq_str = global_config.bot.qq_account if global_config.bot.qq_account else None
 
-        for user_id, nickname in original_data.items():
-            if not isinstance(user_id, str):
-                logger.warning(f"过滤掉非字符串 user_id: {user_id}")
+        for uid_key_from_llm, nickname_from_llm in original_data.items(): # uid_key_from_llm 应该是UID字符串
+            if not isinstance(uid_key_from_llm, str):
+                logger.warning(f"过滤掉LLM返回的非字符串 user_id_key: {uid_key_from_llm}")
                 continue
-            if bot_qq_str and user_id == bot_qq_str:
-                logger.debug(f"过滤掉机器人自身的映射: ID {user_id}")
+            if bot_qq_str and uid_key_from_llm == bot_qq_str:
+                logger.debug(f"过滤掉机器人自身的映射: ID {uid_key_from_llm}")
                 continue
-            if not nickname or nickname.isspace():
-                logger.debug(f"过滤掉用户 {user_id} 的空绰号。")
+            if not nickname_from_llm or nickname_from_llm.isspace():
+                logger.debug(f"过滤掉用户 {uid_key_from_llm} 的空绰号。")
                 continue
-            # person_name = user_name_map.get(user_id)
-            # if person_name and person_name == nickname:
-            #     logger.debug(f"过滤掉用户 {user_id} 的映射: 绰号 '{nickname}' 与其名称 '{person_name}' 相同。")
-            #     continue
-            filtered_data[user_id] = nickname.strip()
+            
+            # 检查绰号是否与该用户的已知“主显示名”（来自user_name_map_for_context）相同
+            # user_name_map_for_context 的键是 uid_str
+            current_display_name = user_name_map_for_context.get(uid_key_from_llm)
+            if current_display_name and current_display_name == nickname_from_llm:
+                 logger.debug(f"过滤掉用户 {uid_key_from_llm} 的映射: 绰号 '{nickname_from_llm}' 与其当前显示名称 '{current_display_name}' 相同。")
+                 continue
+            # 未来可以扩展：如果 nickname_from_llm 也等于该用户的QQ原始昵称（如果能获取到的话），也过滤。
 
+            filtered_data[uid_key_from_llm] = nickname_from_llm.strip()
         return filtered_data
 
-    # 线程相关
-    # 修改：使用 run_async_loop 辅助函数
+    # start_processor, stop_processor, _run_processor_in_thread, _processing_loop 保持您文件中的版本
+    def start_processor(self):
+        if not self.is_enabled:
+            logger.info("绰号处理功能已禁用，处理器未启动。")
+            return
+        if global_config.group_nickname.max_nicknames_in_prompt == 0:
+            logger.error("[错误] 绰号注入数量不合适，绰号处理功能已禁用！")
+            return
+
+        if self._nickname_thread is None or not self._nickname_thread.is_alive():
+            logger.info("正在启动绰号处理器线程...")
+            self._stop_event.clear()
+            self._nickname_thread = threading.Thread(
+                target=self._run_processor_in_thread,
+                daemon=True,
+            )
+            self._nickname_thread.start()
+            logger.info(f"绰号处理器线程已启动 (ID: {self._nickname_thread.ident})")
+        else:
+            logger.warning("绰号处理器线程已在运行中。")
+
+    def stop_processor(self):
+        if self._nickname_thread and self._nickname_thread.is_alive():
+            logger.info("正在停止绰号处理器线程...")
+            self._stop_event.set()
+            try:
+                self._nickname_thread.join(timeout=10)
+                if self._nickname_thread.is_alive():
+                    logger.warning("绰号处理器线程在超时后仍未停止。")
+            except Exception as e:
+                logger.error(f"停止绰号处理器线程时出错: {e}", exc_info=True)
+            finally:
+                if self._nickname_thread and not self._nickname_thread.is_alive():
+                    logger.info("绰号处理器线程已成功停止。")
+                self._nickname_thread = None
+        else:
+            logger.info("绰号处理器线程未在运行或已被清理。")
+            
     def _run_processor_in_thread(self):
-        """后台线程入口函数，使用辅助函数管理 asyncio 事件循环。"""
-        thread_id = threading.get_ident()  # 获取线程ID用于日志
+        thread_id = threading.get_ident() 
         logger.info(f"绰号处理器线程启动 (线程 ID: {thread_id})...")
         loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)  # 为当前线程设置事件循环
+        asyncio.set_event_loop(loop)
         logger.info(f"(线程 ID: {thread_id}) Asyncio 事件循环已创建并设置。")
-
-        # 调用辅助函数来运行主处理协程并管理循环生命周期
+        # run_async_loop 应该在您的文件中定义
         run_async_loop(loop, self._processing_loop())
-
         logger.info(f"绰号处理器线程结束 (线程 ID: {thread_id}).")
 
-    # 结束修改
-
-    # 修改：使用 asyncio.Queue 和 wait_for
     async def _processing_loop(self):
-        """后台线程中运行的异步处理循环 (使用 asyncio.Queue)。"""
-        # 移除线程ID日志，因为它在异步上下文中不一定准确
         logger.info("绰号异步处理循环已启动。")
-
-        while not self._stop_event.is_set():  # 仍然检查同步的停止事件
+        while not self._stop_event.is_set():
             try:
-                # 使用 asyncio.wait_for 从异步队列获取项目，并设置超时
                 item = await asyncio.wait_for(self.nickname_queue.get(), timeout=self.sleep_interval)
-
-                # 处理获取到的项目 (调用异步方法)
                 await self._analyze_and_update_nicknames(item)
-
-                self.nickname_queue.task_done()  # 标记任务完成
-
+                self.nickname_queue.task_done()
             except asyncio.TimeoutError:
-                # 等待超时，相当于之前 queue.Empty，继续循环检查停止事件
                 continue
             except asyncio.CancelledError:
-                # 协程被取消 (通常在 stop_processor 中发生)
                 logger.info("绰号处理循环被取消。")
-                break  # 退出循环
+                break
             except Exception as e:
-                # 捕获处理单个项目时可能发生的其他异常
                 logger.error(f"绰号处理循环出错: {e}", exc_info=True)
-                # 短暂异步休眠避免快速连续失败
                 await asyncio.sleep(5)
-
         logger.info("绰号异步处理循环已结束。")
-        # 可以在这里添加清理逻辑，比如确保队列为空或处理剩余项目
-        # 例如：await self.nickname_queue.join() # 等待所有任务完成 (如果需要)
-
-    # 结束修改
 
 
-# 在模块级别创建单例实例
 nickname_manager = NicknameManager()
