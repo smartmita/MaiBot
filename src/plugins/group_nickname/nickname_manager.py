@@ -289,129 +289,106 @@ class NicknameManager:
             group_id_str = str(chat_stream.group_info.group_id) # group_id 应该是字符串
             platform = chat_stream.platform
             
-            current_user_ids_in_context = { # 重命名以示区分
-                str(msg["user_info"]["user_id"])
+            user_ids_in_context = {
+                str(msg["user_info"]["user_id"]) # 确保 user_id 是字符串
                 for msg in message_list_before_now
                 if msg.get("user_info", {}).get("user_id")
             }
-            logger.debug(f"{log_prefix} User IDs in current message_list_before_now: {current_user_ids_in_context}")
 
-            if not current_user_ids_in_context:
-                # 如果 message_list_before_now 为空或不含用户信息，尝试从 chat_stream 获取最近发言者
-                recent_speakers = chat_stream.get_recent_speakers(limit=global_config.group_nickname.max_nicknames_in_prompt) # 获取更多一些候选
-                current_user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
-                logger.debug(f"{log_prefix} User IDs after checking recent speakers: {current_user_ids_in_context}")
+            if not user_ids_in_context:
+                recent_speakers = chat_stream.get_recent_speakers(limit=5) # get_recent_speakers返回的是 {user_id, platform, count}
+                user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers)
 
-            if not current_user_ids_in_context:
-                logger.warning(f"{log_prefix} No user IDs found for nickname injection.")
+
+            if not user_ids_in_context:
+                logger.warning(f"{log_prefix} 未找到上下文用户用于绰号注入。")
                 return ""
 
-            # all_info_for_prompt 的键将是 person_name (LLM名或备用名)
-            # 值是 {"user_id": "uid_str", "group_card_name": "card", "nicknames": [{"绰号": 次数}, ...]}
+            # 1. 从 relationship_manager 获取用户基本信息和已学习的绰号
+            # all_nicknames_data_with_uid 的结构: {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]}}
+            # person_name 通常是 LLM 记录的用户主要名称
+            users_learned_nicknames_data = await relationship_manager.get_users_group_nicknames(
+                platform, list(user_ids_in_context), group_id_str
+            )
+
+            # 2. 为这些用户补充群名片信息
+            # 我们将构建一个新的字典 all_info_for_prompt，其键为 person_name (用户名)
+            # 值为 {"user_id": "uid", "group_card_name": "群名片", "nicknames": [...]}
             all_info_for_prompt: Dict[str, Dict[str, Any]] = {}
 
-            # 1. 获取已学习的绰号信息 (这可能只包含部分在 current_user_ids_in_context 中的用户)
-            users_with_learned_nicknames_data = await relationship_manager.get_users_group_nicknames(
-                platform, list(current_user_ids_in_context), group_id_str # 查询当前上下文中所有人的绰号
-            )
-            logger.debug(f"{log_prefix} Learned nicknames data from relationship_manager: {users_with_learned_nicknames_data}")
+            if users_learned_nicknames_data:
+                for person_name, learned_data in users_learned_nicknames_data.items():
+                    user_id_str = learned_data.get("user_id")
+                    if not user_id_str: # 跳过没有user_id的情况
+                        continue
 
-            # 2. 整合信息：优先使用 users_with_learned_nicknames_data，然后为其他在上下文中的用户补充基础信息
-            for uid_str in current_user_ids_in_context:
-                person_name_key = None
-                user_cardname = ""
-                learned_nicknames_list = []
-
-                # 检查此 uid_str 是否在 users_with_learned_nicknames_data 的结果中
-                # (需要遍历，因为 users_with_learned_nicknames_data 的键是 person_name)
-                found_in_learned_data = False
-                if users_with_learned_nicknames_data:
-                    for pn_key, data_val in users_with_learned_nicknames_data.items():
-                        if data_val.get("user_id") == uid_str:
-                            person_name_key = pn_key
-                            learned_nicknames_list = data_val.get("nicknames", [])
-                            found_in_learned_data = True
-                            # 群名片仍然需要从 message_list_before_now 或其他途径获取，因为 relationship_manager 可能不返回
-                            break 
-                
-                # 统一获取群名片和 person_name_key (如果之前没找到)
-                # 优先从当前消息上下文获取最新的群名片和用户名(LLM名 > QQ昵称)
-                temp_person_name_for_key_lookup = None # 用于查找的用户名
-                for msg_info in reversed(message_list_before_now): # message_list_before_now 更可靠
-                    msg_user_info = msg_info.get("user_info", {})
-                    if str(msg_user_info.get("user_id")) == uid_str:
-                        if msg_user_info.get("user_cardname"):
-                            user_cardname = msg_user_info.get("user_cardname")
-                        
-                        # 确定 person_name_key
-                        if not person_name_key: # 如果之前没从 relationship_manager 的结果中获得 person_name
-                            # 尝试从 person_info 获取LLM名
-                            try:
-                                temp_person_id_for_pi = person_info_manager.get_person_id(platform, int(uid_str))
-                                llm_name = await person_info_manager.get_value(temp_person_id_for_pi, "person_name")
-                                if llm_name:
-                                    temp_person_name_for_key_lookup = llm_name
-                            except ValueError: # uid_str 不是数字的情况（理论上QQ号是数字）
-                                logger.warning(f"{log_prefix} User ID '{uid_str}' is not a valid integer for person_info_manager.")
-                            except Exception as e_pi_name:
-                                logger.warning(f"{log_prefix} Error getting person_name for UID '{uid_str}': {e_pi_name}")
-
-                            if not temp_person_name_for_key_lookup and msg_user_info.get("user_nickname"):
-                                temp_person_name_for_key_lookup = msg_user_info.get("user_nickname") # 备用QQ昵称
-                            
-                            if not temp_person_name_for_key_lookup:
-                                temp_person_name_for_key_lookup = f"用户{uid_str}" # 最终备用
-                            
-                            person_name_key = temp_person_name_for_key_lookup
-                        break # 找到该用户的最新消息即可
-
-                if not person_name_key: # 如果遍历完 message_list 还是没有 person_name_key (例如该用户不在近期消息里，但在 recent_speakers 里)
-                    # 再次尝试从 person_info 获取LLM名
                     try:
-                        temp_person_id_for_pi = person_info_manager.get_person_id(platform, int(uid_str))
-                        llm_name = await person_info_manager.get_value(temp_person_id_for_pi, "person_name")
-                        if llm_name:
-                            person_name_key = llm_name
-                    except Exception: pass # 忽略错误
-                    if not person_name_key:
-                        person_name_key = f"用户{uid_str}" # 最终的最终备用
+                        # 尝试从原始消息列表中查找该用户的最新群名片，这通常比person_info更实时
+                        # message_list_before_now 是按时间升序的，所以反向查找
+                        user_cardname = ""
+                        for msg_info in reversed(message_list_before_now):
+                            msg_user_info = msg_info.get("user_info", {})
+                            if str(msg_user_info.get("user_id")) == user_id_str:
+                                if msg_user_info.get("user_cardname"):
+                                    user_cardname = msg_user_info.get("user_cardname")
+                                    break # 找到最新的就用
+                        
+                                             
+                    except Exception as e_card:
+                        logger.warning(f"{log_prefix} 获取用户 {user_id_str} 的群名片时出错: {e_card}")
+                        user_cardname = "" # 获取失败则为空
 
-                # 确保 person_name_key 的唯一性，如果冲突则添加后缀
-                original_person_name_key = person_name_key
-                counter = 1
-                while person_name_key in all_info_for_prompt and all_info_for_prompt[person_name_key].get("user_id") != uid_str : # 确保不是因为同一个用户被多次处理
-                    person_name_key = f"{original_person_name_key}_{counter}"
-                    counter +=1
-                
-                if original_person_name_key != person_name_key:
-                     logger.warning(f"{log_prefix} Person name key conflict for '{original_person_name_key}', new key is '{person_name_key}' for user_id '{uid_str}'.")
-                
-                # 存入或更新 all_info_for_prompt
-                # 如果用户已在 all_info_for_prompt 中（通过不同的 person_name_key 但相同的 uid_str），则不应重复添加
-                # 但我们的循环是基于 uid_str，所以每个 uid_str 只会处理一次
-                all_info_for_prompt[person_name_key] = {
-                    "user_id": uid_str,
-                    "group_card_name": user_cardname, # 这是新获取或已有的
-                    "nicknames": learned_nicknames_list  # 来自 relationship_manager 或为空列表
-                }
-                logger.debug(f"{log_prefix} Compiled info for person_name_key '{person_name_key}' (UID: {uid_str}): card='{user_cardname}', learned_nicknames_count={len(learned_nicknames_list)}")
+                    all_info_for_prompt[person_name] = {
+                        "user_id": user_id_str,
+                        "group_card_name": user_cardname,
+                        "nicknames": learned_data.get("nicknames", [])
+                    }
+            else: # 如果 relationship_manager 没有返回任何用户数据
+                 # 但我们仍然有 user_ids_in_context, 尝试为他们获取群名片并构建基础结构
+                for uid_str in user_ids_in_context:
+                    user_cardname = ""
+                    person_name_from_pi = "" # 需要一个用户名作为主键
+                    try:
+                        # 尝试从历史消息获取群名片
+                        for msg_info in reversed(message_list_before_now):
+                            msg_user_info = msg_info.get("user_info", {})
+                            if str(msg_user_info.get("user_id")) == uid_str:
+                                if msg_user_info.get("user_cardname"):
+                                    user_cardname = msg_user_info.get("user_cardname")
+                                # 同时尝试获取一个用户名（例如QQ昵称或person_name）
+                                person_name_from_pi = msg_user_info.get("user_nickname","") #  fallback to QQ nickname
+                                # 如果有person_name，优先用 person_name
+                                temp_person_id = person_info_manager.get_person_id(platform, int(uid_str))
+                                llm_name = await person_info_manager.get_value(temp_person_id, "person_name")
+                                if llm_name:
+                                    person_name_from_pi = llm_name
+                                break
+                        
+                        if not person_name_from_pi: # 如果上面没获取到，给个默认
+                            person_name_from_pi = f"用户{uid_str}"
+
+                        if person_name_from_pi not in all_info_for_prompt: # 避免重复添加
+                            all_info_for_prompt[person_name_from_pi] = {
+                                "user_id": uid_str,
+                                "group_card_name": user_cardname,
+                                "nicknames": [] # 没有已学习的绰号
+                            }
+                    except Exception as e_fallback:
+                        logger.warning(f"{log_prefix} 在回退逻辑中为用户 {uid_str} 获取信息时出错: {e_fallback}")
 
 
             if all_info_for_prompt:
-                logger.debug(f"{log_prefix} Data being passed to select_nicknames_for_prompt: {all_info_for_prompt}")
-                selected_nicknames_with_info = select_nicknames_for_prompt(all_info_for_prompt) # select_nicknames_for_prompt 需要能处理 nicknames 为空的情况
+                # 将整合了群名片的数据传递给 select_nicknames_for_prompt
+                selected_nicknames_with_info = select_nicknames_for_prompt(all_info_for_prompt)
                 injection_str = format_nickname_prompt_injection(selected_nicknames_with_info)
                 if injection_str:
-                    logger.info(f"{log_prefix} Generated nickname prompt injection (with group names):\n{injection_str}")
-                else:
-                    logger.debug(f"{log_prefix} No nickname injection string generated.")
+                    logger.debug(f"{log_prefix} 生成的绰号 Prompt 注入 (含群名称):\n{injection_str}")
                 return injection_str
             else:
-                logger.warning(f"{log_prefix} No information gathered for prompt injection for any user in context.")
                 return ""
 
         except Exception as e:
-            logger.error(f"{log_prefix} Exception in get_nickname_prompt_injection: {e}", exc_info=True)
+            logger.error(f"{log_prefix} 获取绰号注入时出错: {e}", exc_info=True)
             return ""
 
     # 私有/内部方法
