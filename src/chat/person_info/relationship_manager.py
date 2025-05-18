@@ -5,7 +5,7 @@ from bson.decimal128 import Decimal128
 from .person_info import person_info_manager
 import time
 import random
-from typing import List, Dict
+from typing import List, Dict, Any
 from ...common.database import db
 from maim_message import UserInfo
 
@@ -129,9 +129,9 @@ class RelationshipManager:
     @staticmethod
     async def get_users_group_nicknames(
         platform: str, user_ids: List[str], group_id: str
-    ) -> Dict[str, List[Dict[str, int]]]:
+    ) -> Dict[str, Dict[str, Any]]: # 修改返回类型提示
         """
-        批量获取多个用户在指定群组的绰号信息。
+        批量获取多个用户在指定群组的绰号信息和 user_id。
 
         Args:
             platform (str): 平台名称。
@@ -139,65 +139,80 @@ class RelationshipManager:
             group_id (str): 群组 ID。
 
         Returns:
-            Dict[str, List[Dict[str, int]]]: 映射 {person_name: [{"绰号A": 次数}, ...]}
+            Dict[str, Dict[str, Any]]: 映射 {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]} }
         """
         if not user_ids or not group_id:
             return {}
 
-        person_ids = [person_info_manager.get_person_id(platform, str(uid)) for uid in user_ids]
+        person_ids_map = {person_info_manager.get_person_id(platform, str(uid)): str(uid) for uid in user_ids} # person_id 到 user_id 的映射
+        person_ids = list(person_ids_map.keys())
         nicknames_data = {}
-        group_id_str = str(group_id)  # 确保 group_id 是字符串
+        group_id_str = str(group_id)
 
         try:
-            # 查询包含目标 person_id 的文档
             cursor = db.person_info.find(
                 {"person_id": {"$in": person_ids}},
-                {"_id": 0, "person_id": 1, "person_name": 1, "group_nicknames": 1},  # 查询所需字段
+                {"_id": 0, "person_id": 1, "person_name": 1, "group_nicknames": 1, "user_id": 1}, # 添加 user_id 到查询
             )
 
-            # 假设同步迭代可行
             for doc in cursor:
                 person_name = doc.get("person_name")
-                if not person_name:
-                    continue  # 跳过没有 person_name 的用户
+                original_user_id_from_doc = None
+                user_id_val = doc.get("user_id")
 
-                group_nicknames_list = doc.get("group_nicknames", [])  # 获取 group_nicknames 数组
-                target_group_nicknames = []  # 存储目标群组的绰号列表
+                if isinstance(user_id_val, (int, float)):
+                    original_user_id_from_doc = str(user_id_val)
+                elif isinstance(user_id_val, str):
+                    if "_" in user_id_val:
+                        original_user_id_from_doc = user_id_val.split("_", 1)[-1]
+                    else:
+                        original_user_id_from_doc = user_id_val
 
-                # 遍历 group_nicknames 数组，查找匹配的 group_id
+                # 如果通过 person_id 映射能找到原始请求的 user_id，优先使用它，以保证是输入时的 user_id
+                # 否则，使用从文档中解析的 user_id
+                current_person_id = doc.get("person_id")
+                actual_user_id = person_ids_map.get(current_person_id, original_user_id_from_doc)
+
+
+                if not person_name or not actual_user_id: # 确保 person_name 和 actual_user_id 都有效
+                    logger.warning(
+                        f"跳过处理，因为 person_name ('{person_name}') 或 actual_user_id ('{actual_user_id}') 无效。 Doc person_id: {current_person_id}"
+                    )
+                    continue
+
+                group_nicknames_list = doc.get("group_nicknames", [])
+                target_group_nicknames = []
+
                 for group_entry in group_nicknames_list:
-                    # 确保 group_entry 是字典且包含 group_id 键
                     if isinstance(group_entry, dict) and group_entry.get("group_id") == group_id_str:
-                        # 提取 nicknames 列表
                         nicknames_raw = group_entry.get("nicknames", [])
                         if isinstance(nicknames_raw, list):
                             target_group_nicknames = nicknames_raw
-                        break  # 找到匹配的 group_id 后即可退出内层循环
+                        break
 
-                # 如果找到了目标群组的绰号列表
                 if target_group_nicknames:
-                    valid_nicknames_formatted = []  # 存储格式化后的绰号
+                    valid_nicknames_formatted = []
                     for item in target_group_nicknames:
-                        # 校验每个绰号条目的格式 { "name": str, "count": int }
                         if (
                             isinstance(item, dict)
                             and isinstance(item.get("name"), str)
                             and isinstance(item.get("count"), int)
                             and item["count"] > 0
-                        ):  # 确保 count 是正整数
-                            # --- 格式转换：从 { "name": "xxx", "count": y } 转为 { "xxx": y } ---
+                        ):
                             valid_nicknames_formatted.append({item["name"]: item["count"]})
-                            # --- 结束格式转换 ---
                         else:
                             logger.warning(
-                                f"数据库中用户 {person_name} 群组 {group_id_str} 的绰号格式无效或 count <= 0: {item}"
+                                f"数据库中用户 {person_name} (UID: {actual_user_id}) 群组 {group_id_str} 的绰号格式无效或 count <= 0: {item}"
                             )
 
-                    if valid_nicknames_formatted:  # 如果存在有效的、格式化后的绰号
-                        nicknames_data[person_name] = valid_nicknames_formatted  # 使用 person_name 作为 key
-
+                    if valid_nicknames_formatted:
+                        # 修改存储结构
+                        nicknames_data[person_name] = {
+                            "user_id": actual_user_id,
+                            "nicknames": valid_nicknames_formatted
+                        }
             logger.debug(
-                f"批量获取群组 {group_id_str} 中 {len(user_ids)} 个用户的绰号，找到 {len(nicknames_data)} 个用户的数据。"
+                f"批量获取群组 {group_id_str} 中 {len(user_ids)} 个用户的绰号和UID，找到 {len(nicknames_data)} 个用户的数据。"
             )
 
         except AttributeError as e:
