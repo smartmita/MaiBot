@@ -381,64 +381,64 @@ class ScheduleGenerator:
     async def retrieve_knowledge_for_keywords(self, keywords: list[str]) -> str:
         """
         根据关键词列表检索相关的知识库和记忆。
-        参考 sub_mind.py 中的 get_prompt_info 逻辑。
+        加强去重逻辑。
         """
         if not keywords:
             return ""
 
         all_retrieved_texts = []
-        # 知识库检索阈值，参考 sub_mind.py 中的 lpmm 相关逻辑或 get_prompt_info_old
-        # qa_manager.get_knowledge 内部似乎已经有相关性判断逻辑
-        # 我们主要关注收集返回的知识文本
+        # 使用一个集合来存储已经添加过的知识的核心内容或者一个唯一标识符，以避免重复
+        # 这里我们简单地用处理过的 knowledge_content 本身作为键，如果内容完全一样则会被去重。
+        # 如果 qa_manager 返回的内容有微小变化但核心一致，这种方法可能不完美。
+        added_knowledge_signatures = set()
 
         # --- 知识库检索 ---
-        # 我们对每个关键词独立检索，然后汇总。或者可以将关键词组合成一句话再检索，取决于效果。
-        # 为了简单起见，这里对每个关键词独立检索。
-        # 注意：qa_manager.get_knowledge 的输入是 "message" (即上下文文本)，而不是单个关键词。
-        # 所以，更好的做法可能是将日程原文和提取的关键词结合起来作为检索的上下文，
-        # 或者，如果 qa_manager 支持基于关键词的检索，则使用该方式。
-        # 假设我们现在依然用 "message" 的方式，可以将关键词嵌入到一个问句中，或者直接使用关键词本身。
-
-        # 简单实现：对每个关键词进行检索
-        retrieved_knowledge_contents = set() # 用于去重
+        retrieved_knowledge_items = [] # 用于存储 (relevance, content) 以便后续排序或进一步处理
 
         for keyword in keywords:
-            if not keyword.strip(): # 跳过空关键词
+            if not keyword.strip():
                 continue
             try:
-                # logger.debug(f"为关键词 '{keyword}' 检索知识库...")
-                # qa_manager.get_knowledge 需要一个 "message" 作为输入。
-                # 我们可以简单地用关键词本身，或者构造一个包含关键词的简单问句。
-                # 这里我们尝试直接用关键词，如果效果不好，可以调整。
-                # 或者，更好的做法是，如果日程的主要内容与特定关键词相关，
-                # 那么在检索该关键词时，也把日程的相应段落作为上下文传入。
-                # 为简化，先直接用关键词。
-                # found_knowledge = qa_manager.get_knowledge(keyword) # qa_manager.get_knowledge 不是异步的
                 loop = asyncio.get_event_loop()
-                found_knowledge = await loop.run_in_executor(None, qa_manager.get_knowledge, keyword)
+                # 传入关键词本身作为检索查询
+                found_knowledge_str = await loop.run_in_executor(None, qa_manager.get_knowledge, keyword)
 
+                if found_knowledge_str:
+                    knowledge_content, relevance = parse_knowledge_and_get_max_relevance(found_knowledge_str)
+                    knowledge_relevance_threshold = global_config.schedule.knowledge_relevance_threshold
 
-                if found_knowledge:
-                    # qa_manager.get_knowledge 返回的已经是处理过的字符串，包含相关性和内容
-                    # 我们需要从中提取纯文本内容，并可能根据相关性过滤
-                    # sub_mind.py 中的 parse_knowledge_and_get_max_relevance 是一个好的参考
-                    knowledge_content, relevance = parse_knowledge_and_get_max_relevance(found_knowledge)
-                    # 你可以设定一个阈值，例如：
-                    knowledge_relevance_threshold = global_config.schedule.knowledge_relevance_threshold # 假设配置中新增日程用阈值
                     if relevance >= knowledge_relevance_threshold:
-                        logger.info(f"关键词 '{keyword}' 检索到相关知识 (相关性: {relevance:.4f})")
-                        retrieved_knowledge_contents.add(knowledge_content.strip())
+                        # 清理和规范化 knowledge_content 以提高基于字符串的去重效果
+                        # 例如，去除多余的空白字符，统一换行符等
+                        normalized_content = " ".join(knowledge_content.strip().split())
+
+                        # 检查是否已经添加过近似的内容
+                        # 为了更有效的去重，特别是对于长文本，可以考虑只取其开头一部分或计算一个简短的哈希作为签名
+                        # 这里我们先用规范化后的完整内容
+                        if normalized_content not in added_knowledge_signatures:
+                            logger.info(f"关键词 '{keyword}' 检索到相关知识 (相关性: {relevance:.4f}), 内容将加入。")
+                            # 存储原始的、未被 " ".join 处理的 knowledge_content，因为它可能包含换行
+                            retrieved_knowledge_items.append({"relevance": relevance, "content": knowledge_content.strip(), "source_keyword": keyword})
+                            added_knowledge_signatures.add(normalized_content)
+                        else:
+                            logger.debug(f"关键词 '{keyword}' 检索到的知识内容已存在 (相关性: {relevance:.4f})，已忽略重复。")
                     else:
                         logger.debug(f"关键词 '{keyword}' 检索到的知识相关性 ({relevance:.4f}) 低于阈值 {knowledge_relevance_threshold}，已忽略。")
             except Exception as e:
                 logger.error(f"为关键词 '{keyword}' 检索知识库时出错: {e}")
                 logger.exception("详细错误信息:")
 
-        if retrieved_knowledge_contents:
+        if retrieved_knowledge_items:
             all_retrieved_texts.append("--- 相关知识库信息 ---")
-            for content in retrieved_knowledge_contents:
-                all_retrieved_texts.append(content)
+            # 可以选择是否按相关性排序后再加入
+            # retrieved_knowledge_items.sort(key=lambda x: x["relevance"], reverse=True)
+            for item in retrieved_knowledge_items:
+                # 你可以决定是否在Prompt中也包含相关性和来源关键词，供LLM参考，但通常只给内容即可
+                # all_retrieved_texts.append(f"(来自关键词: {item['source_keyword']}, 相关性: {item['relevance']:.2f})\n{item['content']}")
+                all_retrieved_texts.append(item['content'])
             all_retrieved_texts.append("--- 结束知识库信息 ---")
+        else:
+            logger.info("未检索到符合条件的知识库内容。")
 
 
         # --- 记忆检索 (可选，如果需要) ---
