@@ -20,7 +20,11 @@ from src.chat.message_receive.chat_stream import ChatStream
 from ..pfc_relationship import PfcRepationshipTranslator, PfcRelationshipUpdater
 from maim_message import UserInfo, Seg
 from rich.traceback import install
-from bson.decimal128 import Decimal128
+from ..observation_info import ObservationInfo
+from ..pfc_utils import build_chat_history_text
+from src.common.database import db # 新增导入
+from bson.decimal128 import Decimal128 # 新增导入
+from .idle_weight import calculate_user_weight, calculate_base_trigger_probability, process_instances_weights, find_max_relationship_user, get_user_relationship_data
 
 install(extra_lines=3)
 
@@ -28,7 +32,6 @@ logger = get_logger("pfc_idle_chat")
 
 class IdleChat:
     """主动聊天组件（测试中）
-
     在以下条件都满足时触发主动聊天：
     1. 当前没有任何活跃的对话实例
     2. 在指定的活动时间内（7:00-23:00）
@@ -122,8 +125,71 @@ class IdleChat:
                     await asyncio.sleep(min(time_left + 1, check_interval))  # 等待剩余冷却时间或检查间隔，取较小值
                     continue
                 
-                # 基础几率
-                base_trigger_probability = 0.3
+                # 为实例列表获取关系值信息
+                instances_with_rel = []
+                try:
+                    for instance in active_instances:
+                        try:
+                            # 使用idle_weight模块中的函数获取关系数据
+                            try:
+                                platform = "qq"  # 假设用户来自QQ平台
+                                user_id = None
+                                
+                                # 从聊天流获取user_id
+                                chat_stream = chat_manager.get_stream(instance.stream_id)
+                                if chat_stream and hasattr(chat_stream, "user_info") and chat_stream.user_info:
+                                    if hasattr(chat_stream.user_info, "user_id") and chat_stream.user_info.user_id:
+                                        user_id = chat_stream.user_info.user_id
+                                
+                                # 如果从chat_stream获取失败，回退到使用private_name
+                                if not user_id:
+                                    try:
+                                        user_id = int(instance.private_name)
+                                    except ValueError:
+                                        user_id = instance.private_name
+                                
+                                # 从idle_weight模块获取用户关系数据
+                                relationship_value, relationship_level_num, _ = await get_user_relationship_data(
+                                    user_id, platform
+                                )
+                                
+                            except Exception:
+                                # 使用默认关系值
+                                relationship_value = 0.0
+                                relationship_level_num = 2  # 默认等级 "一般"
+                                
+                            # 记录实例信息
+                            instances_with_rel.append({
+                                "instance": instance,
+                                "relationship_value": relationship_value,
+                                "relationship_level": relationship_level_num
+                            })
+                        except Exception:
+                            # 忽略单个实例的错误
+                            pass
+                
+                    # 计算平均关系值并根据关系调整基础触发概率
+                    if instances_with_rel:
+                        # 找出最高关系值的用户
+                        max_rel_instance = find_max_relationship_user(instances_with_rel)
+                        max_relationship_level = max_rel_instance["relationship_level"]
+                        max_relationship_value = max_rel_instance["relationship_value"]
+                        
+                        # 基于最高关系用户的关系等级计算触发概率
+                        base_prob = calculate_base_trigger_probability(max_relationship_level)
+                        
+                        # 记录信息
+                        logger.info(f"最高关系用户: {max_rel_instance['instance'].private_name}, 关系等级: {max_relationship_level}, 关系值: {max_relationship_value:.2f}")
+                        logger.info(f"基于关系等级调整的基础触发概率: {base_prob:.2f}")
+                        base_trigger_probability = base_prob
+                    else:
+                        # 如果无法获取关系信息，使用默认概率
+                        base_trigger_probability = 0.3
+                except Exception as e:
+                    logger.error(f"计算关系调整的触发概率时出错: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    # 出错时使用默认概率
+                    base_trigger_probability = 0.3
                 
                 # 强制触发检查 - 如果超过最大冷却时间，增加触发概率
                 if time_since_last_trigger > max_cooldown * 2:
@@ -183,38 +249,54 @@ class IdleChat:
                     # 查看是否在待回复列表中
                     in_pending = instance.private_name in cls._pending_replies
                     
-                    # 获取关系数据
+                    # 使用idle_weight模块中的函数获取关系数据
                     try:
                         platform = "qq"  # 假设用户来自QQ平台
-                        # 获取关系值
-                        person_id = person_info_manager.get_person_id(platform, instance.private_name)
-                        rel_value = await person_info_manager.get_value(person_id, "relationship_value")
-                        # 确保关系值是浮点数
-                        if isinstance(rel_value, Decimal128):
-                            rel_value = float(rel_value.to_decimal())
-                        elif rel_value is None:
-                            rel_value = 0.0
-                        else:
-                            rel_value = float(rel_value)
+                        # 首先尝试从chat_stream获取user_id
+                        user_id = None
                         
-                        # 计算关系等级
-                        rel_level_num = relationship_manager.calculate_level_num(rel_value)
-                        relationship_level = ["厌恶", "冷漠", "一般", "友好", "喜欢", "依赖"]
-                        rel_level_name = relationship_level[rel_level_num]
+                        # 获取实例的聊天流
+                        try:
+                            chat_stream = chat_manager.get_stream(instance.stream_id)
+                            logger.info(f"[私聊][{instance.private_name}]获取到聊天流: {chat_stream}")
+                            
+                            if chat_stream and hasattr(chat_stream, "user_info") and chat_stream.user_info:
+                                if hasattr(chat_stream.user_info, "user_id") and chat_stream.user_info.user_id:
+                                    user_id = chat_stream.user_info.user_id
+                                    logger.info(f"[私聊][{instance.private_name}]从chat_stream成功获取到user_id: {user_id}")
+                        except Exception as e:
+                            logger.error(f"[私聊][{instance.private_name}]从chat_stream获取user_id失败: {str(e)}")
+                            logger.error(traceback.format_exc())
                         
-                        logger.info(f"[私聊][{instance.private_name}]关系值: {rel_value:.2f}, 关系等级: {rel_level_name}")
-                        relationship_description = rel_level_name
+                        # 如果从chat_stream获取失败，回退到使用private_name
+                        if not user_id:
+                            logger.info(f"[私聊][{instance.private_name}]从chat_stream获取user_id失败，尝试使用private_name")
+                            try:
+                                user_id = int(instance.private_name)
+                                logger.info(f"[私聊][{instance.private_name}]private_name转换为整数成功: {user_id}")
+                            except ValueError:
+                                # 如果不能转换为整数，使用字符串值
+                                user_id = instance.private_name
+                                logger.info(f"[私聊][{instance.private_name}]private_name无法转换为整数，使用原始字符串: {user_id}")
+                        
+                        # 从idle_weight模块获取用户关系数据
+                        relationship_value, relationship_level_num, relationship_description = await get_user_relationship_data(
+                            user_id, platform, instance.private_name
+                        )
+                        
                     except Exception as e:
                         logger.error(f"[私聊][{instance.private_name}]获取关系数据失败: {str(e)}")
                         logger.error(traceback.format_exc())
-                        # 使用默认关系描述
+                        # 使用默认关系描述和值
+                        relationship_value = 0.0
+                        relationship_level_num = 2 # 对应 "一般"
                         relationship_description = "普通"
                     
                     # 记录实例信息
                     instances_with_rel.append({
                         "instance": instance,
-                        "rel_value": rel_value,
-                        "rel_level": rel_level_num,
+                        "relationship_value": relationship_value,
+                        "relationship_level": relationship_level_num,
                         "in_pending": in_pending,
                         "weight": 0  # 初始权重为0
                     })
@@ -230,18 +312,8 @@ class IdleChat:
             
             logger.info(f"成功获取 {len(instances_with_rel)} 个实例的数据")
             
-            # 计算每个实例的权重
-            for data in instances_with_rel:
-                # 基础权重：关系等级0=1, 1=2, 2=3, 3=4, 4=5, 5=6
-                base_weight = data["rel_level"] + 1
-                
-                # 如果在待回复列表中，大幅降低权重
-                if data["in_pending"]:
-                    base_weight *= 0.1
-                
-                # 最终权重
-                data["weight"] = base_weight
-                logger.debug(f"实例 {data['instance'].private_name} 的权重: {data['weight']}")
+            # 使用权重计算模块处理实例权重
+            process_instances_weights(instances_with_rel)
             
             # 按权重进行加权随机选择
             total_weight = sum(data["weight"] for data in instances_with_rel)
@@ -429,13 +501,13 @@ class IdleChat:
         self.relationship_translator = PfcRepationshipTranslator(private_name)
         self.relationship_updater = PfcRelationshipUpdater(private_name, global_config.bot.nickname)
 
-        # LLM请求对象，用于生成主动对话内容
-        self.llm = LLMRequest(model=global_config.model.normal, temperature=0.5, max_tokens=500, request_type="idle_chat")
+        # LLM请求（推理模型），用于生成主动对话内容
+        self.llm = LLMRequest(model=global_config.model.normal, temperature=0.3, max_tokens=500, request_type="idle_chat")
 
         # 配置参数 - 从global_config加载
         self.min_cooldown = global_config.pfc.min_cooldown  # 最短冷却时间（默认2小时）
         self.max_cooldown = global_config.pfc.max_cooldown  # 最长冷却时间（默认5小时）
-        self.check_interval = global_config.pfc.idle_check_interval * 60  # 检查间隔（默认10分钟，转换为秒）
+        self.check_interval = global_config.pfc.idle_check_interval * 600  # 检查间隔（默认10分钟，转换为秒）
         self.active_hours_start = 6  # 活动开始时间
         self.active_hours_end = 24  # 活动结束时间
 
@@ -483,38 +555,51 @@ class IdleChat:
         try:
             existing_chat_stream = chat_manager.get_stream(self.stream_id)
             if existing_chat_stream:
-                logger.debug(f"[私聊][{self.private_name}]从chat_manager找到现有聊天流")
+                logger.info(f"[私聊][{self.private_name}]从chat_manager找到现有聊天流")
+                
+                # 记录现有聊天流的用户信息
+                if hasattr(existing_chat_stream, "user_info") and existing_chat_stream.user_info:
+                    user_info = existing_chat_stream.user_info
+                    logger.info(f"[私聊][{self.private_name}]现有聊天流用户信息: {user_info}")
+                    
+                    if hasattr(user_info, "user_id"):
+                        logger.info(f"[私聊][{self.private_name}]现有聊天流user_id: {user_info.user_id}")
+                    if hasattr(user_info, "user_nickname"):
+                        logger.info(f"[私聊][{self.private_name}]现有聊天流user_nickname: {user_info.user_nickname}")
+                
                 return existing_chat_stream
-
-            # 如果没有现有聊天流，则创建新的
-            logger.debug(f"[私聊][{self.private_name}]未找到现有聊天流，创建新聊天流")
-            # 创建用户信息对象
-            user_info = UserInfo(
-                user_id=self.private_name,  # 使用私聊用户的ID
-                user_nickname=self.private_name,  # 使用私聊用户的名称
-                platform="qq",
-            )
-            # 创建聊天流
-            new_stream = ChatStream(self.stream_id, "qq", user_info)
-            # 将新创建的聊天流添加到管理器中
-            chat_manager.register_stream(new_stream)
-            logger.debug(f"[私聊][{self.private_name}]成功创建并注册新聊天流")
-            return new_stream
+            
+            logger.debug(f"[私聊][{self.private_name}]未找到聊天流")
+            return None
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]创建/获取聊天流失败: {str(e)}")
+            logger.error(f"[私聊][{self.private_name}]获取聊天流时出错: {str(e)}")
             logger.error(traceback.format_exc())
             return None
 
     async def _initiate_chat(self) -> None:
         """生成并发送主动聊天消息"""
         try:
-            # 获取聊天历史记录
-            messages = self.chat_observer.get_cached_messages(limit=12)
-            
-            # 立即获取历史文本
-            chat_history_text = await build_readable_messages(
-                messages, replace_bot_name=True, merge_messages=False, timestamp_mode="relative", read_mark=0.0
+            # 从数据库直接加载聊天历史记录
+            current_time = time.time()
+            messages = await self.chat_observer.message_storage.get_messages_before(
+                self.stream_id, 
+                current_time,  
+                limit=30  # 增大获取的历史消息数量，提供更多上下文
             )
+            
+            # 创建一个临时的ObservationInfo对象用于构建历史记录文本
+            class TempObservationInfo:
+                def __init__(self, messages):
+                    self.chat_history = messages
+                    self.chat_history_str = None
+                    self.new_messages_count = 0
+                    self.unprocessed_messages = []
+                    
+            # 创建临时观察信息对象
+            observation_info = TempObservationInfo(messages)
+            
+            # 使用pfc_utils中的方法获取正确格式的聊天历史文本
+            chat_history_text = await build_chat_history_text(observation_info, self.private_name)
             
             # 添加触发判定条件
             # 1. 检查是否有活跃对话实例存在
@@ -533,45 +618,74 @@ class IdleChat:
             # 获取关系数据
             try:
                 platform = "qq"  # 假设用户来自QQ平台
-                # 获取关系值
-                person_id = person_info_manager.get_person_id(platform, self.private_name)
-                rel_value = await person_info_manager.get_value(person_id, "relationship_value")
-                # 确保关系值是浮点数
-                if isinstance(rel_value, Decimal128):
-                    rel_value = float(rel_value.to_decimal())
-                elif rel_value is None:
-                    rel_value = 0.0
-                else:
-                    rel_value = float(rel_value)
+                user_id = None
                 
-                # 计算关系等级
-                rel_level_num = relationship_manager.calculate_level_num(rel_value)
-                relationship_level = ["厌恶", "冷漠", "一般", "友好", "喜欢", "依赖"]
-                rel_level_name = relationship_level[rel_level_num]
+                # 尝试获取聊天流并从中提取user_id
+                try:
+                    # 首先尝试获取当前实例的聊天流
+                    chat_stream = await self._get_chat_stream()
+                    logger.info(f"[私聊][{self.private_name}]获取到聊天流: {chat_stream}")
+                    
+                    if chat_stream and hasattr(chat_stream, "user_info") and chat_stream.user_info:
+                        if hasattr(chat_stream.user_info, "user_id") and chat_stream.user_info.user_id:
+                            user_id = chat_stream.user_info.user_id
+                            logger.info(f"[私聊][{self.private_name}]从chat_stream成功获取到user_id: {user_id}")
+                except Exception as e:
+                    logger.error(f"[私聊][{self.private_name}]从chat_stream获取user_id失败: {str(e)}")
+                    logger.error(traceback.format_exc())
                 
-                logger.info(f"[私聊][{self.private_name}]关系值: {rel_value:.2f}, 关系等级: {rel_level_name}")
-                relationship_description = rel_level_name
+                # 如果从chat_stream获取失败，回退到使用private_name
+                if not user_id:
+                    try:
+                        user_id = int(self.private_name)
+                    except ValueError:
+                        # 如果不能转换为整数，使用字符串值
+                        user_id = self.private_name
+                
+                # 从idle_weight模块获取用户关系数据
+                relationship_value, relationship_level_num, relationship_description = await get_user_relationship_data(
+                    user_id, platform, self.private_name
+                )
+            
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]获取关系数据失败: {str(e)}")
                 logger.error(traceback.format_exc())
-                # 使用默认关系描述
+                # 使用默认关系描述和值
+                relationship_value = 0.0
+                relationship_level_num = 2  # 默认值对应 "一般"
                 relationship_description = "普通"
             
             # 构建提示词
             current_time = datetime.now().strftime("%H:%M")
+            
+            # 从全局配置中获取人格信息
+            personality_core = global_config.personality.personality_core
+            personality_sides = global_config.personality.personality_sides
+            
+            # 准备人格侧面信息
+            personality_sides_text = ""
+            if personality_sides:
+                personality_sides_text = "\n".join([f"- {side}" for side in personality_sides])
+            
             prompt = f"""你是{global_config.bot.nickname}。
             你正在与用户{self.private_name}进行QQ私聊，你们的关系是{relationship_description}
             现在时间{current_time}
+            
+            你的人格核心特点：{personality_core}
+            {f"你的一些个性特点：\n{personality_sides_text}" if personality_sides_text else ""}
             
             你想要主动发起对话。
             请基于以下之前的对话历史，生成一条自然、友好、符合关系程度的主动对话消息。
             这条消息应能够引起用户的兴趣，重新开始对话。
             最近的对话历史（并不是现在的对话）：
             {chat_history_text}
-            请你严格根据对话历史决定是告诉对方你正在做的事情，还是询问对方正在做的事情
+            请你根据对话历史决定是告诉对方你正在做的事情，还是询问对方正在做的事情
             请直接输出一条消息，不要有任何额外的解释或引导文字
             消息内容尽量简短
             """
+            
+            # 记录完整的prompt
+            logger.info(f"[私聊][{self.private_name}]生成的完整prompt:\n{'-'*50}\n{prompt}\n{'-'*50}")
 
             # 生成回复
             logger.debug(f"[私聊][{self.private_name}]开始生成主动聊天内容")
