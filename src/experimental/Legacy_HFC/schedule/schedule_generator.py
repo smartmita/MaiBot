@@ -149,12 +149,9 @@ class ScheduleGenerator:
     def construct_doing_prompt(self, time: datetime.datetime, mind_thinking: str = ""):
         now_time = time.strftime("%H:%M")
         previous_doings = self.get_current_num_task(5, True)
-
         prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
-
         bot_name_to_use = self.name
 
-        # 修改Prompt，明确加入机器人名字
         prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
         prompt += f"你今天的日程是：{self.today_schedule_text}\n"
         if previous_doings:
