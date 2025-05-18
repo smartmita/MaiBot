@@ -386,11 +386,14 @@ class ScheduleConfig(ConfigBase):
     schedule_doing_update_interval: int = 300
     """日程表更新间隔 单位秒"""
 
-    schedule_temperature: float = 0.5
-    """日程表温度，建议0.5-1.0"""
+    # schedule_temperature: float = 0.5
+    # """日程表温度，建议0.5-1.0"""
 
     time_zone: str = "Asia/Shanghai"
     """时区"""
+
+    knowledge_relevance_threshold: float = 0.38
+    """日程生成时，从知识库检索内容的相关性阈值"""
 
 
 @dataclass
@@ -536,11 +539,17 @@ class ModelConfig(ConfigBase):
     nickname_mapping: dict[str, Any] = field(default_factory=lambda: {})
     """绰号映射LLM配置"""
 
-    scheduler_all: dict[str, Any] = field(default_factory=lambda: {})
-    """全局日程LLM配置"""
+    schedule_initial_generator: dict[str, Any] = field(default_factory=lambda: {}) # 替代 scheduler_all
+    """用于生成每日初始日程的模型配置"""
 
-    scheduler_doing: dict[str, Any] = field(default_factory=lambda: {})
-    """当前活动日程LLM配置"""
+    schedule_keyword_extractor: dict[str, Any] = field(default_factory=lambda: {})
+    """用于从日程中提取关键词的模型配置"""
+
+    schedule_refiner: dict[str, Any] = field(default_factory=lambda: {})
+    """用于结合知识库优化日程的模型配置"""
+
+    schedule_current_activity: dict[str, Any] = field(default_factory=lambda: {})
+    """用于生成当前正在进行的活动（doing_prompt）的模型配置"""
 
     PFC_relationship_eval: dict[str, Any] = field(default_factory=lambda: {})
     """PFC关系评估LLM配置"""

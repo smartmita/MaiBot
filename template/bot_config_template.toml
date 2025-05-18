@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.1"
+version = "2.0.0.2"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -58,8 +58,8 @@ appearance = "用一句或几句话描述外貌特征" # 外貌特征 该选项�
 enable = true # 是否启用日程表
 prompt_schedule_gen = "用几句话描述描述性格特点或行动规律，这个特征会用来生成日程表"
 schedule_doing_update_interval = 900 # 日程表更新间隔 单位秒
-schedule_temperature = 0.1 # 日程表温度，建议0.1-0.5
 time_zone = "Asia/Shanghai" # 给你的机器人设置时区，可以解决运行电脑时区和国内时区不同的情况，或者模拟国外留学生日程
+knowledge_relevance_threshold = 0.38 # 日程表检索知识库相关性阈值
 
 [platforms] # 必填项目，填写每个平台适配器提供的链接
 qq="http://127.0.0.1:18002/api/message"
@@ -338,8 +338,25 @@ temp = 0.7
 pri_in = 1.26
 pri_out = 1.26
 
-#日程模型
-[model.scheduler_all]
+#初始日程模型
+[model.schedule_initial_generator]
+name = "deepseek-ai/DeepSeek-V3"
+provider = "SILICONFLOW"
+temp = 0.3
+pri_in = 2
+pri_out = 8
+
+#日程关键词提取模型
+[model.schedule_keyword_extractor]
+name = "Qwen/Qwen2.5-32B-Instruct"
+provider = "SILICONFLOW"
+temp = 0.5
+pri_in = 1.26
+pri_out = 1.26
+
+
+#最终日程模型（期望强大模型）
+[model.schedule_refiner]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
@@ -347,7 +364,7 @@ pri_in = 2
 pri_out = 8
 
 #在干嘛模型
-[model.scheduler_doing]
+[model.schedule_current_activity]
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
