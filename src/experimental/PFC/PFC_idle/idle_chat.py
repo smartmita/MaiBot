@@ -18,8 +18,7 @@ from ..pfc_relationship import PfcRepationshipTranslator, PfcRelationshipUpdater
 from maim_message import Seg
 from rich.traceback import install
 from ..pfc_utils import build_chat_history_text
-from bson.decimal128 import Decimal128 # 新增导入
-from .idle_weight import calculate_user_weight, calculate_base_trigger_probability, process_instances_weights, find_max_relationship_user, get_user_relationship_data
+from .idle_weight import process_instances_weights, find_max_relationship_user, get_user_relationship_data, calculate_base_trigger_probability
 
 install(extra_lines=3)
 
@@ -302,7 +301,7 @@ class IdleChat:
             
             # 如果没有获取到有效数据，随机选择一个实例
             if not instances_with_rel:
-                logger.warning(f"没有任何有效实例，将随机选择一个")
+                logger.warning("没有任何有效实例，将随机选择一个")
                 return random.choice(instances)
             
             logger.info(f"成功获取 {len(instances_with_rel)} 个实例的数据")
@@ -467,7 +466,7 @@ class IdleChat:
                 cls._tried_users.add(next_user)
                 return next_user
 
-            # 如果所有用户都已尝试过，重置尝试集合，从头开始
+            # 当用户在未回复列表中, 但不在待回复列表中时, 随机选择一个不在待回复列表中的用户
             if len(cls._tried_users) >= len(all_users):
                 cls._tried_users.clear()
                 logger.info("[私聊]所有用户都已尝试过，重置尝试列表")
@@ -611,6 +610,7 @@ class IdleChat:
             logger.info(f"[私聊][{self.private_name}]通过所有触发条件，开始准备主动聊天内容")
             
             # 获取关系数据
+            relationship_description = "普通"  # 设置默认值
             try:
                 platform = "qq"  # 假设用户来自QQ平台
                 user_id = None
@@ -638,17 +638,13 @@ class IdleChat:
                         user_id = self.private_name
                 
                 # 从idle_weight模块获取用户关系数据
-                relationship_value, relationship_level_num, relationship_description = await get_user_relationship_data(
+                _, _, relationship_description = await get_user_relationship_data(
                     user_id, platform, self.private_name
                 )
             
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]获取关系数据失败: {str(e)}")
                 logger.error(traceback.format_exc())
-                # 使用默认关系描述和值
-                relationship_value = 0.0
-                relationship_level_num = 2  # 默认值对应 "一般"
-                relationship_description = "普通"
             
             # 构建提示词
             current_time = datetime.now().strftime("%H:%M")
