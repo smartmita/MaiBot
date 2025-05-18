@@ -172,6 +172,13 @@ async def _build_readable_messages_internal(
 
     message_details_raw: List[Tuple[float, str, str]] = []
 
+    # --- 从全局配置读取名称显示模式 ---
+    name_display_mode = 1 # 默认值
+    if hasattr(global_config, 'chat') and hasattr(global_config.chat, 'name_display_mode'):
+        name_display_mode = global_config.chat.name_display_mode
+    else:
+        pass
+
     # 1 & 2: 获取发送者信息并提取消息组件
     for msg in messages:
         user_info = msg.get("user_info", {})
