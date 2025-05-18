@@ -372,13 +372,6 @@ class ExperimentalConfig(ConfigBase):
     enable_always_relative_history: bool = False
     """聊天记录总是使用 relative 模式"""
 
-    name_display_mode: int = 1
-    """
-    聊天记录用户名称显示模式。
-    1: 老模式 (LLM名称 > '昵称：'+群名片 > QQ昵称)。
-    2: 优先显示群名片 (群名片 > LLM名称 > QQ昵称)。
-    """
-
 
 @dataclass
 class ScheduleConfig(ConfigBase):

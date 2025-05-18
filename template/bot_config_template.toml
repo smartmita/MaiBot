@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.2"
+version = "2.0.0.1"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -198,7 +198,6 @@ talk_allowed_private = [] # 可以回复消息的QQ号
 api_polling_max_retries = 3  # 神秘小功能
 rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
 enable_always_relative_history = false # 聊天记录总是使用 relative 模式
-name_display_mode = 1 # 聊天记录显示模式：1为优先llm起的名，2为优先群名称
 
 [pfc]
 enable = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
