@@ -58,6 +58,75 @@ def parse_knowledge_and_get_max_relevance(knowledge_str: str) -> tuple[str | Non
 
     return knowledge_str, max_relevance
 
+# 规范化函数
+def more_robust_normalize(text: str) -> str:
+    if not text:
+        return ""
+    # 尝试移除 "第X条知识：" 这样的前缀，如果存在的话
+    text = re.sub(r"^\s*第\d+条知识：\s*", "", text).strip()
+    # 移除大部分非中文、非英文、非数字的特殊符号，但保留中文常用标点
+    # 你可以根据你的知识内容特点调整这个正则表达式
+    text = re.sub(r"[^\w\s\u4e00-\u9fa5，。！？；：]", "", text, flags=re.UNICODE)
+    # 统一小写（主要针对可能存在的英文）
+    text = text.lower()
+    # 移除多余空格
+    return " ".join(text.strip().split())
+
+def extract_individual_knowledge_pieces(knowledge_blob: str, source_keyword_for_log: str = "未知") -> list[tuple[str, float]]:
+    """
+    从 qa_manager 返回的包含多条知识的字符串中提取独立的知识片段及其相关性。
+    返回一个列表，每个元素是 (独立知识文本, 该知识的相关性)。
+    """
+    pieces = []
+    if not knowledge_blob or not knowledge_blob.strip():
+        return pieces
+
+    # 主要模式：匹配 "第X条知识：" 开头，直到 "该条知识对于问题的相关性："
+    # (?s) 或 re.DOTALL 使 . 匹配换行符
+    # 使用非贪婪匹配 .*?
+    pattern = re.compile(
+        r"(?:第\d+条知识：\s*)?(?P<content>.+?)\s*该条知识对于问题的相关性：\s*(?P<relevance>[0-9.]+)",
+        re.DOTALL
+    )
+
+    # 为了处理一个大块文本可能被错误地解析为多个小块，或者一个小块被遗漏的情况，
+    # 我们改为使用 finditer 来查找所有匹配项。
+    matches = list(pattern.finditer(knowledge_blob))
+
+    if matches:
+        for match in matches:
+            content = match.group("content").strip()
+            # 再次去除可能仍存在的 "第X条知识：" (如果正则表达式的第一个可选组匹配失败但内容里还有)
+            content = re.sub(r"^第\d+条知识：\s*", "", content).strip()
+            try:
+                relevance_val = float(match.group("relevance"))
+                if content: # 确保内容不为空
+                    pieces.append((content, relevance_val))
+                else:
+                    logger.debug(f"提取到空内容知识片段，来源关键词: {source_keyword_for_log}，相关性: {relevance_val}，已忽略。")
+            except ValueError:
+                logger.warning(f"无法解析相关性值: '{match.group('relevance')}'，来源关键词: {source_keyword_for_log}。该片段被忽略。")
+    elif knowledge_blob.strip(): # 如果正则没有匹配到任何东西，但原始字符串不为空
+        # 尝试将整个 blob 作为一个条目，并尝试用 parse_knowledge_and_get_max_relevance 获取其总体相关性
+        # 注意：parse_knowledge_and_get_max_relevance 本身也会返回整个 blob 作为 content
+        # 所以我们直接使用原始 blob 和提取出的相关性
+        _original_blob_content, overall_relevance = parse_knowledge_and_get_max_relevance(knowledge_blob)
+        if _original_blob_content.strip(): # 确保解析后的内容不为空
+             # 这里 _original_blob_content 理论上就是 knowledge_blob，但我们用解析函数返回的确保一致性
+            logger.debug(f"未能按 '第X条' 格式拆分知识块 (来源: {source_keyword_for_log})，将其视为单个条目。相关性: {overall_relevance:.4f}")
+            pieces.append((_original_blob_content.strip(), overall_relevance if overall_relevance > 0 else 0.01)) # 给一个低默认值
+        else:
+            logger.warning(f"知识块 (来源: {source_keyword_for_log}) 既不能按 '第X条' 拆分，整体解析后内容也为空，已忽略。原始块: {knowledge_blob[:200]}...")
+
+
+    # 日志记录，有多少 piece 被成功提取
+    if pieces:
+        logger.debug(f"从关键词 '{source_keyword_for_log}' 的知识块中成功提取 {len(pieces)} 个独立知识片段。")
+    elif knowledge_blob.strip(): # 有原始输入但没提取出任何东西
+        logger.warning(f"未能从关键词 '{source_keyword_for_log}' 的知识块中提取任何有效片段。原始块: {knowledge_blob[:200]}...")
+        
+    return pieces
+
 
 class ScheduleGenerator:
     # enable_output: bool = True
@@ -381,64 +450,109 @@ class ScheduleGenerator:
     async def retrieve_knowledge_for_keywords(self, keywords: list[str]) -> str:
         """
         根据关键词列表检索相关的知识库和记忆。
-        加强去重逻辑。
+        加强去重逻辑，针对拆分后的独立知识条目进行去重。
         """
         if not keywords:
             return ""
 
-        all_retrieved_texts = []
-        # 使用一个集合来存储已经添加过的知识的核心内容或者一个唯一标识符，以避免重复
-        # 这里我们简单地用处理过的 knowledge_content 本身作为键，如果内容完全一样则会被去重。
-        # 如果 qa_manager 返回的内容有微小变化但核心一致，这种方法可能不完美。
-        added_knowledge_signatures = set()
+        # 用于存储所有不重复的 (独立知识文本, 相关性, 来源关键词等元数据)
+        # 我们用一个字典来存储，键是规范化后的文本签名，值是包含原始内容和最高相关性的字典
+        # 这样如果后续有相同签名但相关性更高的，可以更新
+        unique_knowledge_map = {} # str_signature -> {"content": original_piece_content, "relevance": highest_relevance_for_this_content, "source_keywords": set_of_keywords}
 
-        # --- 知识库检索 ---
-        retrieved_knowledge_items = [] # 用于存储 (relevance, content) 以便后续排序或进一步处理
 
         for keyword in keywords:
             if not keyword.strip():
                 continue
             try:
                 loop = asyncio.get_event_loop()
-                # 传入关键词本身作为检索查询
+                # found_knowledge_str 是从 qa_manager 获取的原始字符串块
                 found_knowledge_str = await loop.run_in_executor(None, qa_manager.get_knowledge, keyword)
 
-                if found_knowledge_str:
-                    knowledge_content, relevance = parse_knowledge_and_get_max_relevance(found_knowledge_str)
-                    knowledge_relevance_threshold = global_config.schedule.knowledge_relevance_threshold
+                if found_knowledge_str and found_knowledge_str.strip():
+                    # 1. 将原始字符串块拆分为独立的知识片段
+                    # 将当前关键词传递给拆分函数，用于更详细的日志记录
+                    individual_pieces = extract_individual_knowledge_pieces(found_knowledge_str, source_keyword_for_log=keyword)
+                    
+                    if not individual_pieces:
+                        logger.debug(f"关键词 '{keyword}' 未能拆分出有效知识片段。")
+                        continue # 如果拆分不出任何有效片段，处理下一个关键词
 
-                    if relevance >= knowledge_relevance_threshold:
-                        # 清理和规范化 knowledge_content 以提高基于字符串的去重效果
-                        # 例如，去除多余的空白字符，统一换行符等
-                        normalized_content = " ".join(knowledge_content.strip().split())
+                    for piece_content, piece_relevance in individual_pieces:
+                        if not piece_content.strip(): # 跳过内容为空的片段
+                            continue
 
-                        # 检查是否已经添加过近似的内容
-                        # 为了更有效的去重，特别是对于长文本，可以考虑只取其开头一部分或计算一个简短的哈希作为签名
-                        # 这里我们先用规范化后的完整内容
-                        if normalized_content not in added_knowledge_signatures:
-                            logger.info(f"关键词 '{keyword}' 检索到相关知识 (相关性: {relevance:.4f}), 内容将加入。")
-                            # 存储原始的、未被 " ".join 处理的 knowledge_content，因为它可能包含换行
-                            retrieved_knowledge_items.append({"relevance": relevance, "content": knowledge_content.strip(), "source_keyword": keyword})
-                            added_knowledge_signatures.add(normalized_content)
+                        knowledge_relevance_threshold = global_config.schedule.get("knowledge_relevance_threshold", 0.35) # 从配置读取，提供默认值
+                        
+                        if piece_relevance >= knowledge_relevance_threshold:
+                            # 2. 对每个独立知识片段的文本内容进行规范化
+                            normalized_piece_signature = more_robust_normalize(piece_content)
+
+                            if not normalized_piece_signature: # 如果规范化后为空，也跳过
+                                logger.debug(f"独立知识片段规范化后为空，原始片段: '{piece_content[:50]}...'，已忽略。")
+                                continue
+
+                            # 3. 检查是否已经添加过，或者是否需要更新（如果新的相关性更高）
+                            if normalized_piece_signature not in unique_knowledge_map or \
+                               piece_relevance > unique_knowledge_map[normalized_piece_signature]["relevance"]:
+                                
+                                if normalized_piece_signature not in unique_knowledge_map:
+                                    logger.info(f"新增独立知识 (来自关键词 '{keyword}', 相关性: {piece_relevance:.4f})。内容: {piece_content[:50]}...")
+                                    unique_knowledge_map[normalized_piece_signature] = {
+                                        "content": piece_content.strip(),
+                                        "relevance": piece_relevance,
+                                        "source_keywords": {keyword} # 初始化来源关键词集合
+                                    }
+                                else: # normalized_piece_signature 已存在，但当前 piece_relevance 更高
+                                    logger.info(f"更新独立知识 (来自关键词 '{keyword}', 新相关性: {piece_relevance:.4f} > 旧相关性: {unique_knowledge_map[normalized_piece_signature]['relevance']:.4f})。内容: {piece_content[:50]}...")
+                                    unique_knowledge_map[normalized_piece_signature]["relevance"] = piece_relevance
+                                    # 可以选择是否更新内容，如果认为高相关性的版本更好
+                                    # unique_knowledge_map[normalized_piece_signature]["content"] = piece_content.strip() 
+                                    unique_knowledge_map[normalized_piece_signature]["source_keywords"].add(keyword)
+                            
+                            # 如果签名已存在且当前相关性不高，可以记录一下来源（可选）
+                            elif normalized_piece_signature in unique_knowledge_map:
+                                unique_knowledge_map[normalized_piece_signature]["source_keywords"].add(keyword)
+                                logger.debug(f"独立知识片段内容已存在 (来自 '{keyword}', 相关性 {piece_relevance:.4f})，未更新。")
                         else:
-                            logger.debug(f"关键词 '{keyword}' 检索到的知识内容已存在 (相关性: {relevance:.4f})，已忽略重复。")
-                    else:
-                        logger.debug(f"关键词 '{keyword}' 检索到的知识相关性 ({relevance:.4f}) 低于阈值 {knowledge_relevance_threshold}，已忽略。")
+                            logger.debug(f"独立知识片段 (来自 '{keyword}') 相关性 ({piece_relevance:.4f}) 低于阈值 {knowledge_relevance_threshold}，已忽略。内容: {piece_content[:50]}...")
+                else:
+                    logger.debug(f"关键词 '{keyword}' 未检索到任何知识内容或内容为空。")
             except Exception as e:
-                logger.error(f"为关键词 '{keyword}' 检索知识库时出错: {e}")
+                logger.error(f"为关键词 '{keyword}' 检索知识库或处理时出错: {e}")
                 logger.exception("详细错误信息:")
 
-        if retrieved_knowledge_items:
+        # --- 从 unique_knowledge_map 中提取最终的知识项列表 ---
+        # unique_knowledge_map 的值是 {"content": ..., "relevance": ..., "source_keywords": ...}
+        final_knowledge_items_list = list(unique_knowledge_map.values())
+
+        # --- 组装最终的知识文本 ---
+        all_retrieved_texts = []
+        if final_knowledge_items_list:
+            # 按相关性排序所有收集到的独立知识片段
+            final_knowledge_items_list.sort(key=lambda x: x["relevance"], reverse=True)
+            
+            MAX_ITEMS_FOR_PROMPT = global_config.schedule.get("max_knowledge_items_for_schedule_prompt", 5)
+            logger.info(f"总共收集到 {len(final_knowledge_items_list)} 条去重后的独立知识，将选取最多 {MAX_ITEMS_FOR_PROMPT} 条。")
+
             all_retrieved_texts.append("--- 相关知识库信息 ---")
-            # 可以选择是否按相关性排序后再加入
-            # retrieved_knowledge_items.sort(key=lambda x: x["relevance"], reverse=True)
-            for item in retrieved_knowledge_items:
-                # 你可以决定是否在Prompt中也包含相关性和来源关键词，供LLM参考，但通常只给内容即可
-                # all_retrieved_texts.append(f"(来自关键词: {item['source_keyword']}, 相关性: {item['relevance']:.2f})\n{item['content']}")
-                all_retrieved_texts.append(item['content'])
+            count = 0
+            for item in final_knowledge_items_list:
+                if count >= MAX_ITEMS_FOR_PROMPT:
+                    logger.debug(f"已达到知识条目上限 {MAX_ITEMS_FOR_PROMPT}，停止添加。")
+                    break
+                
+                # 打印来源关键词信息，方便调试
+                source_kw_str = ", ".join(list(item['source_keywords'])[:3]) # 最多显示3个来源关键词
+                if len(item['source_keywords']) > 3:
+                    source_kw_str += f" 等{len(item['source_keywords'])}个"
+
+                logger.debug(f"最终选用知识 (相关性: {item['relevance']:.4f}, 来源: [{source_kw_str}]): {item['content'][:100]}...")
+                all_retrieved_texts.append(item['content']) # 只添加内容到最终prompt
+                count += 1
             all_retrieved_texts.append("--- 结束知识库信息 ---")
         else:
-            logger.info("未检索到符合条件的知识库内容。")
+            logger.info("经过所有关键词检索和去重后，没有最终采纳的知识片段。")
 
 
         # --- 记忆检索 (可选，如果需要) ---
