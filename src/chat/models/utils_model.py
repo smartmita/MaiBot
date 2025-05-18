@@ -515,7 +515,7 @@ class LLMRequest:
                     headers["Accept"] = "text/event-stream"
 
                 async with aiohttp.ClientSession() as session:
-                    post_kwargs = {"headers": headers, "json": actual_payload, "timeout": 60}
+                    post_kwargs = {"headers": headers, "json": actual_payload, "timeout": 90}
                     if use_proxy:
                         post_kwargs["proxy"] = current_proxy_url
 
