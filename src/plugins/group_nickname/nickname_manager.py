@@ -144,10 +144,10 @@ class NicknameManager:
         self._initialized = True
         logger.info("NicknameManager 初始化完成。")
 
-    async def _get_user_primary_identifiers(
+    async def _get_user_primary_identifiers( # 方法名修改，更清晰
         self,
         uid_str: str,
-        platform: str, # 保留，以备将来使用
+        platform: str, # platform 虽然暂时没在逻辑中使用，但保留以备将来扩展
         message_list_before_now: List[Dict],
     ) -> Tuple[str, str]:
         """
@@ -156,49 +156,44 @@ class NicknameManager:
         LLM名（person_name）不在此处使用。
 
         返回: (main_display_name, group_card_name_for_info)
+               - main_display_name: 用于在注入信息中代表该用户的主要名字 (如“张三”)
+               - group_card_name_for_info: 该用户在此群的群名片 (如“快乐小张”)
         """
-        main_display_name = f"用户{uid_str}" # 最终备用，如果其他都获取不到
-        actual_group_card_name = "" # 存储从历史记录中实际获取的群名片
-        latest_qq_nickname_from_history = ""
-
+        main_display_name = f"用户{uid_str}" # 最终备用
+        group_card_name_for_info = ""
+        
         # 从 message_list_before_now 获取最新的群名片和QQ昵称
+        # QQ昵称 (user_nickname) 是我们期望的“用户网名”
+        # 群名片 (user_cardname) 是独立的
+        latest_qq_nickname_from_history = ""
+        latest_cardname_from_history = ""
+
         for msg_info in reversed(message_list_before_now): # 从最新消息开始找
             msg_user_info = msg_info.get("user_info", {})
             if str(msg_user_info.get("user_id")) == uid_str:
-                # 只要找到该用户的任何一条消息，就尝试获取这两个信息
-                if msg_user_info.get("user_nickname"): 
+                if msg_user_info.get("user_nickname"): # QQ网名
                     latest_qq_nickname_from_history = msg_user_info.get("user_nickname")
-                if msg_user_info.get("user_cardname"): 
-                    actual_group_card_name = msg_user_info.get("user_cardname")
-            
-                # 找到了该用户的最新一条相关消息，信息已提取完毕，可以跳出循环
-                logger.debug(f"[PIDGetter] For UID '{uid_str}': Found in history - QQNickname='{latest_qq_nickname_from_history}', CardName='{actual_group_card_name}'")
+                if msg_user_info.get("user_cardname"): # 群名片
+                    latest_cardname_from_history = msg_user_info.get("user_cardname")
+                
+                # 只要找到该用户的任何一条最新消息，就可以获取这两个信息，然后跳出
                 break 
-    
-        # 确定 main_display_name (您期望的“用户名”，即聊天记录中看到的，优先QQ网名)
+        
+        # 确定 main_display_name
         if latest_qq_nickname_from_history:
             main_display_name = latest_qq_nickname_from_history
-            logger.debug(f"[PIDGetter] For UID '{uid_str}': Using QQNickname '{main_display_name}' as main_display_name.")
-        elif actual_group_card_name: # 如果QQ网名没取到，但有群名片，则群名片作为主显示名
-            main_display_name = actual_group_card_name
-            logger.debug(f"[PIDGetter] For UID '{uid_str}': QQNickname empty, using CardName '{main_display_name}' as main_display_name.")
-        else: # 如果两者都获取不到，则main_display_name 维持 f"用户{uid_str}"
-            logger.debug(f"[PIDGetter] For UID '{uid_str}': Both QQNickname and CardName empty, main_display_name defaults to '{main_display_name}'.")
+        elif latest_cardname_from_history: # 如果QQ网名没取到，但有群名片，则群名片作为主显示名
+            main_display_name = latest_cardname_from_history
+        # else 维持 f"用户{uid_str}"
 
-        # group_card_name_for_info 就是我们从历史记录中获取的 actual_group_card_name
-        # 如果用户在群内没有设置群名片，QQ的行为通常是显示其QQ网名。
-        # 在这种情况下，actual_group_card_name 可能是空的，或者等于 latest_qq_nickname_from_history。
-        # 我们需要确保即使 actual_group_card_name 为空，如果 main_display_name 是QQ昵称，那么“群名片”应该显示这个QQ昵称。
-        # 或者如果您的意思是，如果群里没设置，就显示QQ昵称，那 actual_group_card_name 字段就应该反映这一点。
-    
-        # 修正：如果实际群名片为空，并且QQ昵称存在，则群名片信息应该显示QQ昵称（模拟QQ行为）
-        # 但这与“ta在这个群的群名称为”的语义有点冲突，如果群名片真的没设置，应该就是空。
-        # 我们先保持 group_card_name_for_info 就是 actual_group_card_name 的原始值。
-        # 如果您希望在 actual_group_card_name 为空时，让"群名称"部分显示QQ昵称，那需要在这里调整。
-        # 暂时，我们让它真实反映获取到的群名片。
-        group_card_name_for_info = actual_group_card_name
+        # 确定 group_card_name_for_info
+        # 如果用户没有设定群名称，则其群名片字段(user_cardname)可能为空或与其QQ网名(user_nickname)一致
+        # 我们直接使用从历史上获取的 latest_cardname_from_history
+        # 如果它为空，那么在 format_nickname_prompt_injection 中就不会显示群名片部分
+        # 如果它和 main_display_name 一样，也会正常显示，这符合“如果用户没有设定群名称，则与网名一致”的逻辑
+        group_card_name_for_info = latest_cardname_from_history
 
-        logger.debug(f"[PIDGetter] Final for UID '{uid_str}': main_display_name='{main_display_name}', group_card_name_for_info='{group_card_name_for_info}'")
+        logger.debug(f"For UID '{uid_str}': main_display_name='{main_display_name}', group_card_name_for_info='{group_card_name_for_info}'")
         return main_display_name, group_card_name_for_info
 
 
