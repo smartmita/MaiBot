@@ -12,6 +12,7 @@ from src.common.database import db  # noqa: E402
 from src.common.logger import get_module_logger, SCHEDULE_STYLE_CONFIG, LogConfig  # noqa: E402
 from src.chat.models.utils_model import LLMRequest  # noqa: E402
 from src.config.config import global_config  # noqa: E402
+from src.individuality.individuality import Individuality
 
 TIME_ZONE = tz.gettz(global_config.schedule.time_zone)  # 设置时区
 
@@ -50,8 +51,8 @@ class ScheduleGenerator:
         self.yesterday_done_list = []
 
         self.name = ""
-        self.personality = ""
         self.behavior = ""
+        self.individuality = Individuality.get_instance()
 
         self.start_time = datetime.datetime.now(TIME_ZONE)
 
@@ -60,7 +61,7 @@ class ScheduleGenerator:
     def initialize(
         self,
         name: str = "bot_name",
-        personality: str = "你是一个爱国爱党的新时代青年",
+        personality: str = "你是一个爱国爱党的新时代青年", # 这个参数没用了
         behavior: str = "你非常外向，喜欢尝试新事物和人交流",
         interval: int = 60,
     ):
@@ -68,7 +69,7 @@ class ScheduleGenerator:
         self.name = name
         self.behavior = behavior
         self.schedule_doing_update_interval = interval
-        self.personality = personality
+        # self.personality = personality
 
     async def mai_schedule_start(self):
         """启动日程系统，每5分钟执行一次move_doing，并在日期变化时重新检查日程"""
@@ -135,8 +136,10 @@ class ScheduleGenerator:
     def construct_daytime_prompt(self, target_date: datetime.datetime):
         date_str = target_date.strftime("%Y-%m-%d")
         weekday = target_date.strftime("%A")
+        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+        bot_name_to_use = self.name
 
-        prompt = f"你是{self.name}，{self.personality}，{self.behavior}"
+        prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
         prompt += f"你昨天的日程是：{self.yesterday_schedule_text}\n"
         prompt += f"请为你生成{date_str}（{weekday}），也就是今天的日程安排，结合你的个人特点和行为习惯以及昨天的安排\n"
         prompt += "推测你的日程安排，包括你一天都在做什么，从起床到睡眠，有什么发现和思考，具体一些，详细一些，需要1500字以上，精确到每半个小时，记得写明时间\n"  # noqa: E501
@@ -147,7 +150,12 @@ class ScheduleGenerator:
         now_time = time.strftime("%H:%M")
         previous_doings = self.get_current_num_task(5, True)
 
-        prompt = f"你是{self.name}，{self.personality}，{self.behavior}"
+        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+
+        bot_name_to_use = self.name
+
+        # 修改Prompt，明确加入机器人名字
+        prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
         prompt += f"你今天的日程是：{self.today_schedule_text}\n"
         if previous_doings:
             prompt += f"你之前做了的事情是：{previous_doings}，从之前到现在已经过去了{self.schedule_doing_update_interval / 60}分钟了\n"  # noqa: E501
