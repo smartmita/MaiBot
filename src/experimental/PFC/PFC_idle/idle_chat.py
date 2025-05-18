@@ -8,21 +8,16 @@ from datetime import datetime
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 from src.chat.models.utils_model import LLMRequest
-from src.chat.message_receive.chat_stream import chat_manager, ChatManager
-from src.chat.person_info.person_info import person_info_manager
-from src.chat.person_info.relationship_manager import relationship_manager
-from src.chat.utils.chat_message_builder import build_readable_messages
+from src.chat.message_receive.chat_stream import chat_manager
+from src.chat.message_receive.chat_stream import ChatStream
 
 # from ...schedule.schedule_generator import bot_schedule
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
-from src.chat.message_receive.chat_stream import ChatStream
 from ..pfc_relationship import PfcRepationshipTranslator, PfcRelationshipUpdater
-from maim_message import UserInfo, Seg
+from maim_message import Seg
 from rich.traceback import install
-from ..observation_info import ObservationInfo
 from ..pfc_utils import build_chat_history_text
-from src.common.database import db # 新增导入
 from bson.decimal128 import Decimal128 # 新增导入
 from .idle_weight import calculate_user_weight, calculate_base_trigger_probability, process_instances_weights, find_max_relationship_user, get_user_relationship_data
 
