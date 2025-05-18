@@ -185,8 +185,8 @@ async def _build_readable_messages_internal(
         platform = user_info.get("platform")
         user_id = user_info.get("user_id")
 
-        user_nickname = user_info.get("user_nickname") # QQ昵称
-        user_cardname = user_info.get("user_cardname") # 群名称
+        user_nickname = user_info.get("user_nickname")
+        user_cardname = user_info.get("user_cardname")
 
         timestamp = msg.get("time")
         content = msg.get("processed_plain_text", "")  # 默认空字符串
@@ -200,16 +200,41 @@ async def _build_readable_messages_internal(
         if replace_bot_name and user_id == global_config.bot.qq_account:
             person_name = f"{global_config.bot.nickname}(你)"
         else:
-            person_name = await person_info_manager.get_value(person_id, "person_name")
+            # 根据配置模式处理普通用户的名称
+            if name_display_mode == 1: # 模式1: 老模式
+                llm_name = await person_info_manager.get_value(person_id, "person_name")
+                if llm_name:
+                    person_name_to_display = llm_name
+                elif user_cardname:
+                    person_name_to_display = f"昵称：{user_cardname}" # 老模式下带前缀
+                elif user_nickname:
+                    person_name_to_display = user_nickname
+                # else 保持 "某人"
 
-        # 如果 person_name 未设置，则使用消息中的 nickname 或默认名称
-        if not person_name:
-            if user_cardname:
-                person_name = f"昵称：{user_cardname}"
-            elif user_nickname:
-                person_name = f"{user_nickname}"
-            else:
-                person_name = "某人"
+            elif name_display_mode == 2: # 模式2: 优先显示群名称
+                if user_cardname: # 直接使用群名片
+                    person_name_to_display = user_cardname
+                else: # 如果没有群名片，则回退
+                    llm_name = await person_info_manager.get_value(person_id, "person_name")
+                    if llm_name:
+                        person_name_to_display = llm_name
+                    elif user_nickname:
+                        person_name_to_display = user_nickname
+                    # else 保持 "某人"
+
+            # elif name_display_mode == 3: 等未来的模式
+
+            else: # 如果配置的模式未识别，默认使用模式1
+                # logger.warning(f"未知的 name_display_mode: {name_display_mode}，将为用户 {user_id} 使用默认模式 1。")
+                llm_name = await person_info_manager.get_value(person_id, "person_name")
+                if llm_name:
+                    person_name_to_display = llm_name
+                elif user_cardname:
+                    person_name_to_display = f"昵称：{user_cardname}"
+                elif user_nickname:
+                    person_name_to_display = user_nickname
+
+        processed_content = original_content_for_processing
 
         # 检查是否有 回复<aaa:bbb> 字段
         reply_pattern = r"回复<([^:<>]+):([^:<>]+)>"
@@ -410,7 +435,6 @@ async def build_readable_messages(
             replace_bot_name,
             merge_messages,
             timestamp_mode,
-            truncate=truncate,
         )
 
         readable_read_mark = translate_timestamp_to_human_readable(read_mark, mode=timestamp_mode)
