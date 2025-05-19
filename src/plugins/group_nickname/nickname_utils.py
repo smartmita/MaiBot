@@ -117,7 +117,7 @@ def format_user_info_prompt(
         # nicknames_map[u_id] 中的绰号列表将自然地按其在 selected_nicknames 中的顺序排列（即按常用度）
 
     for user_id, person_name in users_data:
-        line = f"uid:{user_id}，名为“{person_name}“"
+        line = f"uid:{user_id}，名为“{person_name}”"
         if selected_nicknames and user_id in nicknames_map: # 如果有绰号信息且当前用户有绰号
             nicknames_str = "、".join(nicknames_map[user_id])
             line += f"，ta 在本群常被称为：{nicknames_str}"
