@@ -1,16 +1,15 @@
 import random
-from typing import List, Dict, Tuple, Any
+from typing import List, Dict, Tuple, Any, Optional
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
 
-# 这个文件现在只包含纯粹的工具函数，与状态和流程无关
 
 logger = get_logger("nickname_utils")
 
 
 def select_nicknames_for_prompt(
-    all_nicknames_info_with_uid: Dict[str, Dict[str, Any]] # 修改输入类型提示
-) -> List[Tuple[str, str, str, int]]: # 修改返回类型提示 (用户名, user_id, 绰号, 次数)
+    all_nicknames_info_with_uid: Dict[str, Dict[str, Any]]
+) -> List[Tuple[str, str, str, int]]:
     """
     从给定的绰号信息中，根据映射次数加权随机选择最多 N 个绰号用于 Prompt。
 
@@ -36,7 +35,7 @@ def select_nicknames_for_prompt(
         if not user_id or not isinstance(nicknames_list, list):
             logger.warning(f"用户 '{user_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。 Data: {data}")
             continue
-            
+
         for nickname_entry in nicknames_list:
             if isinstance(nickname_entry, dict) and len(nickname_entry) == 1:
                 nickname, count = list(nickname_entry.items())[0]
@@ -54,17 +53,21 @@ def select_nicknames_for_prompt(
         return []
 
     max_nicknames = global_config.group_nickname.max_nicknames_in_prompt
+    if max_nicknames == 0: # 处理 max_nicknames_in_prompt 配置为0的边界情况
+        logger.warning("max_nicknames_in_prompt 配置为0，不选择任何绰号。")
+        return []
+
     num_to_select = min(max_nicknames, len(candidates))
 
     try:
-        selected_candidates_with_weight = weighted_sample_without_replacement(candidates, num_to_select) # 使用新的辅助函数名（如果修改了它）
+        selected_candidates_with_weight = weighted_sample_without_replacement(candidates, num_to_select)
 
         if len(selected_candidates_with_weight) < num_to_select:
             logger.debug(
                 f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，尝试补充选择次数最多的。"
             )
             selected_ids = set(
-                (c[0], c[1], c[2]) for c in selected_candidates_with_weight # (user_name, user_id, nickname)
+                (c[0], c[1], c[2]) for c in selected_candidates_with_weight
             )
             remaining_candidates = [c for c in candidates if (c[0], c[1], c[2]) not in selected_ids]
             remaining_candidates.sort(key=lambda x: x[3], reverse=True)  # 按原始次数 (index 3) 排序
@@ -85,43 +88,50 @@ def select_nicknames_for_prompt(
     return result
 
 
-def format_nickname_prompt_injection(selected_nicknames_with_uid: List[Tuple[str, str, str, int]]) -> str: # 修改输入类型
+def format_user_info_prompt(
+    users_data: List[Tuple[str, str]], # 改为接收 (user_id, person_name) 元组列表
+    selected_nicknames: Optional[List[Tuple[str, str, str, int]]] = None # (person_name, user_id, nickname, count)
+) -> str:
     """
-    将选中的绰号信息（含UID）格式化为注入 Prompt 的字符串。
+    将用户基本信息和可选的绰号信息格式化为注入 Prompt 的字符串。
 
     Args:
-        selected_nicknames_with_uid: 选中的绰号列表 (用户名, user_id, 绰号, 次数)。
+        users_data: 用户信息列表，每个元素为 (user_id, person_name)。
+        selected_nicknames: 可选的已选绰号列表 (person_name, user_id, 绰号, 次数)。
+                            此列表中的绰号应已按常用度排序。
 
     Returns:
         str: 格式化后的字符串，如果列表为空则返回空字符串。
     """
-    if not selected_nicknames_with_uid:
+    if not users_data:
         return ""
 
-    prompt_lines = ["以下是聊天记录中一些成员在本群的绰号信息（按常用度排序）与 uid 信息，供你参考："]
-    # 改为: { (user_name, user_id): [绰号1, 绰号2] }
-    grouped_by_user: Dict[Tuple[str, str], List[str]] = {}
+    prompt_lines = ["以下是聊天记录中存在的对象的信息，供你参考："]
+    
+    nicknames_map: Dict[str, List[str]] = {} # Key: user_id, Value: List of formatted nickname strings ("“nickname”")
+    if selected_nicknames: # 仅当提供了绰号信息时才构建映射
+        for _p_name, u_id, nickname, _count in selected_nicknames: # 迭代已按全局频率排序的绰号
+            if u_id not in nicknames_map:
+                nicknames_map[u_id] = []
+            nicknames_map[u_id].append(f"“{nickname}”")
+        # nicknames_map[u_id] 中的绰号列表将自然地按其在 selected_nicknames 中的顺序排列（即按常用度）
 
-    for user_name, user_id, nickname, _count in selected_nicknames_with_uid: # 解包时加入 user_id
-        user_key = (user_name, user_id) # 使用 (user_name, user_id) 作为键
-        if user_key not in grouped_by_user:
-            grouped_by_user[user_key] = []
-        grouped_by_user[user_key].append(f"“{nickname}”")
+    for user_id, person_name in users_data:
+        line = f"{user_id}，名为{person_name}"
+        if selected_nicknames and user_id in nicknames_map: # 如果有绰号信息且当前用户有绰号
+            nicknames_str = "、".join(nicknames_map[user_id])
+            line += f"，ta 在本群常被称为：{nicknames_str}"
+        prompt_lines.append(line)
 
-    for (user_name, user_id), nicknames_list in grouped_by_user.items():
-        nicknames_str = "、".join(nicknames_list)
-        # 格式化输出，例如: "- 张三(12345)，ta 可能被称为：“三儿”、“张哥”"
-        prompt_lines.append(f"- {user_name}({user_id})，ta 可能被称为：{nicknames_str}")
-
-    if len(prompt_lines) > 1:
+    if len(prompt_lines) > 1: # 确保除了标题行还有其他内容
         return "\n".join(prompt_lines) + "\n"
     else:
-        return ""
+        return "" # 如果只有标题行（例如 users_data 为空，虽然前面有检查），则返回空
 
 
-def weighted_sample_without_replacement( # 函数名保持不变，但内部处理的元组结构变了
-    candidates: List[Tuple[str, str, str, int, float]], k: int # 修改输入类型 (用户名, user_id, 绰号, 次数, 权重)
-) -> List[Tuple[str, str, str, int, float]]: # 修改返回类型
+def weighted_sample_without_replacement(
+    candidates: List[Tuple[str, str, str, int, float]], k: int
+) -> List[Tuple[str, str, str, int, float]]:
     """
     执行不重复的加权随机抽样。使用 A-ExpJ 算法思想的简化实现。
 
@@ -136,21 +146,35 @@ def weighted_sample_without_replacement( # 函数名保持不变，但内部处�
         return []
     n = len(candidates)
     if k >= n:
-        return candidates[:]
+        return candidates[:] # 如果 k 大于等于候选数量，直接返回所有候选者
 
     weighted_keys = []
     for i in range(n):
-        weight = candidates[i][4] # 权重现在是第5个元素 (index 4)
+        # username, user_id, nickname, count, weight = candidates[i] # 解包以提高可读性
+        _user_name, _user_id, _nickname, _count, weight = candidates[i] # 使用下划线表示暂不使用的变量
         if weight <= 0:
-            log_key = float("-inf")
-            logger.warning(f"候选者 {candidates[i][:3]} 的权重为非正数 ({weight})，抽中概率极低。") # 日志中多显示一个元素
+            # 如果权重为0或负数，赋予一个极小的对数键值，使其几乎不可能被选中
+            # 但仍需避免 log(0) 或除以0的错误
+            log_key = float("-inf") 
+            logger.warning(f"候选者 {candidates[i][:3]} 的权重为非正数 ({weight})，抽中概率极低。")
         else:
-            log_u = -random.expovariate(1.0)
-            log_key = log_u / weight
-        weighted_keys.append((log_key, i))
+            # random.expovariate(lambd) 返回一个服从指数分布的随机数，其均值为 1/lambd
+            # 这里 lambd=1.0，所以均值为1.0
+            log_u = -random.expovariate(1.0) # 生成标准指数分布的负值，模拟优先级
+            log_key = log_u / weight # 权重越大，log_key 越接近0（因为 log_u 是负数）
+        weighted_keys.append((log_key, i)) # 存储 (计算出的键, 原始索引)
 
+    # 按计算出的键值降序排序，键值越大（越接近0）的优先级越高
     weighted_keys.sort(key=lambda x: x[0], reverse=True)
+    
+    # 选择前 k 个元素的原始索引
     selected_indices = [index for _log_key, index in weighted_keys[:k]]
+    
+    # 根据选中的索引获取原始候选项目
     selected_items = [candidates[i] for i in selected_indices]
 
     return selected_items
+
+# 原 format_nickname_prompt_injection 函数已被新的 format_user_info_prompt 函数取代，
+# 因为新的函数能够处理两种情况（仅用户信息，或用户信息+绰号）。
+# 如果旧函数没有其他地方调用，可以安全地认为它已被新逻辑覆盖。

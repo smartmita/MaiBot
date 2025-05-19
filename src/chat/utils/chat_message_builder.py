@@ -1,3 +1,4 @@
+from maim_message import UserInfo
 from src.config.config import global_config
 from typing import List, Dict, Any, Tuple  # 确保类型提示被导入
 import time  # 导入 time 模块以获取当前时间
@@ -188,12 +189,11 @@ async def _build_readable_messages_internal(
         if not all([platform, user_id, timestamp is not None]):
             continue
 
-        person_id = person_info_manager.get_person_id(platform, user_id)
         # 根据 replace_bot_name 参数决定是否替换机器人名称
         if replace_bot_name and user_id == global_config.bot.qq_account:
-            person_name = f"{global_config.bot.nickname}(你)"
+            person_name = f"{global_config.bot.qq_account}(你)"
         else:
-            person_name = await person_info_manager.get_value(person_id, "person_name")
+            person_name = user_id
 
         # 如果 person_name 未设置，则使用消息中的 nickname 或默认名称
         if not person_name:

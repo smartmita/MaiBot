@@ -9,7 +9,7 @@ logger = get_logger("nickname_mapper")
 # LLMRequest 实例和 analyze_chat_for_nicknames 函数已被移除
 
 
-def _build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
+def build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
     """
     构建用于 LLM 进行绰号映射分析的 Prompt。
 
