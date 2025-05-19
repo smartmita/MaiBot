@@ -63,9 +63,11 @@ def init_prompt():
 </planner_task_definition>
 
 <contextual_information>
+    <profile_info>
+{nickname_info}
+    </profile_info>
     <identity>
         <bot_name>{bot_name}</bot_name>
-        <group_nicknames>{nickname_info}</group_nicknames>
     </identity>
     <live_chat_context>
         <chat_log>{chat_content_block}</chat_log>
@@ -139,7 +141,7 @@ def init_prompt():
           "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一 (例如: '{example_action}')
           "reasoning": "string", // 详细说明你做出此决策的理由，以及是如何应用 <decision_principles> 中的原则的。
           "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。请遵循回复原则，避免滥用。
-          "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 信息从 <group_nicknames> 中获取，如无可用信息请勿使用该功能。该值仅能为纯数字字符串。请遵循回复原则，避免滥用。
+          "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串。请遵循回复原则，避免滥用。
         }}
     </json_structure>
     <final_request>
