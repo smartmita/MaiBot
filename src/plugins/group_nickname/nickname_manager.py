@@ -308,7 +308,7 @@ class NicknameManager:
                 if person_name: # 只添加成功获取到 person_name 的用户
                     users_for_prompt.append((user_id_str, person_name))
                 elif user_id_str == global_config.bot.qq_account:
-                    users_for_prompt.append((user_id_str, {global_config.bot.nickname}))
+                    users_for_prompt.append((user_id_str, global_config.bot.nickname))
                 else:
                     logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的 person_name。")
             
