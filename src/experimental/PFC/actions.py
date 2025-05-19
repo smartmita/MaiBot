@@ -5,15 +5,15 @@ import traceback
 from typing import Optional, TYPE_CHECKING
 
 from src.common.logger_manager import get_logger
-from .pfc_types import ConversationState  # 调整导入路径
-from .observation_info import ObservationInfo  # 调整导入路径
-from .conversation_info import ConversationInfo  # 调整导入路径
+from .pfc_types import ConversationState
+from .observation_info import ObservationInfo
+from .conversation_info import ConversationInfo
 
 # 导入工厂类
-from .action_factory import StandardActionFactory  # 调整导入路径
+from .action_factory import StandardActionFactory
 
 if TYPE_CHECKING:
-    from .conversation import Conversation  # 调整导入路径
+    from .conversation import Conversation
 
 logger = get_logger("pfc_actions")  # 模块级别日志记录器
 
@@ -83,10 +83,12 @@ async def handle_action(
         # 动作执行后的逻辑 (例如更新 last_successful_reply_action 等)
         # 此部分之前位于每个 if/elif 块内部
         # 如果动作不是回复类型的动作
-        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes"]:
-            conversation_info.last_successful_reply_action = None  # 清除上次成功回复动作
-            conversation_info.last_reply_rejection_reason = None  # 清除上次回复拒绝原因
-            conversation_info.last_rejected_reply_content = None  # 清除上次拒绝的回复内容
+        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes", "reply_after_wait_timeout"]: # <--- 加入新动作
+            if conversation_info:
+                conversation_info.last_successful_reply_action = None
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None
+
 
         # 如果动作不是发送表情包或发送表情包失败，则清除表情查询
         if action != "send_memes" or not action_successful:
@@ -153,11 +155,11 @@ async def handle_action(
 
         # 此处移至 try 块以确保即使在发生异常之前也运行
         # 如果动作不是回复类型的动作
-        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes"]:
-            if conversation_info:  # 再次检查 conversation_info 是否不为 None
-                conversation_info.last_successful_reply_action = None  # 清除上次成功回复动作
-                conversation_info.last_reply_rejection_reason = None  # 清除上次回复拒绝原因
-                conversation_info.last_rejected_reply_content = None  # 清除上次拒绝的回复内容
+        if action not in ["direct_reply", "send_new_message", "say_goodbye", "send_memes", "reply_after_wait_timeout"]: # <--- 再次加入新动作
+            if conversation_info:
+                conversation_info.last_successful_reply_action = None
+                conversation_info.last_reply_rejection_reason = None
+                conversation_info.last_rejected_reply_content = None
         # 如果动作不是发送表情包或发送表情包失败
         if action != "send_memes" or not action_successful:
             # 如果 conversation_info 存在且有 current_emoji_query 属性

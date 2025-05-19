@@ -14,6 +14,7 @@ from .action_handlers import (  # 调整导入路径
     BlockAndIgnoreHandler,
     WaitHandler,
     UnknownActionHandler,
+    ReplyAfterWaitTimeoutHandler,
 )
 
 if TYPE_CHECKING:
@@ -56,6 +57,7 @@ class StandardActionFactory(AbstractActionFactory):
             "end_conversation": EndConversationHandler,
             "block_and_ignore": BlockAndIgnoreHandler,
             "wait": WaitHandler,
+            "reply_after_wait_timeout": ReplyAfterWaitTimeoutHandler,
         }
         handler_class = handler_map.get(action_type)  # 获取对应的处理器类
         # 如果找到对应的处理器类

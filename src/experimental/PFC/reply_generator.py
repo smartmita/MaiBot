@@ -154,6 +154,37 @@ PROMPT_FAREWELL = """
 
 请直接输出最终的告别消息内容，不需要任何额外格式。"""
 
+# --- 等待超时后的专属回复生成 Prompt ---
+PROMPT_REPLY_AFTER_WAIT_TIMEOUT = """
+当前时间：{current_time_str}
+{persona_text}。
+你正在和{sender_name}在QQ上私聊。**你刚刚已经等待了对方大约 {last_wait_duration_minutes:.1f} 分钟了，但对方一直没有回应。**
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
+
+考虑到对方长时间未回复，请你构思一条自然的、符合当前场景的消息。
+这条消息可以尝试重新引起对方的注意，或者礼貌地询问对方是否还在，或者表达你准备结束对话的意图等。
+请注意语气，既要表达出你注意到了对方的沉默，又不要显得过于急躁或认真的指责。
+
+你有以下这些知识：
+{retrieved_knowledge_str}
+
+你有以下记忆可供参考：
+{retrieved_global_memory_str}
+
+{retrieved_historical_chat_str}
+
+最近的聊天记录（包括你等待前最后发送的消息以及对方的沉默）：
+{chat_history_text}
+
+{last_rejection_info}
+
+请根据上述信息，结合聊天记录，直接输出一条符合你性格、简洁、自然的消息。
+不要输出任何其他额外格式，只输出纯文本回复内容。
+不要包含消息以外的前后缀、冒号、引号、括号或表情等。
+{reply_style1}，{reply_style2}。{prompt_ger}。
+"""
+
 
 class ReplyGenerator:
     """回复生成器"""
@@ -224,22 +255,6 @@ class ReplyGenerator:
 
         chat_history_for_prompt_builder: list = []
         recent_history_start_time_for_exclusion: Optional[float] = None
-
-        # 我们需要知道 build_chat_history_text 函数大致会用 observation_info.chat_history 的多少条记录
-        # 或者 build_chat_history_text 内部的逻辑。
-        # 假设 build_chat_history_text 主要依赖 observation_info.chat_history_str，
-        # 而 observation_info.chat_history_str 是基于 observation_info.chat_history 的最后一部分（比如20条）生成的。
-        # 为了准确，我们应该直接从 observation_info.chat_history 中获取这个片段的起始时间。
-        # 请确保这里的 MAX_RECENT_HISTORY_FOR_PROMPT 与 observation_info.py 或 build_chat_history_text 中
-        # 用于生成 chat_history_str 的消息数量逻辑大致吻合。
-        # 如果 build_chat_history_text 总是用 observation_info.chat_history 的最后 N 条，那么这个 N 就是这里的数字。
-        # 如果 observation_info.chat_history_str 是由 observation_info.py 中的 update_from_message 等方法维护的，
-        # 并且总是代表一个固定长度（比如最后30条）的聊天记录字符串，那么我们就需要从 observation_info.chat_history
-        # 取出这部分原始消息来确定起始时间。
-
-        # 我们先做一个合理的假设： “最近聊天记录” 字符串 chat_history_text 是基于
-        # observation_info.chat_history 的一个有限的尾部片段生成的。
-        # 假设这个片段的长度由 global_config.pfc.pfc_recent_history_display_count 控制，默认为20条。
         recent_history_display_count = global_config.pfc.pfc_recent_history_display_count
 
         if observation_info and observation_info.chat_history and len(observation_info.chat_history) > 0:
@@ -379,39 +394,37 @@ class ReplyGenerator:
         # spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
         # if spam_warning_message:
         # spam_warning_message = f"\n{spam_warning_message}\n"
+        last_wait_duration_minutes_for_prompt: float = 0.0
+        if action_type == "reply_after_wait_timeout":
+            last_wait_duration_minutes_for_prompt = getattr(conversation_info, 'last_wait_duration_minutes', 0.0) or 0.0
 
         # --- 选择 Prompt ---
-        if action_type == "send_new_message":
+        prompt_template: str = "" # 初始化
+        if action_type == "reply_after_wait_timeout": # <--- 新增分支
+            prompt_template = PROMPT_REPLY_AFTER_WAIT_TIMEOUT
+            logger.info(f"[私聊][{self.private_name}]使用 PROMPT_REPLY_AFTER_WAIT_TIMEOUT (等待超时后回复生成)")
+        elif action_type == "send_new_message":
             prompt_template = PROMPT_SEND_NEW_MESSAGE
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_SEND_NEW_MESSAGE (追问/补充生成, 期望JSON输出)")
         elif action_type == "say_goodbye":
             prompt_template = PROMPT_FAREWELL
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_FAREWELL (告别语生成)")
-        else:
+        else: # direct_reply
             prompt_template = PROMPT_DIRECT_REPLY
             logger.info(f"[私聊][{self.private_name}]使用 PROMPT_DIRECT_REPLY (首次/非连续回复生成)")
 
+
         # --- 格式化最终的 Prompt ---
         try:
-            current_time_value = "获取时间失败"
-            if observation_info and hasattr(observation_info, "current_time_str") and observation_info.current_time_str:
-                current_time_value = observation_info.current_time_str
-
+            current_time_value = observation_info.current_time_str or "获取时间失败"
+            # 构建基础参数字典
             base_format_params = {
                 "persona_text": persona_text,
                 "goals_str": goals_str,
-                "chat_history_text": chat_history_text
-                if chat_history_text.strip()
-                else "还没有聊天记录。",  # 当前短期历史
-                "retrieved_global_memory_str": retrieved_global_memory_str
-                if retrieved_global_memory_str.strip()
-                else "无相关全局记忆。",
-                "retrieved_knowledge_str": retrieved_knowledge_str
-                if retrieved_knowledge_str.strip()
-                else "无相关知识。",
-                "retrieved_historical_chat_str": retrieved_historical_chat_str
-                if retrieved_historical_chat_str.strip()
-                else "无相关私聊历史回忆。",  # << 新增
+                "chat_history_text": chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
+                "retrieved_global_memory_str": retrieved_global_memory_str if retrieved_global_memory_str.strip() else "无相关全局记忆。",
+                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str.strip() else "无相关知识。",
+                "retrieved_historical_chat_str": retrieved_historical_chat_str if retrieved_historical_chat_str.strip() else "无相关私聊历史回忆。",
                 "last_rejection_info": last_rejection_info_str,
                 "current_time_str": current_time_value,
                 "sender_name": sender_name_str,
@@ -422,57 +435,57 @@ class ReplyGenerator:
                 "prompt_ger": chosen_prompt_ger,
             }
 
-            if action_type == "send_new_message":
-                current_format_params = base_format_params.copy()
-                # current_format_params["spam_warning_info"] = spam_warning_message
-                prompt = prompt_template.format(**current_format_params)
+            current_format_params = base_format_params.copy() # 默认使用基础参数
+
+            if action_type == "reply_after_wait_timeout":
+                current_format_params["last_wait_duration_minutes"] = last_wait_duration_minutes_for_prompt
+            elif action_type == "send_new_message":
+                # PROMPT_SEND_NEW_MESSAGE 通常不需要 spam_warning_info，但如果需要可以添加
+                pass
             elif action_type == "say_goodbye":
-                farewell_params = {
-                    k: v
-                    for k, v in base_format_params.items()
-                    if k
-                    in [
-                        "persona_text",
-                        "chat_history_text",
-                        "current_time_str",
-                        "sender_name",
-                        "relationship_text",
-                        "current_emotion_text",
+                # PROMPT_FAREWELL 有自己特定的参数集，从 base_format_params 中挑选
+                current_format_params = {
+                    k: v for k, v in base_format_params.items()
+                    if k in [
+                        "persona_text", "chat_history_text", "current_time_str",
+                        "sender_name", "relationship_text", "current_emotion_text"
                     ]
                 }
+            # direct_reply 和其他未特定处理的动作类型会使用复制的 base_format_params
 
-                prompt = prompt_template.format(**farewell_params)
-            else:  # direct_reply
-                current_format_params = base_format_params.copy()
-                prompt = prompt_template.format(**current_format_params)
+            prompt = prompt_template.format(**current_format_params)
 
         except KeyError as e:
             logger.error(
-                f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。请检查 Prompt 模板和传递的参数。"
+                f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。模板: {prompt_template[:50]}..., 参数键: {current_format_params.keys()}"
             )
-            return "抱歉，准备回复时出了点问题，请检查一下我的代码..."  # 对于JSON期望的场景，这里可能也需要返回一个固定的错误JSON
+            # 为期望纯文本的场景返回错误提示，为期望JSON的场景返回错误JSON
+            return """{{ "send": "no", "txt": "Prompt格式化错误(缺键)" }}""" if action_type == "send_new_message" else "抱歉，准备回复时参数出错了。"
         except Exception as fmt_err:
             logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时发生未知错误: {fmt_err}")
-            return "抱歉，准备回复时出了点内部错误，请检查一下我的代码..."
+            return """{{ "send": "no", "txt": "Prompt格式化未知错误" }}""" if action_type == "send_new_message" else "抱歉，准备回复时内部出错了。"
+
 
         # --- 调用 LLM 生成 ---
-        logger.debug(f"[私聊][{self.private_name}]发送到LLM的生成提示词:\n------\n{prompt}\n------")
+        logger.debug(f"[私聊][{self.private_name}]发送到LLM的生成提示词 ({action_type}):\n------\n{prompt}\n------")
         try:
             content, _ = await self.llm.generate_response_async(prompt)
-            # 对于 PROMPT_SEND_NEW_MESSAGE，我们期望 content 是一个 JSON 字符串
-            # 对于其他 prompts，content 是纯文本回复
-            # 该方法现在直接返回 LLM 的原始输出，由调用者 (conversation._handle_action) 负责解析
-            logger.debug(f"[私聊][{self.private_name}]LLM原始生成内容: {content}")
-            return content
+            logger.debug(f"[私聊][{self.private_name}]LLM原始生成内容 ({action_type}): {content}")
+
+            # 如果动作类型是 reply_after_wait_timeout，我们期望的是纯文本
+            if action_type == "reply_after_wait_timeout":
+                # 可以进行一些基本的清理，例如去除首尾可能存在的引号或空格
+                return content.strip().strip('"').strip("'")
+            else:
+                if action_type in ["direct_reply", "say_goodbye"]:
+                     return content.strip().strip('"').strip("'") # 也清理一下
+                return content # send_new_message 等原样返回
 
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]生成回复时出错: {e}")
-            # 根据 action_type 返回不同的错误指示
+            logger.error(f"[私聊][{self.private_name}]生成回复时出错 ({action_type}): {e}")
             if action_type == "send_new_message":
-                # 返回一个表示错误的JSON，让调用方知道出错了但仍能解析
-                return """{{
-                    "send": "no",
-                    "txt": "LLM生成回复时出错"
-                }}""".strip()
-            else:
+                return """{{ "send": "no", "txt": "LLM生成回复时出错" }}"""
+            elif action_type == "reply_after_wait_timeout": # 新类型也返回错误文本
+                return "抱歉，我现在有点混乱，无法回应你的等待。"
+            else: # direct_reply, say_goodbye
                 return "抱歉，我现在有点混乱，让我重新思考一下..."

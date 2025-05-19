@@ -17,3 +17,5 @@ class ConversationInfo:
         self.current_instance_message_count: int = 0  # 当前私聊实例中的消息计数
         self.other_new_messages_during_planning_count: int = 0  # 在计划阶段期间收到的其他新消息计数
         self.current_emoji_query: Optional[str] = None  # 表情包
+        self.wait_has_timed_out: bool = False  # 标记上一个 wait 动作是否超时
+        self.last_wait_duration_minutes: Optional[float] = None # 上一次等待超时的时长（分钟）
