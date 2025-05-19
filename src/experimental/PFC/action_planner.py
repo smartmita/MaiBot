@@ -29,7 +29,7 @@ PROMPT_INITIAL_REPLY = """
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
-{time_since_last_bot_message_info}{timeout_context}
+{time_since_last_bot_message_info}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
 
@@ -67,7 +67,7 @@ PROMPT_FOLLOW_UP = """
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
-{time_since_last_bot_message_info}{timeout_context}
+{time_since_last_bot_message_info}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
 
@@ -116,7 +116,7 @@ PROMPT_END_DECISION = """
 # Prompt(4): 当 reply_generator 决定不发送消息后的反思决策 Prompt
 PROMPT_REFLECT_AND_ACT = """
 当前时间：{current_time_str}
-现在{persona_text}正在与{sender_name}在qq上私聊，刚刚{persona_text}打算发一条新消息，想了想还是不发了
+现在{persona_text}正在与{sender_name}在qq上私聊，刚刚{persona_text}打算发一条新消息，想了想还是不发了。
 他们的关系是：{relationship_text}
 {persona_text}现在的心情是是：{current_emotion_text}
 你现在需要操控{persona_text}，根据以下【所有信息】灵活，合理的决策{persona_text}的下一步行动，需要符合正常人的社交流程，可以等待，可以倾听，可以结束对话，甚至可以屏蔽对方：
@@ -128,7 +128,7 @@ PROMPT_REFLECT_AND_ACT = """
 【上一次行动的详细情况和结果】
 {last_action_context}
 【时间和超时提示】
-{time_since_last_bot_message_info}{timeout_context}
+{time_since_last_bot_message_info}
 【最近的对话记录】(包括你已成功发送的消息 和 新收到的消息)
 {chat_history_text}
 
@@ -145,6 +145,41 @@ block_and_ignore: 更加极端的结束对话方式，直接结束对话并在�
 {{
     "action": "选择的行动类型 (必须是上面列表中的一个)",
     "reason": "选择该行动的原因"
+}}
+
+注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
+
+
+# --- Prompt (5): Wait 超时后的专属决策 Prompt ---
+PROMPT_AFTER_WAIT_TIMEOUT = """
+当前时间：{current_time_str}
+现在[{persona_text}]正在与[{sender_name}]在QQ上私聊。**并且刚刚[{persona_text}]已经等待了对方大约 {last_wait_duration_minutes:.1f} 分钟，但对方没有回应。**
+他们的关系是：{relationship_text}
+[{persona_text}]现在的心情是：{current_emotion_text}
+你现在需要操控[{persona_text}]，基于对方长时间未回应这一核心情况，并结合以下【所有信息】，灵活、合理地决策下一步行动：
+
+【当前对话目标】(请注意其中是否有因为等待超时而产生的目标)
+{goals_str}
+【最近行动历史概要】
+{action_history_summary}
+【上一次行动的详细情况和结果】(上一个行动是 'wait' 且已超时)
+{last_action_context}
+【最近的对话记录】
+{chat_history_text}
+
+------
+可选行动类型以及解释：
+reply_after_wait_timeout: 主动说些什么以尝试重新激活对话或提及对方的沉默。
+wait: 再次等待。如果认为再等片刻是合适的，或者对话内容不适合主动打破沉默。
+rethink_goal: 重新思考对话目标。鉴于对方未回应，可能需要调整原计划。
+end_conversation: 安全和平的结束对话。对方长时间未回应，这可能是一个合理的选择。
+block_and_ignore: (极端情况) 你觉得对方太过分了，屏蔽对方。
+
+请以JSON格式输出你的决策：
+{{
+    "action": "选择的行动类型 (必须是上面列表中的一个)",
+    "reason": "选择该行动的原因 (请明确体现你考虑了对方长时间未回应这一点)",
+    "emoji_query": "string" // 可选。如果行动是 'reply_after_wait_timeout' 且你想附带表情，在此提供表情主题，否则留空字符串 ""
 }}
 
 注意：请严格按照JSON格式输出，不要包含任何其他内容。"""
@@ -183,7 +218,7 @@ class ActionPlanner:
         observation_info: ObservationInfo,
         conversation_info: ConversationInfo,
         last_successful_reply_action: Optional[str],
-        use_reflect_prompt: bool = False,  # 新增参数，用于指示是否使用PROMPT_REFLECT_AND_ACT
+        use_reflect_prompt: bool = False,
     ) -> Tuple[str, str]:
         """
         规划下一步行动。
@@ -199,76 +234,77 @@ class ActionPlanner:
         logger.info(f"[私聊][{self.private_name}] 开始规划行动...")
         plan_start_time = time.time()
 
-        # --- 1. 准备 Prompt 输入信息 ---
+        time_since_last_bot_message_info = self._get_bot_last_speak_time_info(observation_info)
+        # timeout_context = self._get_timeout_context(conversation_info) # <--- 移除或修改
+        goals_str = self._build_goals_string(conversation_info)
+        chat_history_text = await build_chat_history_text(observation_info, self.private_name)
+        sender_name_str = self.private_name or "对方"
+        relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
+        current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
+        persona_text = f"{self.name}"
+        action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
+
+        prompt_template: str = "" # 初始化
+        log_msg: str = "" # 初始化
+        format_params: Dict[str, Any] = {} # 初始化
+
+        # --- 修改 Prompt 选择逻辑 ---
+        if conversation_info.wait_has_timed_out and conversation_info.last_wait_duration_minutes is not None:
+            prompt_template = PROMPT_AFTER_WAIT_TIMEOUT
+            log_msg = "使用 PROMPT_AFTER_WAIT_TIMEOUT (等待超时后决策)"
+            format_params = { # 为这个新 PROMPT 准备参数
+                "persona_text": persona_text,
+                "goals_str": goals_str if goals_str.strip() else "- 目前没有明确对话目标，请考虑设定一个。",
+                "action_history_summary": action_history_summary,
+                "last_action_context": last_action_context,
+                "chat_history_text": chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
+                "current_time_str": observation_info.current_time_str or "获取时间失败",
+                "sender_name": sender_name_str,
+                "relationship_text": relationship_text_str,
+                "current_emotion_text": current_emotion_text_str,
+                "last_wait_duration_minutes": conversation_info.last_wait_duration_minutes, # <--- 传入等待时长
+            }
+            # 使用后重置标志，避免下次循环依然错误地进入此逻辑
+            # conversation_info.wait_has_timed_out = False # 这个重置应该在 ActionPlanner 外部，例如 loop 确认这个状态被处理后再重置，或者 ActionHandler 处理完对应动作后重置。暂时先放在这里。
+                                                        # 更好的地方可能是在 ReplyAfterWaitTimeoutHandler 成功执行后，或者如果 ActionPlanner 选择了非 reply_after_wait_timeout 的动作。
+                                                        # 考虑到 ActionPlanner 本身消耗了这个状态来选择Prompt，这里重置是合理的。
+            conversation_info.wait_has_timed_out = False
+            # conversation_info.last_wait_duration_minutes = None # 可选，如果只想用一次
+
+        elif use_reflect_prompt:
+            prompt_template = PROMPT_REFLECT_AND_ACT
+            log_msg = "使用 PROMPT_REFLECT_AND_ACT (反思决策)"
+        elif last_successful_reply_action in ["direct_reply", "send_new_message", "send_memes", "reply_after_wait_timeout"]: # <--- 将新动作类型加入
+            prompt_template = PROMPT_FOLLOW_UP
+            log_msg = "使用 PROMPT_FOLLOW_UP (追问决策)"
+        else:
+            prompt_template = PROMPT_INITIAL_REPLY
+            log_msg = "使用 PROMPT_INITIAL_REPLY (首次/非连续回复决策)"
+
+        logger.debug(f"[私聊][{self.private_name}] {log_msg}")
+
+        # 如果 format_params 未被上面的 wait_has_timed_out 分支填充，则使用通用参数
+        if not format_params:
+            format_params = {
+                "persona_text": persona_text,
+                "goals_str": goals_str if goals_str.strip() else "- 目前没有明确对话目标，请考虑设定一个。",
+                "action_history_summary": action_history_summary,
+                "last_action_context": last_action_context,
+                "time_since_last_bot_message_info": time_since_last_bot_message_info,
+                # "timeout_context": timeout_context, # <--- 移除
+                "chat_history_text": chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
+                "current_time_str": observation_info.current_time_str or "获取时间失败",
+                "sender_name": sender_name_str,
+                "relationship_text": relationship_text_str,
+                "current_emotion_text": current_emotion_text_str,
+            }
+        # --- Prompt 选择逻辑结束 ---
+
         try:
-            time_since_last_bot_message_info = self._get_bot_last_speak_time_info(observation_info)
-            timeout_context = self._get_timeout_context(conversation_info)
-            goals_str = self._build_goals_string(conversation_info)
-            chat_history_text = await build_chat_history_text(observation_info, self.private_name)
-            # 获取 sender_name, relationship_text, current_emotion_text
-            sender_name_str = self.private_name
-            if not sender_name_str:
-                sender_name_str = "对方"  # 再次确保有默认值
-
-            relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
-            current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
-
-            persona_text = f"{self.name}"
-            action_history_summary, last_action_context = self._build_action_history_context(conversation_info)
-            # retrieved_memory_str, retrieved_knowledge_str = await retrieve_contextual_info(
-            #     chat_history_text, self.private_name
-            # )
-            # logger.info(
-            #     f"[私聊][{self.private_name}] (ActionPlanner) 检索完成。记忆: {'有' if '回忆起' in retrieved_memory_str else '无'} / 知识: {'有' if retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and '出错' not in retrieved_knowledge_str else '无'}"
-            # )
-        except Exception as prep_err:
-            logger.error(f"[私聊][{self.private_name}] 准备 Prompt 输入时出错: {prep_err}")
-            logger.error(traceback.format_exc())
-            return "wait", f"准备行动规划输入时出错: {prep_err}"
-
-        # --- 2. 选择并格式化 Prompt ---
-        try:
-            if use_reflect_prompt:  # 新增的判断
-                prompt_template = PROMPT_REFLECT_AND_ACT
-                log_msg = "使用 PROMPT_REFLECT_AND_ACT (反思决策)"
-
-            elif last_successful_reply_action in ["direct_reply", "send_new_message", "send_memes"]:
-                prompt_template = PROMPT_FOLLOW_UP
-                log_msg = "使用 PROMPT_FOLLOW_UP (追问决策)"
-
-            else:
-                prompt_template = PROMPT_INITIAL_REPLY
-                log_msg = "使用 PROMPT_INITIAL_REPLY (首次/非连续回复决策)"
-                # spam_warning_message = ""  # 初始回复时通常不需要刷屏警告
-
-            logger.debug(f"[私聊][{self.private_name}] {log_msg}")
-
-            current_time_value = "获取时间失败"
-            if observation_info and hasattr(observation_info, "current_time_str") and observation_info.current_time_str:
-                current_time_value = observation_info.current_time_str
-
-            # if spam_warning_message:
-            # spam_warning_message = f"\n{spam_warning_message}\n"
-
-            prompt = prompt_template.format(
-                persona_text=persona_text,
-                goals_str=goals_str if goals_str.strip() else "- 目前没有明确对话目标，请考虑设定一个。",
-                action_history_summary=action_history_summary,
-                last_action_context=last_action_context,
-                time_since_last_bot_message_info=time_since_last_bot_message_info,
-                timeout_context=timeout_context,
-                chat_history_text=chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
-                # retrieved_memory_str=retrieved_memory_str if retrieved_memory_str else "无相关记忆。",
-                # retrieved_knowledge_str=retrieved_knowledge_str if retrieved_knowledge_str else "无相关知识。",
-                current_time_str=current_time_value,
-                # spam_warning_info=spam_warning_message,
-                sender_name=sender_name_str,
-                relationship_text=relationship_text_str,
-                current_emotion_text=current_emotion_text_str,
-            )
+            prompt = prompt_template.format(**format_params)
             logger.debug(f"[私聊][{self.private_name}] 发送到LLM的最终提示词:\n------\n{prompt}\n------")
         except KeyError as fmt_key_err:
-            logger.error(f"[私聊][{self.private_name}] 格式化 Prompt 时缺少键: {fmt_key_err}")
+            logger.error(f"[私聊][{self.private_name}] 格式化 Prompt 时缺少键: {fmt_key_err}。使用的模板: {log_msg}, 参数: {format_params.keys()}")
             return "wait", f"格式化 Prompt 时出错 (缺少键: {fmt_key_err})"
         except Exception as fmt_err:
             logger.error(f"[私聊][{self.private_name}] 格式化 Prompt 时发生未知错误: {fmt_err}")
@@ -337,34 +373,52 @@ class ActionPlanner:
         #     final_action = "wait"
         #     final_reason = initial_reason
 
-        # --- 5. 验证最终行动类型 ---
-        valid_actions_default = [
-            "direct_reply",
-            "send_new_message",
-            "send_memes",
-            "wait",
-            "listening",
-            "rethink_goal",
-            "end_conversation",
-            "block_and_ignore",
-            "say_goodbye",
-        ]
-        valid_actions_reflect = [  # PROMPT_REFLECT_AND_ACT 的动作
-            "wait",
-            "listening",
-            "rethink_goal",
-            "end_conversation",
-            "block_and_ignore",
-            # PROMPT_REFLECT_AND_ACT 也可以 end_conversation，然后也可能触发 say_goodbye
-            "say_goodbye",
-        ]
+        # --- 验证最终行动类型 ---
+        # 根据当前使用的 prompt_template 来确定合法的 action 集合
+        valid_actions_for_current_prompt: List[str] = []
+        if prompt_template == PROMPT_INITIAL_REPLY:
+            valid_actions_for_current_prompt = [
+                "listening", 
+                "direct_reply", 
+                "send_memes", 
+                "rethink_goal", 
+                "end_conversation", 
+                "block_and_ignore"
+                ]
+        elif prompt_template == PROMPT_FOLLOW_UP:
+            valid_actions_for_current_prompt = [
+                "wait", 
+                "listening", 
+                "send_new_message", 
+                "send_memes", 
+                "rethink_goal", 
+                "end_conversation", 
+                "block_and_ignore"
+                ]
+        elif prompt_template == PROMPT_REFLECT_AND_ACT:
+            valid_actions_for_current_prompt = [
+                "wait", 
+                "listening", 
+                "rethink_goal", 
+                "end_conversation", 
+                "block_and_ignore"
+                ]
+        elif prompt_template == PROMPT_AFTER_WAIT_TIMEOUT:
+            valid_actions_for_current_prompt = [
+                "reply_after_wait_timeout", 
+                "wait", 
+                "rethink_goal", 
+                "end_conversation", 
+                "block_and_ignore"
+                ]
+        # PROMPT_END_DECISION 的输出是 "say_goodbye" (如果选择是) 或 "end_conversation" (如果选择否，并由 _handle_end_conversation_decision 转换)
+        # "say_goodbye" 也是一个合法的最终动作
 
-        current_valid_actions = valid_actions_reflect if use_reflect_prompt else valid_actions_default
-
-        if final_action not in current_valid_actions:
-            logger.warning(f"[私聊][{self.private_name}] LLM 返回了未知的行动类型: '{final_action}'，强制改为 wait")
-            final_reason = f"(原始行动'{final_action}'无效，已强制改为wait) {final_reason}"
-            final_action = "wait"  # 遇到无效动作，默认等待
+        # "say_goodbye" 是一个特殊的最终动作，由 _handle_end_conversation_decision 产生，所以要加入判断
+        if final_action != "say_goodbye" and final_action not in valid_actions_for_current_prompt:
+            logger.warning(f"[私聊][{self.private_name}] LLM 从模板 '{log_msg}' 返回了预料之外的行动类型: '{final_action}'，强制改为 wait")
+            final_reason = f"(模板 '{log_msg}' 的原始行动 '{final_action}' 无效，已强制改为wait) {final_reason}"
+            final_action = "wait"
 
         plan_duration = time.time() - plan_start_time
         logger.success(f"[私聊][{self.private_name}] 最终规划行动: {final_action} (总耗时: {plan_duration:.3f} 秒)")
@@ -399,31 +453,31 @@ class ActionPlanner:
             logger.warning(f"[私聊][{self.private_name}] 获取 Bot 上次发言时间时出错: {e}")
         return time_info
 
-    def _get_timeout_context(self, conversation_info: ConversationInfo) -> str:
-        """获取超时提示信息"""
+    # def _get_timeout_context(self, conversation_info: ConversationInfo) -> str:
+        # """获取超时提示信息"""
 
-        timeout_context = ""
-        try:
-            if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
-                last_goal_item = conversation_info.goal_list[-1]
-                last_goal_text = ""
-                if isinstance(last_goal_item, dict):
-                    last_goal_text = last_goal_item.get("goal", "")
-                elif isinstance(last_goal_item, str):
-                    last_goal_text = last_goal_item
-                if (
-                    isinstance(last_goal_text, str)
-                    and "分钟，" in last_goal_text
-                    and "思考接下来要做什么" in last_goal_text
-                ):
-                    wait_time_str = last_goal_text.split("分钟，")[0].replace("你等待了", "").strip()
-                    timeout_context = f"重要提示：对方已经长时间（约 {wait_time_str} 分钟）没有回复你的消息了，对方可能去忙了，也可能在对方看来对话已经结束。请基于此情况规划下一步。\n"
-                    logger.debug(f"[私聊][{self.private_name}] 检测到超时目标: {last_goal_text}")
-        except AttributeError as e:
-            logger.warning(f"[私聊][{self.private_name}] 检查超时目标时属性错误: {e}")
-        except Exception as e:
-            logger.warning(f"[私聊][{self.private_name}] 检查超时目标时出错: {e}")
-        return timeout_context
+        # timeout_context = ""
+        # try:
+        #     if hasattr(conversation_info, "goal_list") and conversation_info.goal_list:
+        #         last_goal_item = conversation_info.goal_list[-1]
+        #         last_goal_text = ""
+        #         if isinstance(last_goal_item, dict):
+        #             last_goal_text = last_goal_item.get("goal", "")
+        #         elif isinstance(last_goal_item, str):
+        #             last_goal_text = last_goal_item
+        #         if (
+        #             isinstance(last_goal_text, str)
+        #             and "分钟，" in last_goal_text
+        #             and "思考接下来要做什么" in last_goal_text
+        #         ):
+        #             wait_time_str = last_goal_text.split("分钟，")[0].replace("你等待了", "").strip()
+        #             timeout_context = f"重要提示：对方已经长时间（约 {wait_time_str} 分钟）没有回复你的消息了，对方可能去忙了，也可能在对方看来对话已经结束。请基于此情况规划下一步。\n"
+        #             logger.debug(f"[私聊][{self.private_name}] 检测到超时目标: {last_goal_text}")
+        # except AttributeError as e:
+        #     logger.warning(f"[私聊][{self.private_name}] 检查超时目标时属性错误: {e}")
+        # except Exception as e:
+        #     logger.warning(f"[私聊][{self.private_name}] 检查超时目标时出错: {e}")
+        # return timeout_context
 
     def _build_goals_string(self, conversation_info: ConversationInfo) -> str:
         """构建对话目标字符串"""

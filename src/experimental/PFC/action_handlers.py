@@ -950,13 +950,31 @@ class ListeningHandler(ActionHandler):
             )
             return False, "error", "内部信息缺失，无法执行倾听"
         self.conversation.state = ConversationState.LISTENING  # 设置状态为倾听中
+
         if not self.conversation.waiter:
             raise RuntimeError(f"Waiter 未为 {self.conversation.private_name} 初始化")
-        await self.conversation.waiter.wait_listening(conversation_info)  # 调用等待器的倾听方法
-        event_desc = "你决定耐心倾听对方的发言"
-        await self._update_relationship_and_emotion(observation_info, conversation_info, event_desc)  # 更新关系和情绪
+
+        # 重置之前的等待超时标志
+        conversation_info.wait_has_timed_out = False
+        conversation_info.last_wait_duration_minutes = None
+
+        timeout_occurred, wait_duration_minutes = await self.conversation.waiter.wait_listening(conversation_info) # <--- 接收等待时长
+
+        event_desc_key = "listen_timeout" if timeout_occurred else "listen_normal"
+        event_descriptions = {
+            "listen_timeout": f"你耐心倾听，但对方长时间（约{wait_duration_minutes:.1f}分钟）没有继续发言",
+            "listen_normal": "你决定耐心倾听对方的发言"
+        }
+        event_desc = event_descriptions[event_desc_key]
+
+        if timeout_occurred:
+            conversation_info.wait_has_timed_out = True # <--- 设置超时标志
+            conversation_info.last_wait_duration_minutes = wait_duration_minutes # <--- 存储等待时长
+            self.logger.info(f"[私聊][{self.conversation.private_name}] 倾听等待超时，时长: {wait_duration_minutes:.1f} 分钟。")
+
+        await self._update_relationship_and_emotion(observation_info, conversation_info, event_desc)
         # listening 动作完成后，状态会由新消息或超时驱动，最终回到 ANALYZING
-        return True, "done", "进入倾听状态"
+        return True, "done", "进入倾听状态" # 保持 "done" 状态
 
 
 class EndConversationHandler(ActionHandler):
@@ -1017,20 +1035,175 @@ class WaitHandler(ActionHandler):
         action_start_time: float,
         current_action_record: dict,
     ) -> tuple[bool, str, str]:
-        """执行等待对方回复的动作。"""
-        if not conversation_info or not observation_info:  # 防御性检查
+        if not conversation_info or not observation_info:
             self.logger.error(
                 f"[私聊][{self.conversation.private_name}] WaitHandler: ObservationInfo 或 ConversationInfo 为空。"
             )
             return False, "error", "内部信息缺失，无法执行等待"
-        self.conversation.state = ConversationState.WAITING  # 设置状态为等待中
+        self.conversation.state = ConversationState.WAITING
+
         if not self.conversation.waiter:
             raise RuntimeError(f"Waiter 未为 {self.conversation.private_name} 初始化")
-        timeout_occurred = await self.conversation.waiter.wait(conversation_info)  # 调用等待器的常规等待方法
-        event_desc = "你等待对方回复，但对方长时间没有回应" if timeout_occurred else "你选择等待对方的回复"
-        await self._update_relationship_and_emotion(observation_info, conversation_info, event_desc)  # 更新关系和情绪
-        # wait 动作完成后，状态会由新消息或超时驱动，最终回到 ANALYZING
-        return True, "done", "等待动作完成"
+
+        # 重置之前的等待超时标志
+        conversation_info.wait_has_timed_out = False
+        conversation_info.last_wait_duration_minutes = None
+
+        timeout_occurred, wait_duration_minutes = await self.conversation.waiter.wait(conversation_info) # <--- 接收等待时长
+
+        event_desc_key = "wait_timeout" if timeout_occurred else "wait_normal"
+        event_descriptions = {
+            "wait_timeout": f"你等待对方回复，但对方长时间（约{wait_duration_minutes:.1f}分钟）没有回应",
+            "wait_normal": "你选择等待对方的回复"
+        }
+        event_desc = event_descriptions[event_desc_key]
+
+        if timeout_occurred:
+            conversation_info.wait_has_timed_out = True # <--- 设置超时标志
+            conversation_info.last_wait_duration_minutes = wait_duration_minutes # <--- 存储等待时长
+            self.logger.info(f"[私聊][{self.conversation.private_name}] 等待超时，时长: {wait_duration_minutes:.1f} 分钟。")
+            # final_status 依然是 "done"，因为 wait 这个动作本身完成了。后续由 ActionPlanner 根据新状态决策。
+
+        await self._update_relationship_and_emotion(observation_info, conversation_info, event_desc)
+        return True, "done", "等待动作完成" # 保持 "done" 状态，让主循环进入 ANALYZING
+    
+
+class ReplyAfterWaitTimeoutHandler(ActionHandler): # 不继承 BaseTextReplyHandler，因其逻辑不同
+    """处理在等待超时后进行回复的动作"""
+
+    async def execute(
+        self,
+        reason: str, # 规划原因
+        observation_info: Optional[ObservationInfo],
+        conversation_info: Optional[ConversationInfo],
+        action_start_time: float,
+        current_action_record: dict,
+    ) -> tuple[bool, str, str]:
+        if not observation_info or not conversation_info:
+            self.logger.error(
+                f"[私聊][{self.conversation.private_name}] ReplyAfterWaitTimeoutHandler: ObservationInfo 或 ConversationInfo 为空。"
+            )
+            return False, "error", "内部信息缺失，无法执行等待后回复"
+
+        action_successful = False
+        final_status = "recall" # 默认需要重新规划，除非成功发送
+        final_reason = "等待超时后回复动作未成功执行"
+        max_attempts_checker = 1 # 对于这种特殊回复，通常只尝试一次，避免过多打扰
+
+        self.conversation.state = ConversationState.GENERATING
+        if not self.conversation.reply_generator:
+            self.logger.error(f"ReplyGenerator 未为 {self.conversation.private_name} 初始化")
+            return False, "error", "ReplyGenerator未初始化"
+
+        # 1. 生成回复 (期望纯文本)
+        generated_content = await self.conversation.reply_generator.generate(
+            observation_info, conversation_info, action_type="reply_after_wait_timeout"
+        )
+        self.logger.info(f"[私聊][{self.conversation.private_name}] 动作 'reply_after_wait_timeout': 生成内容: '{generated_content[:100]}...'")
+
+        if not generated_content or generated_content.startswith("抱歉") or generated_content.strip() == "":
+            self.logger.warning(f"[私聊][{self.conversation.private_name}] 'reply_after_wait_timeout': 生成内容无效或为空。")
+            final_reason = "等待超时后回复内容生成无效"
+            # 即使生成无效，也认为“尝试回复”这个动作完成了（虽然没发出东西），状态可能是 done_no_reply 或 recall
+            # 这里倾向于 recall，让 planner 重新决策
+            return False, "recall", final_reason # 或者可以考虑 done_no_reply
+
+        # 2. 检查回复 (如果启用了 ReplyChecker)
+        self.conversation.state = ConversationState.CHECKING
+        if not self.conversation.reply_checker:
+            self.logger.error(f"ReplyChecker 未为 {self.conversation.private_name} 初始化")
+            return False, "error", "ReplyChecker未初始化"
+
+        is_suitable = False
+        check_reason = "检查未执行"
+        need_replan_from_check = False
+
+        if global_config.pfc.enable_pfc_reply_checker:
+            current_goal_str = ""
+            if conversation_info.goal_list: # 获取当前目标用于 checker
+                goal_item = conversation_info.goal_list[-1]
+                current_goal_str = goal_item.get("goal", "") if isinstance(goal_item, dict) else str(goal_item)
+
+            is_suitable, check_reason, need_replan_from_check = await self.conversation.reply_checker.check(
+                reply=generated_content,
+                goal=current_goal_str,
+                chat_history=getattr(observation_info, "chat_history", []),
+                chat_history_text=getattr(observation_info, "chat_history_str", ""),
+                current_time_str=observation_info.current_time_str or "获取时间失败",
+                retry_count=0 # 首次检查
+            )
+            self.logger.info(f"[私聊][{self.conversation.private_name}] 'reply_after_wait_timeout' Checker结果: 合适={is_suitable}, 原因='{check_reason}', 重规划={need_replan_from_check}")
+        else:
+            is_suitable = True
+            check_reason = "ReplyChecker已通过配置关闭"
+            self.logger.debug(f"[私聊][{self.conversation.private_name}] [配置关闭] ReplyChecker跳过，默认回复合适。")
+
+        if not is_suitable:
+            conversation_info.last_reply_rejection_reason = check_reason
+            conversation_info.last_rejected_reply_content = generated_content
+            final_reason = f"等待超时后回复检查不通过: {check_reason}"
+            return False, "recall", final_reason # 如果检查不通过，则重新规划
+
+        # 3. 发送回复 (如果通过检查)
+        #   处理可能的附带表情
+        emoji_prepared_info: Optional[Tuple[Seg, str, str]] = None
+        emoji_query = conversation_info.current_emoji_query
+        if emoji_query:
+            emoji_prepared_info = await self._fetch_and_prepare_emoji_segment(emoji_query)
+            conversation_info.current_emoji_query = None # 清理
+
+        segments_to_send: List[Seg] = []
+        log_content_parts: List[str] = []
+
+        text_segment = Seg(type="text", data=generated_content)
+        segments_to_send.append(text_segment)
+        log_content_parts.append(f"文本:'{generated_content[:20]}...'")
+
+        if emoji_prepared_info:
+            emoji_segment, full_emoji_desc, _ = emoji_prepared_info
+            segments_to_send.append(emoji_segment)
+            log_content_parts.append(f"表情:'{full_emoji_desc}'")
+
+        self.conversation.state = ConversationState.SENDING
+        self.conversation.generated_reply = generated_content # 主要用于日志和历史
+        full_log_content = " ".join(log_content_parts)
+
+        send_success = await self._send_reply_or_segments(segments_to_send, full_log_content)
+        send_time = time.time()
+
+        if send_success:
+            action_successful = True
+            final_status = "done"
+            final_reason = f"成功发送等待超时后的回复: {full_log_content}"
+            self.conversation.generated_reply = generated_content # 保存主要文本内容
+
+            # 更新机器人消息到历史记录
+            # 如果同时发送了文本和表情，可以考虑如何记录，这里简单记录主要文本
+            await self._update_bot_message_in_history(send_time, generated_content, observation_info)
+            if emoji_prepared_info: # 如果也发了表情，也记录一下（或者合并描述）
+                 _, full_emoji_desc, _ = emoji_prepared_info
+                 await self._update_bot_message_in_history(send_time + 0.001, f"(附带表情: {full_emoji_desc})", observation_info, "bot_emoji_accompany_")
+
+
+            # 设置 last_successful_reply_action 以便下一次进入追问决策
+            conversation_info.last_successful_reply_action = "reply_after_wait_timeout"
+            conversation_info.last_reply_rejection_reason = None
+            conversation_info.last_rejected_reply_content = None
+            if self.conversation.conversation_info: # 再次检查以防万一
+                self.conversation.conversation_info.my_message_count += 1 # 算作一次发言
+                self.conversation.conversation_info.current_instance_message_count += 1
+
+            event_desc = f"你在等待对方许久未回应后，发送了消息: '{generated_content[:30]}...'"
+            if emoji_prepared_info:
+                event_desc += f" 并可能附带了表情。"
+            await self._update_post_send_states(observation_info, conversation_info, "reply_after_wait_timeout", event_desc)
+        else:
+            final_reason = f"发送等待超时后的回复失败: {full_log_content}"
+            # 发送失败，不改变 last_successful_reply_action，让 planner 重新决策
+
+        return action_successful, final_status, final_reason
+# --- 新增处理器结束 ---
+
 
 
 class UnknownActionHandler(ActionHandler):

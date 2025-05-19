@@ -18,7 +18,18 @@ class ConversationState(Enum):
     ENDED = "结束"
     JUDGING = "判断"
     IGNORED = "屏蔽"
-    ERROR = "错误"  # <--- 添加 ERROR 状态
+    ERROR = "错误"
 
 
-ActionType = Literal["direct_reply", "fetch_knowledge", "wait"]
+ActionType = Literal[
+    "direct_reply",
+    "send_new_message",
+    "send_memes",
+    "wait",
+    "listening",
+    "rethink_goal",
+    "end_conversation",
+    "block_and_ignore",
+    "say_goodbye",
+    "reply_after_wait_timeout"  # <--- 新增动作类型
+]
