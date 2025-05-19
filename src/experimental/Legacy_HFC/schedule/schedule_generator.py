@@ -305,7 +305,7 @@ class ScheduleGenerator:
     def construct_daytime_prompt(self, target_date: datetime.datetime):
         date_str = target_date.strftime("%Y-%m-%d")
         weekday = target_date.strftime("%A")
-        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
@@ -319,7 +319,7 @@ class ScheduleGenerator:
     def construct_doing_prompt(self, time: datetime.datetime, mind_thinking: str = ""):
         now_time = time.strftime("%H:%M")
         previous_doings = self.get_current_num_task(5, True)
-        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
@@ -346,7 +346,7 @@ class ScheduleGenerator:
     
     def construct_schedule_refinement_prompt(self, initial_schedule: str, knowledge_and_memory: str) -> str:
         """构建用于结合知识库和记忆修改日程的提示词"""
-        prompt_personality_description = self.individuality.get_prompt(x_person=1, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = (
