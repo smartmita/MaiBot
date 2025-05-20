@@ -353,7 +353,6 @@ temp = 0.3
 max_tokens = 999999
 pri_in = 2
 pri_out = 8
-max_tokens = 512
 
 [model.pfc_chat] # PFC聊天模型：具体聊天消息生成
 name = "Pro/deepseek-ai/DeepSeek-V3"
