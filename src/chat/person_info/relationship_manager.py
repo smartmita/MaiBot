@@ -77,9 +77,9 @@ class RelationshipManager:
             return mood_value / coefficient
 
     @staticmethod
-    async def is_known_some_one(platform, user_id):
+    async def is_known_some_one(platform, user_id, nickname):
         """判断是否认识某人"""
-        is_known = person_info_manager.is_person_known(platform, user_id)
+        is_known = await person_info_manager.is_person_known(platform, user_id, nickname)
         return is_known
 
     # --- [修改] 使用全局 db 对象进行查询 ---

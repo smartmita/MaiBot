@@ -88,14 +88,39 @@ class PersonInfoManager:
         key = "_".join(components)
         return hashlib.md5(key.encode()).hexdigest()
 
-    def is_person_known(self, platform: str, user_id: int):
-        """判断是否认识某人"""
-        person_id = self.get_person_id(platform, user_id)
+    async def is_person_known(self, platform: str, user_id: str, current_nickname: str) -> bool:
+        """
+        判断是否认识某人。如果用户已存在于数据库，则检查并更新其昵称（如果发生变化）。
+        注意：此方法已修改为异步方法。
+        Args:
+            platform (str): 平台。
+            user_id (str): 用户ID (应为字符串类型)。
+            current_nickname (str): 用户当前的实际昵称。
+        Returns:
+            bool: 数据库中是否存在该用户。
+        """
+        user_id_str = str(user_id) # 确保 user_id 是字符串，与 get_person_id 内部处理一致
+        person_id = self.get_person_id(platform, user_id_str) 
+        
+        # 1. 检查用户文档是否存在 (同步操作)
         document = db.person_info.find_one({"person_id": person_id})
-        if document:
-            return True
-        else:
-            return False
+        user_exists_in_db = bool(document)
+
+        if user_exists_in_db:
+            # 2. 用户存在，获取数据库中存储的昵称 (异步操作)
+            db_nickname = await self.get_value(person_id, "nickname") 
+
+            # 3. 如果昵称有变动，则更新数据库中的昵称 (异步操作)
+            if db_nickname != current_nickname:
+                logger.info(f"用户 {user_id_str} ({platform}) 的昵称在 'is_person_known' 检查中发现已从 '{db_nickname}' 更改为 '{current_nickname}'。正在更新数据库...")
+                update_data = { # 构建 data 参数用于可能的内部创建逻辑（尽管此处用户已确认存在）
+                    "platform": platform,
+                    "user_id": user_id_str,
+                }
+                await self.update_one_field(person_id, "nickname", current_nickname, data=update_data)
+                logger.info(f"用户 {user_id_str} ({platform}) 的昵称已在数据库中更新 (操作来源: is_person_known)。")
+            
+        return user_exists_in_db # 返回用户是否存在于数据库的状态
 
     @staticmethod
     async def create_person_info(person_id: str, data: dict = None):
