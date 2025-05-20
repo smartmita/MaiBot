@@ -17,19 +17,22 @@ class NormalChatGenerator:
     def __init__(self):
         self.model_reasoning = LLMRequest(
             model=global_config.model.reasoning,
-            temperature=0.7,
-            max_tokens=3000,
+            temperature=global_config.model.reasoning["temp"],
+            max_tokens=global_config.model.reasoning["max_tokens"],
             request_type="response_reasoning",
         )
         self.model_normal = LLMRequest(
             model=global_config.model.normal,
             temperature=global_config.model.normal["temp"],
-            max_tokens=256,
+            max_tokens=global_config.model.normal["max_tokens"],
             request_type="response_reasoning",
         )
 
         self.model_sum = LLMRequest(
-            model=global_config.model.summary, temperature=0.7, max_tokens=3000, request_type="relation"
+            model=global_config.model.summary, 
+            temperature=global_config.model.summary["temp"],
+            max_tokens=global_config.model.summary["max_tokens"], 
+            request_type="relation"
         )
         self.current_model_type = "r1"  # 默认使用 R1
         self.current_model_name = "unknown model"
@@ -56,7 +59,7 @@ class NormalChatGenerator:
 
             return model_response
         else:
-            logger.info(f"{self.current_model_type}思考，失败")
+            logger.info(f"试图{self.current_model_type}思考，但是脑子宕机了")
             return None
 
     async def _generate_response_with_model(self, message: MessageThinking, model: LLMRequest, thinking_id: str):

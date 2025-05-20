@@ -75,7 +75,10 @@ class ChattingObservation(Observation):
         self.mid_memory_info = ""
         self.person_list = []
         self.llm_summary = LLMRequest(
-            model=global_config.model.observation, temperature=0.7, max_tokens=300, request_type="chat_observation"
+            model=global_config.model.observation, 
+            temperature=global_config.model.observation["temp"], 
+            max_tokens=global_config.model.observation["max_tokens"], 
+            request_type="chat_observation"
         )
 
     async def initialize(self):

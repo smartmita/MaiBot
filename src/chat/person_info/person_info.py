@@ -58,6 +58,7 @@ person_info_default = {
 class PersonInfoManager:
     def __init__(self):
         # TODO: API-Adapter修改标记
+        # 智慧米塔：这个我就先不拉到配置里了
         self.qv_name_llm = LLMRequest(
             model=global_config.model.normal,
             max_tokens=256,

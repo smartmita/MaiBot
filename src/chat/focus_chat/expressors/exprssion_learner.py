@@ -79,9 +79,9 @@ class ExpressionLearner:
     def __init__(self) -> None:
         # TODO: API-Adapter修改标记
         self.express_learn_model: LLMRequest = LLMRequest(
-            model=global_config.model.normal,
-            temperature=0.1,
-            max_tokens=256,
+            model=global_config.model.learner,
+            temperature=global_config.model.learner["temp"],
+            max_tokens=global_config.model.learner["max_tokens"],
             request_type="response_heartflow",
         )
 

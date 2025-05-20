@@ -78,10 +78,10 @@ class SubHeartflowManager:
         # 使用与 Heartflow 相同的模型和参数
         # TODO: API-Adapter修改标记
         self.llm_state_evaluator = LLMRequest(
-            model=global_config.model.heartflow,  # 与 Heartflow 一致
-            temperature=0.6,  # 与 Heartflow 一致
-            max_tokens=1000,  # 与 Heartflow 一致 (虽然可能不需要这么多)
-            request_type="subheartflow_state_eval",  # 保留特定的请求类型
+            model=global_config.model.heartflow,
+            temperature=global_config.model.heartflow["temp"],
+            max_tokens=global_config.model.heartflow["max_tokens"],
+            request_type="subheartflow_state_eval",
         )
 
     async def force_change_state(self, subflow_id: Any, target_state: ChatState) -> bool:

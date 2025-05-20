@@ -370,10 +370,35 @@ class EmojiManager:
         self._initialized = None
         self._scan_task = None
 
-        self.vlm = LLMRequest(model=global_config.model.vlm, temperature=0.3, max_tokens=1000, request_type="emoji")
-        self.llm_emotion_judge = LLMRequest(
-            model=global_config.model.normal, max_tokens=600, request_type="emoji"
-        )  # 更高的温度，更少的token（后续可以根据情绪来调整温度）
+        self.llm_emoji_desc_generator = LLMRequest(
+            model=global_config.model.vlm, 
+            temperature=global_config.model.vlm["temp"],
+            max_tokens=global_config.model.vlm["max_tokens"], 
+            request_type="emoji"
+        )
+        
+        self.llm_emoji_auditor = LLMRequest( 
+            model=global_config.model.emoji_checker,
+            temperature=global_config.model.emoji_checker["temp"],
+            max_tokens=global_config.model.emoji_checker["max_tokens"],
+            request_type="emoji"
+        )
+
+        self.llm_emoji_tag_extractor = LLMRequest( 
+            model=global_config.model.emotion_judge,
+            temperature=global_config.model.emotion_judge["temp"],
+            max_tokens=global_config.model.emotion_judge["max_tokens"],
+            request_type="emoji"
+        )
+
+        self.llm_emoji_replacement_decider = LLMRequest(
+            model=global_config.model.emoji_replacement_decider,
+            temperature=global_config.model.emoji_replacement_decider["temp"],
+            max_tokens=global_config.model.emoji_replacement_decider["max_tokens"],
+            request_type="emoji"
+        )
+
+
 
         self.emoji_num = 0
         self.emoji_num_max = global_config.emoji.max_reg_num
@@ -801,7 +826,7 @@ class EmojiManager:
             )
 
             # 调用大模型进行决策
-            decision, _ = await self.llm_emotion_judge.generate_response_async(prompt, temperature=0.8)
+            decision, _ = await self.llm_emoji_replacement_decider.generate_response_async(prompt)
             logger.info(f"[决策] 结果: {decision}")
 
             # 解析决策结果
@@ -865,15 +890,15 @@ class EmojiManager:
             # 调用AI获取描述
             if image_format == "gif" or image_format == "GIF":
                 image_base64 = image_manager.transform_gif(image_base64)
-                prompt = "这是一个动态图表情包，每一张图代表了动态图的某一帧，黑色背景代表透明，描述一下表情包表达的情感和内容，描述细节，从互联网梗,meme的角度去分析"
-                description, _ = await self.vlm.generate_response_for_image(prompt, image_base64, "jpg")
+                prompt_gif = "这是一个动态图表情包，每一张图代表了动态图的某一帧，黑色背景代表透明，描述一下表情包表达的情感和内容，描述细节，从互联网梗,meme的角度去分析"
+                description, _ = await self.llm_emoji_desc_generator.generate_response_for_image(prompt_gif, image_base64, "jpg")
             else:
                 prompt = "这是一个表情包，请详细描述一下表情包所表达的情感和内容，描述细节，从互联网梗,meme的角度去分析"
-                description, _ = await self.vlm.generate_response_for_image(prompt, image_base64, image_format)
+                description, _ = await self.llm_emoji_desc_generator.generate_response_for_image(prompt, image_base64, "jpg")
 
             # 审核表情包
             if global_config.emoji.content_filtration:
-                prompt = f'''
+                prompt_for_audit = f'''
                     这是一个表情包，请对这个表情包进行审核，标准如下：
                     1. 必须符合"{global_config.emoji.filtration_prompt}"的要求
                     2. 不能是色情、暴力、等违法违规内容，必须符合公序良俗
@@ -881,7 +906,7 @@ class EmojiManager:
                     4. 不要出现5个以上文字
                     请回答这个表情包是否满足上述要求，是则回答是，否则回答否，不要出现任何其他内容
                 '''
-                content, _ = await self.vlm.generate_response_for_image(prompt, image_base64, image_format)
+                content, _ = await self.llm_emoji_auditor.generate_response_for_image(prompt_for_audit, image_base64, image_format)
                 if content == "否":
                     return "", []
 
@@ -892,7 +917,7 @@ class EmojiManager:
             你可以关注其幽默和讽刺意味，动用贴吧，微博，小红书的知识，必须从互联网梗,meme的角度去分析
             请直接输出描述，不要出现任何其他内容，如果有多个描述，可以用逗号分隔
             """
-            emotions_text, _ = await self.llm_emotion_judge.generate_response_async(emotion_prompt, temperature=0.7)
+            emotions_text, _ = await self.llm_emoji_tag_extractor.generate_response_async(emotion_prompt)
 
             # 处理情感列表
             emotions = [e.strip() for e in emotions_text.split(",") if e.strip()]

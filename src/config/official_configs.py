@@ -530,6 +530,12 @@ class ModelConfig(ConfigBase):
     pfc_chat: dict[str, Any] = field(default_factory=lambda: {})
     """PFC聊天模型配置"""
 
+    think_goal: dict[str, Any] = field(default_factory=lambda: {})
+    """目标思考模型配置"""
+
+    idle_chat: dict[str, Any] = field(default_factory=lambda: {})
+    """主动发起对话生成模型配置"""
+
     # pfc_reply_checker: dict[str, Any] = field(default_factory=lambda: {})
     # """PFC回复检查模型配置"""
 
@@ -550,6 +556,18 @@ class ModelConfig(ConfigBase):
 
     schedule_current_activity: dict[str, Any] = field(default_factory=lambda: {})
     """用于生成当前正在进行的活动（doing_prompt）的模型配置"""
+
+    learner: dict[str, Any] = field(default_factory=lambda: {})
+    """用于机器人学习常用语法、风格的模型配置"""  
+    
+    emotion_judge: dict[str, Any] = field(default_factory=lambda: {})
+    """表情包情绪标签识别模型"""
+
+    emoji_checker: dict[str, Any] = field(default_factory=lambda: {})   
+    """表情包检查模型配置"""  
+
+    emoji_replacement_decider: dict[str, Any] = field(default_factory=lambda: {})
+    """表情包删除、替换决策模型配置"""
 
     PFC_relationship_eval: dict[str, Any] = field(default_factory=lambda: {})
     """PFC关系评估LLM配置"""
