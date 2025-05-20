@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.4"
+version = "2.0.0.5"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -239,7 +239,7 @@ max_cooldown = 18000     # 最长冷却时间，5小时 (18000秒)
 # name 是模型的名称，需要去对应供应商获取
 # provider 是模型的供应商
 # temp 是模型的温度（通常0~1），低温稳定性高，高温随机性高，每个模型对温度的敏感度都不同，如果不了解建议默认
-# max_tokens 为模型的最大输出长度（包括思维链），默认999999为无限制，通常无需限制，除非使用的模型有陷入无限循环的风险且会产生费用
+# max_tokens 为模型的最大输出长度（包括思维链）
 # 关于max_tokens再说一句，模型不会因为你设定的max_tokens而限制自己的输出长度，只会在达到限制后直接截断，且不返回内容
 # pri_in/pri_out分别对应了模型输入和输出的价格，以M(每百万token/元)统计，可以为0或乱写，但不能没有
 
@@ -247,7 +247,7 @@ max_cooldown = 18000     # 最长冷却时间，5小时 (18000秒)
 name = "Pro/deepseek-ai/DeepSeek-R1"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 4080
 pri_in = 1.0
 pri_out = 4.0
 
@@ -255,7 +255,7 @@ pri_out = 4.0
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 2 
 pri_out = 8 
 
@@ -263,7 +263,7 @@ pri_out = 8
 name = "Pro/Qwen/Qwen2.5-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 0.35
 pri_out = 0.35
 
@@ -271,7 +271,7 @@ pri_out = 0.35
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 1.26
 pri_out = 1.26
 
@@ -279,7 +279,7 @@ pri_out = 1.26
 name = "Pro/Qwen/Qwen2.5-VL-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 0.35
 pri_out = 0.35
 
@@ -287,7 +287,7 @@ pri_out = 0.35
 name = "Pro/Qwen/Qwen2.5-VL-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 0.35
 pri_out = 0.35
 
@@ -295,7 +295,7 @@ pri_out = 0.35
 name = "Pro/Qwen/Qwen2.5-VL-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 0.35
 pri_out = 0.35
 
@@ -303,7 +303,7 @@ pri_out = 0.35
 name = "Pro/Qwen/Qwen2.5-VL-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 800
 pri_in = 0.35
 pri_out = 0.35
 
@@ -311,7 +311,7 @@ pri_out = 0.35
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 800
 pri_in = 1.26
 pri_out = 1.26
 
@@ -320,7 +320,7 @@ pri_out = 1.26
 name = "Qwen/Qwen2.5-7B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 700
 pri_in = 0
 pri_out = 0
 
@@ -328,7 +328,7 @@ pri_out = 0
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 60000
 pri_in = 2
 pri_out = 8
 
@@ -336,7 +336,7 @@ pri_out = 8
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 1000
 pri_in = 2
 pri_out = 8
 
@@ -350,7 +350,7 @@ pri_out = 0
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 1000
 pri_in = 2
 pri_out = 8
 
@@ -358,7 +358,7 @@ pri_out = 8
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 2
 pri_out = 8
 
@@ -366,7 +366,7 @@ pri_out = 8
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 2
 pri_out = 8
 
@@ -374,7 +374,7 @@ pri_out = 8
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 500
 pri_in = 2
 pri_out = 8
 
@@ -382,7 +382,7 @@ pri_out = 8
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.7
-max_tokens = 999999
+max_tokens = 2000
 pri_in = 1.26
 pri_out = 1.26
 
@@ -390,7 +390,7 @@ pri_out = 1.26
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 8000
 pri_in = 2
 pri_out = 8
 
@@ -398,7 +398,7 @@ pri_out = 8
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
 temp = 0.5
-max_tokens = 999999
+max_tokens = 1000
 pri_in = 1.26
 pri_out = 1.26
 
@@ -406,7 +406,7 @@ pri_out = 1.26
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 8000
 pri_in = 2
 pri_out = 8
 
@@ -414,7 +414,7 @@ pri_out = 8
 name = "deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
-max_tokens = 999999
+max_tokens = 1000
 pri_in = 2
 pri_out = 8
 
