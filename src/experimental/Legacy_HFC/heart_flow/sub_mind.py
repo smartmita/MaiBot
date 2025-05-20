@@ -195,7 +195,6 @@ class SubMind:
         self.llm_model = LLMRequest(
             model=global_config.model.sub_heartflow,
             temperature=global_config.model.sub_heartflow["temp"],
-            max_tokens=1000,
             request_type="sub_heart_flow",
         )
 
