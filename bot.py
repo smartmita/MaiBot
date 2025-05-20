@@ -14,7 +14,7 @@ from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
 from rich.traceback import install
 from src.plugins.group_nickname.nickname_manager import nickname_manager
-from src.experimental.PFC.PFC_idle.idle_chat import IdleChat
+from src.experimental.PFC.PFC_idle.idle_manager import IdleManager
 from src.chat.message_receive.chat_stream import chat_manager
 import atexit
 from src.config.config import global_config
@@ -244,7 +244,7 @@ def raw_main():
             logger.info("准备初始化空闲聊天系统...")
             try:
                 # 直接调用IdleChat的initialize_all_streams方法
-                await IdleChat.initialize_all_streams()
+                await IdleManager.initialize_all_streams()
                 logger.info("空闲聊天系统初始化完成")
             except Exception as e:
                 logger.error(f"初始化空闲聊天系统时发生错误: {e}")
