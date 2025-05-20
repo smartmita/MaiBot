@@ -505,7 +505,7 @@ def split_into_sentences_w_remove_punctuation(original_text: str) -> list[str]:
     for k, (content, sep) in enumerate(segments): 
         current_sentence_build += content
 
-        is_strong_terminator = sep in {"。", ".", "！", "？", "\n", "—"} 
+        is_strong_terminator = sep in {"，","。", ".", "！", "？", "\n", "—"} 
         is_space_separator = sep in [" ", "\xa0"] 
         
         append_sep_to_current = is_strong_terminator 
