@@ -945,17 +945,17 @@ def translate_timestamp_to_human_readable(timestamp: float, mode: str = "normal"
         diff = now - timestamp
 
         if diff < 20:
-            return "刚刚:\n"
+            return "刚刚"
         elif diff < 60:
-            return f"{int(diff)}秒前:\n"
+            return f"{int(diff)}秒前"
         elif diff < 3600:
-            return f"{int(diff / 60)}分钟前:\n"
+            return f"{int(diff / 60)}分钟前"
         elif diff < 86400:
-            return f"{int(diff / 3600)}小时前:\n"
+            return f"{int(diff / 3600)}小时前"
         elif diff < 86400 * 2:
-            return f"{int(diff / 86400)}天前:\n"
+            return f"{int(diff / 86400)}天前"
         else:
-            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp)) + ":\n"
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
     else:  # mode = "lite" or unknown
         # 只返回时分秒格式，喵~
         return time.strftime("%H:%M:%S", time.localtime(timestamp))
@@ -992,7 +992,7 @@ def parse_text_timestamps(text: str, mode: str = "normal") -> str:
         result_text = text
         for match in matches:
             timestamp = float(match.group(1))
-            readable_time = translate_timestamp_to_human_readable(timestamp, "normal")
+            readable_time = translate_timestamp_to_human_readable(timestamp, "normal") + "：\n"
             # 由于替换会改变文本长度，需要使用正则替换而非直接替换
             pattern_instance = re.escape(match.group(0))
             result_text = re.sub(pattern_instance, readable_time, result_text, count=1)
@@ -1061,7 +1061,7 @@ def parse_text_timestamps(text: str, mode: str = "normal") -> str:
         # 由于替换会改变文本长度，从后向前替换
         to_convert.reverse()
         for ts, match in to_convert:
-            readable_time = translate_timestamp_to_human_readable(ts, "relative")
+            readable_time = translate_timestamp_to_human_readable(ts, "relative") + "：\n"
             pattern_instance = re.escape(match.group(0))
             result_text = re.sub(pattern_instance, readable_time, result_text, count=1)
 
