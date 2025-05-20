@@ -305,7 +305,7 @@ class ScheduleGenerator:
     def construct_daytime_prompt(self, target_date: datetime.datetime):
         date_str = target_date.strftime("%Y-%m-%d")
         weekday = target_date.strftime("%A")
-        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
@@ -319,7 +319,7 @@ class ScheduleGenerator:
     def construct_doing_prompt(self, time: datetime.datetime, mind_thinking: str = ""):
         now_time = time.strftime("%H:%M")
         previous_doings = self.get_current_num_task(5, True)
-        prompt_personality_description = self.individuality.get_prompt(x_person=0, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = f"你是{bot_name_to_use}。\n{prompt_personality_description}\n你的行为习惯大概是：{self.behavior}\n"
@@ -346,7 +346,7 @@ class ScheduleGenerator:
     
     def construct_schedule_refinement_prompt(self, initial_schedule: str, knowledge_and_memory: str) -> str:
         """构建用于结合知识库和记忆修改日程的提示词"""
-        prompt_personality_description = self.individuality.get_prompt(x_person=1, level=3)
+        prompt_personality_description = self.individuality.get_prompt(x_person=2, level=3)
         bot_name_to_use = self.name
 
         prompt = (
@@ -366,7 +366,7 @@ class ScheduleGenerator:
             f"4. 如果知识库/记忆中包含初步日程未提及但对你角色非常重要的日常活动或思考，请适当补充。\n"
             f"5. 修改后的日程应该仍然是一份详细的、精确到每半小时左右的日程安排，保持与初步日程相似的格式和详细程度。\n"
             f"6. 输出的语言风格应与你 ({bot_name_to_use}) 的角色个性一致。\n"
-            f"7. **直接返回修改后的完整日程安排文本，不要包含其他任何额外的文字说明或解释**。\n"
+            f"7. 你返回的内容应该**只有**修改后的完整日程安排，**不要**返回其他任何额外的文字说明或解释。\n"
             f"8. 如果你认为有不合理，或夸张的地方，也可以改动，使其更加合理。\n"
             f"9. 如果你认为初步日程已经很好地结合了所提供的知识库和记忆，或者知识库和记忆与日程内容关联不大，可以只做微小调整或不作调整。但在这种情况下，也请尽量确保日程中没有与知识库/记忆明显矛盾的地方。\n\n"
             f"修改后的日程安排："
