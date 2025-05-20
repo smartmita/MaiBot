@@ -103,42 +103,34 @@ class RelationshipManager:
         person_ids_to_query: List[str] = []
 
         for uid in user_ids:
-            uid_str = str(uid) # 确保输入的UID是字符串
+            uid_str = str(uid)
             person_id = person_info_manager.get_person_id(platform, uid_str)
             person_ids_to_query.append(person_id)
-            # 即使 person_id 可能因哈希碰撞（理论上极低概率）重复，
-            # 对于给定的 (platform, uid_str) 组合，person_id 是确定的。
-            # 我们用 person_id 作为查找键，并映射回原始的 uid_str。
             if person_id not in person_id_to_original_uid_map:
                  person_id_to_original_uid_map[person_id] = uid_str
-            # 如果在输入 user_ids 列表中有重复的 uid，这里会用最后一个 uid_str 覆盖，
-            # 但通常批量查询的 user_ids 应该是唯一的。
 
         actual_nicknames_map: Dict[str, str] = {}
-        if not person_ids_to_query: # 如果处理后没有有效的 person_id 可供查询
+        if not person_ids_to_query:
             return {}
 
         try:
-            cursor = db.person_info.find(
+            cursor = db.person_info.find( # 假设 db.person_info.find 返回同步游标
                 {"person_id": {"$in": person_ids_to_query}},
-                {"_id": 0, "person_id": 1, "nickname": 1}  # 只需要 person_id 和 nickname
+                {"_id": 0, "person_id": 1, "nickname": 1}
             )
 
-            async for doc in cursor:
+            for doc in cursor: # 同步迭代
                 db_person_id = doc.get("person_id")
-                actual_nickname = doc.get("nickname") # 这是用户的实际平台昵称
-
-                # 通过 person_id 从映射中找回原始输入的 user_id
+                actual_nickname = doc.get("nickname")
                 original_input_uid = person_id_to_original_uid_map.get(db_person_id)
 
-                if original_input_uid and actual_nickname is not None: # 确保昵称存在（可以是空字符串）
+                if original_input_uid and actual_nickname is not None:
                     actual_nicknames_map[original_input_uid] = actual_nickname
                 elif original_input_uid and actual_nickname is None:
                     logger.debug(f"用户 (UID: {original_input_uid}, PersonID: {db_person_id}) 在数据库中 'nickname' 字段为 null 或缺失。")
-                # 如果 original_input_uid 为 None，意味着数据库返回了一个我们没有请求的 person_id，这不应发生。
-
+            
             found_count = len(actual_nicknames_map)
-            requested_count = len(set(uid_str for uid_str in user_ids)) # 计算去重后的请求数量
+            requested_count = len(set(uid_str for uid_str in user_ids))
             logger.debug(f"批量获取 {requested_count} 个用户的实际昵称，成功从数据库匹配并返回 {found_count} 个。")
 
         except AttributeError as e:
@@ -187,7 +179,7 @@ class RelationshipManager:
                 },
             )
 
-            async for doc in cursor: # 使用 async for
+            for doc in cursor: # 使用 async for
                 actual_nickname_from_db = doc.get("nickname") # 获取用户的实际平台昵称
 
                 user_id_val = doc.get("user_id")
