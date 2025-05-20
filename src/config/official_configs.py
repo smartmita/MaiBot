@@ -363,9 +363,6 @@ class ExperimentalConfig(ConfigBase):
     enable_friend_whitelist: bool = True
     """是否启用好友白名单"""
 
-    rename_person: bool = True
-    """是否启用改名工具"""
-
     api_polling_max_retries: int = 3
     """API轮询最大重试次数"""
 

@@ -197,7 +197,6 @@ enable_friend_chat = true # 是否启用好友聊天
 enable_friend_whitelist = true # 是否启用好友聊天白名单
 talk_allowed_private = [] # 可以回复消息的QQ号
 api_polling_max_retries = 3  # 神秘小功能
-rename_person = true  # 是否启用改名工具，可以让麦麦对唯一名进行更改，可能可以更拟人地称呼他人，但是也可能导致记忆混淆的问题
 enable_always_relative_history = false # 聊天记录总是使用 relative 模式
 
 [pfc]
