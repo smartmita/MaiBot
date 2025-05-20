@@ -1,4 +1,4 @@
-from maim_message import UserInfo
+from .....maim_message.src.maim_message import UserInfo
 from src.config.config import global_config
 from typing import List, Dict, Any, Tuple  # 确保类型提示被导入
 import time  # 导入 time 模块以获取当前时间

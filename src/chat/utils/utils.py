@@ -6,7 +6,7 @@ from collections import Counter
 
 import jieba
 import numpy as np
-from maim_message import UserInfo
+from .....maim_message.src.maim_message import UserInfo
 from pymongo.errors import PyMongoError
 
 from src.common.logger import get_module_logger

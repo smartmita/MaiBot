@@ -5,7 +5,7 @@ import traceback
 from random import random
 from typing import List, Optional  # 导入 Optional
 
-from maim_message import UserInfo, Seg
+from .....maim_message.src.maim_message import UserInfo, Seg
 
 from src.common.logger_manager import get_logger
 from src.chat.heart_flow.utils_chat import get_chat_type_and_target_info

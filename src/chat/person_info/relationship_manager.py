@@ -7,7 +7,7 @@ import time
 import random
 from typing import List, Dict, Any
 from ...common.database import db
-from maim_message import UserInfo
+from .....maim_message.src.maim_message import UserInfo
 
 from ...manager.mood_manager import mood_manager
 

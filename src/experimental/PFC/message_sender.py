@@ -3,7 +3,7 @@ from typing import Optional
 from src.common.logger_manager import get_logger
 from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.message_receive.message import Message
-from maim_message import UserInfo, Seg
+from .....maim_message.src.maim_message import UserInfo, Seg
 from src.chat.message_receive.message import MessageSending, MessageSet
 from src.chat.message_receive.message_sender import message_manager
 from src.config.config import global_config

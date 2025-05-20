@@ -3,7 +3,7 @@ import asyncio
 import traceback
 from typing import Dict, Any, Optional
 from src.common.logger_manager import get_logger
-from maim_message import UserInfo
+from .....maim_message.src.maim_message import UserInfo
 from src.chat.message_receive.chat_stream import chat_manager, ChatStream
 from src.chat.message_receive.message import Message  # 假设 Message 类型被 _convert_to_message 使用
 from src.config.config import global_config
