@@ -121,8 +121,11 @@ def format_user_info_prompt(
             group_nicknames_map_by_uid[u_id].append(f"“{group_nickname_str}”")
 
     for user_id, actual_nickname in users_data: # actual_nickname 是用户的平台昵称
-        line = f"uid:{user_id}，用户昵称为“{actual_nickname}”" # 使用 actual_nickname
-        
+        if user_id == global_config.bot.qq_account:
+            line = f"uid:{user_id}，这是你，你的昵称为“{actual_nickname}”"
+        else:
+            line = f"uid:{user_id}，用户昵称为“{actual_nickname}”" # 使用 actual_nickname
+
         # 检查当前 user_id 是否有选中的群内常用绰号
         if selected_group_nicknames and user_id in group_nicknames_map_by_uid:
             group_nicknames_str_joined = "、".join(group_nicknames_map_by_uid[user_id])
