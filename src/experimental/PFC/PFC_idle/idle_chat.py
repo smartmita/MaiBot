@@ -1,4 +1,4 @@
-# TODO: 优化 idle 逻辑 增强其与 PFC 模式的联动
+# TODO: 优化 idle 逻辑 增强其与 PFC 模式的联动（在做了在做了TAT）
 from typing import Optional, Dict, Set, List
 import asyncio
 import time
@@ -11,7 +11,6 @@ from src.chat.models.utils_model import LLMRequest
 from src.chat.message_receive.chat_stream import chat_manager
 from src.chat.message_receive.chat_stream import ChatStream
 
-# from ...schedule.schedule_generator import bot_schedule
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from ..pfc_relationship import PfcRepationshipTranslator, PfcRelationshipUpdater
@@ -19,6 +18,9 @@ from maim_message import Seg
 from rich.traceback import install
 from ..pfc_utils import build_chat_history_text
 from .idle_weight import process_instances_weights, find_max_relationship_user, get_user_relationship_data, calculate_base_trigger_probability
+from .idle_conversation import IdleConversation
+# 导入日程系统
+from src.experimental.Legacy_HFC.schedule.schedule_generator import bot_schedule
 
 install(extra_lines=3)
 
@@ -658,20 +660,58 @@ class IdleChat:
             if personality_sides:
                 personality_sides_text = "\n".join([f"- {side}" for side in personality_sides])
             
+            # 获取当前日程活动信息
+            current_activity = ""
+            try:
+                if hasattr(bot_schedule, 'today_done_list') and bot_schedule.today_done_list:
+                    # 获取最近的活动
+                    current_activity = bot_schedule.get_current_num_task(1, True).strip()
+                    if current_activity:
+                        logger.info(f"[私聊][{self.private_name}]获取到最近日程活动: {current_activity}")
+                
+                # 如果从today_done_list没有获取到活动，尝试从日程表中获取
+                if not current_activity and hasattr(bot_schedule, 'today_schedule_text') and bot_schedule.today_schedule_text:
+                    # 从完整日程中提取当前时间段的活动
+                    hour_now = current_time.split(":")[0]
+                    minute_now = current_time.split(":")[1]
+                    schedule_lines = bot_schedule.today_schedule_text.split("\n")
+                    
+                    # 首先尝试精确匹配当前小时
+                    for line in schedule_lines:
+                        if (hour_now + ":" in line or hour_now + "时" in line) and len(line.strip()) > 5:
+                            current_activity = line.strip()
+                            logger.info(f"[私聊][{self.private_name}]从日程表中获取到当前时间活动: {current_activity}")
+                            break
+                    
+                    # 如果没找到，尝试查找最近的时间段
+                    if not current_activity:
+                        current_hour = int(hour_now)
+                        # 查找前后1小时内的活动
+                        for h in [current_hour, current_hour-1, current_hour+1]:
+                            h_str = str(h).zfill(2)  # 确保两位数格式
+                            for line in schedule_lines:
+                                if (h_str + ":" in line or h_str + "时" in line) and len(line.strip()) > 5:
+                                    current_activity = line.strip()
+                                    logger.info(f"[私聊][{self.private_name}]从日程表中获取到附近时间活动: {current_activity}")
+                                    break
+                            if current_activity:
+                                break
+            except Exception as e:
+                logger.error(f"[私聊][{self.private_name}]获取日程活动时出错: {str(e)}")
+                logger.error(traceback.format_exc())
+            
             prompt = f"""你是{global_config.bot.nickname}。
             你正在与用户{self.private_name}进行QQ私聊，你们的关系是{relationship_description}
-            现在时间{current_time}
-            
             你的人格核心特点：{personality_core}
             {f"你的一些个性特点：\n{personality_sides_text}" if personality_sides_text else ""}
-            
+            {f"根据你的日程，你现在正在: {current_activity}" if current_activity else ""}
             你想要主动发起对话。
             请基于以下之前的对话历史，生成一条自然、友好、符合关系程度的主动对话消息。
             这条消息应能够引起用户的兴趣，重新开始对话。
             最近的对话历史（并不是现在的对话）：
             {chat_history_text}
-            请你根据对话历史决定是告诉对方你正在做的事情，还是询问对方正在做的事情
-            请直接输出一条消息，不要有任何额外的解释或引导文字
+            {"如果你决定告诉对方你在做什么，请自然地融入你的日程活动信息。" if current_activity else "请你根据对话历史决定是告诉对方你正在做的事情，还是询问对方正在做的事情"}
+            请直接输出一条消息，不要有任何额外的解释或引导文字，不要输出表情包
             消息内容尽量简短
             """
             
@@ -719,6 +759,18 @@ class IdleChat:
                     self.__class__._pending_replies[self.private_name] = time.time()
                     self.__class__._tried_users.add(self.private_name)
                     logger.info(f"[私聊][{self.private_name}]已添加到等待回复列表中")
+                
+                # 成功发送消息后，启动对话实例
+                logger.info(f"[私聊][{self.private_name}]尝试为用户启动PFC对话实例")
+                try:
+                    conversation = await IdleConversation.start_conversation_for_user(self.stream_id, self.private_name)
+                    if conversation:
+                        logger.info(f"[私聊][{self.private_name}]成功启动PFC对话实例")
+                    else:
+                        logger.warning(f"[私聊][{self.private_name}]未能成功启动PFC对话实例")
+                except Exception as conv_err:
+                    logger.error(f"[私聊][{self.private_name}]启动PFC对话实例时出错: {str(conv_err)}")
+                    logger.error(traceback.format_exc())
                 
             except Exception as e:
                 logger.error(f"[私聊][{self.private_name}]发送主动聊天消息失败: {str(e)}")
