@@ -9,7 +9,7 @@ logger = get_logger("nickname_mapper")
 # LLMRequest 实例和 analyze_chat_for_nicknames 函数已被移除
 
 
-def build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: Dict[str, str]) -> str:
+def build_mapping_prompt(chat_history_str: str, bot_reply: str) -> str:
     """
     构建用于 LLM 进行绰号映射分析的 Prompt。
 
@@ -21,17 +21,9 @@ def build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: D
     Returns:
         str: 构建好的 Prompt 字符串。
     """
-    # 将 user_name_map 格式化为列表字符串
-    user_list_str = "\n".join([f"- {uid}: {name}" for uid, name in user_name_map.items() if uid and name])
-    if not user_list_str:
-        user_list_str = "无"  # 如果映射为空，明确告知
-
     # 核心 Prompt 内容
     prompt = f"""
 任务：仔细分析以下聊天记录和“你的最新回复”，判断其中是否明确提到了某个用户的绰号，并且这个绰号可以清晰地与一个特定的用户 ID 对应起来。
-
-已知用户信息（ID: 名称）：
-{user_list_str}
 
 聊天记录：
 ---
@@ -43,7 +35,7 @@ def build_mapping_prompt(chat_history_str: str, bot_reply: str, user_name_map: D
 
 分析要求与输出格式：
 1.  找出聊天记录和“你的最新回复”中可能是用户绰号的词语。
-2.  判断这些绰号是否在上下文中**清晰、无歧义**地指向了“已知用户信息”列表中的**某一个特定用户 ID**。必须是强关联，避免猜测。
+2.  判断这些绰号是否在上下文中**清晰、无歧义**地指向了聊天记录中的**某一个特定用户 ID**。必须是强关联，避免猜测。
 3.  **不要**输出你自己（名称后带"(你)"的用户）的绰号映射。
     **不要**输出与用户已知名称完全相同的词语作为绰号。
     **不要**将在“你的最新回复”中你对他人使用的称呼或绰号进行映射（只分析聊天记录中他人对用户的称呼）。

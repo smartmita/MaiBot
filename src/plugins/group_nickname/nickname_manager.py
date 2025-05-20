@@ -227,35 +227,7 @@ class NicknameManager:
             group_id = str(current_chat_stream.group_info.group_id)
             platform = current_chat_stream.platform
 
-            user_ids_in_history = {
-                str(msg["user_info"]["user_id"]) for msg in history_messages if msg.get("user_info", {}).get("user_id")
-            }
-            user_name_map = {}
-            if user_ids_in_history:
-                try:
-                    names_data = await relationship_manager.get_person_names_batch(platform, list(user_ids_in_history))
-                except Exception as e:
-                    logger.error(f"{log_prefix} 批量获取 person_name 时出错: {e}", exc_info=True)
-                    names_data = {}
-                for user_id_str_hist in user_ids_in_history: # 变量名区分
-                    if user_id_str_hist in names_data:
-                        user_name_map[user_id_str_hist] = names_data[user_id_str_hist]
-                    else:
-                        latest_nickname = next(
-                            (
-                                m["user_info"].get("user_nickname")
-                                for m in reversed(history_messages)
-                                if str(m["user_info"].get("user_id")) == user_id_str_hist and m["user_info"].get("user_nickname")
-                            ),
-                            None,
-                        )
-                        user_name_map[user_id_str_hist] = (
-                            latest_nickname or f"{global_config.bot.nickname}"
-                            if user_id_str_hist == global_config.bot.qq_account
-                            else "未知"
-                        )
-
-            item = (chat_history_str, bot_reply_str, platform, group_id, user_name_map)
+            item = (chat_history_str, bot_reply_str, platform, group_id)
             await self._add_to_queue(item, platform, group_id)
 
         except Exception as e:
@@ -264,88 +236,101 @@ class NicknameManager:
     async def get_nickname_prompt_injection(self, chat_stream: ChatStream, message_list_before_now: List[Dict]) -> str:
         """
         获取并格式化用于 Prompt 注入的用户信息字符串。
-        始终包含 UID 和 Person Name。
-        如果功能启用且在群聊中，则额外包含绰号信息。
+        包含 UID、用户实际昵称，以及在群聊中可选的群内常用绰号。
         """
-        if not chat_stream: # chat_stream 是必需的，用于获取平台信息等
+        if not chat_stream:
             logger.warning("无效的 chat_stream，无法获取用户信息注入。")
             return ""
 
         log_prefix = f"[{chat_stream.stream_id}]"
         try:
-            platform = chat_stream.platform # 获取平台信息
+            platform = chat_stream.platform
 
-            # 1. 收集上下文中的用户ID
             user_ids_in_context = {
                 str(msg["user_info"]["user_id"])
                 for msg in message_list_before_now
                 if msg.get("user_info", {}).get("user_id")
             }
 
-            if not user_ids_in_context: # 如果消息列表为空或没有用户信息
-                # 尝试从 chat_stream 获取最近发言者作为备选
-                recent_speakers = chat_stream.get_recent_speakers(limit=5) # 可配置回顾数量
-                user_ids_in_context.update(str(speaker["user_id"]) for speaker in recent_speakers if speaker.get("user_id"))
-            
             if not user_ids_in_context:
                 logger.debug(f"{log_prefix} 未找到上下文用户用于信息注入。")
                 return ""
 
-            # 2. 获取这些用户的 Person Name
-            # 使用集合确保 user_id 唯一，转换为列表进行查询
-            unique_user_ids_list = sorted(list(user_ids_in_context)) # 排序以保证输出顺序一致性
-            person_names_data: Dict[str, str] = {}
+            unique_user_ids_list = sorted(list(user_ids_in_context))
+            
+            # 1. 批量获取用户的实际平台昵称 (actual_nickname)
+            actual_nicknames_map: Dict[str, str] = {} # user_id -> actual_nickname
             if unique_user_ids_list:
                 try:
-                    person_names_data = await relationship_manager.get_person_names_batch(platform, unique_user_ids_list)
+                    # 调用新的批量获取实际昵称的方法
+                    actual_nicknames_map = await relationship_manager.get_actual_nicknames_batch(platform, unique_user_ids_list)
                 except Exception as e:
-                    logger.error(f"{log_prefix} 批量获取 person_name 时出错: {e}", exc_info=True)
-                    # 出错则 names_data 为空，后续逻辑会处理
-            
-            users_for_prompt: List[Tuple[str, str]] = [] # 存储 (user_id, person_name)
-            for user_id_str in unique_user_ids_list:
-                person_name = person_names_data.get(user_id_str)
-                if person_name: # 只添加成功获取到 person_name 的用户
-                    users_for_prompt.append((user_id_str, person_name))
-                elif user_id_str == global_config.bot.qq_account:
-                    users_for_prompt.append((user_id_str, global_config.bot.nickname))
-                else:
-                    logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的 person_name。")
-            
-            if not users_for_prompt: # 如果最终没有可供显示的用户信息
-                logger.debug(f"{log_prefix} 未能构建有效的用户列表用于注入。")
-                return ""
+                    logger.error(f"{log_prefix} 批量获取用户实际昵称时出错: {e}", exc_info=True)
+                    # 出错则 actual_nicknames_map 为空，后续逻辑会处理
 
-            # 3. 条件性地获取绰号信息
-            selected_nicknames_for_formatting: Optional[List[Tuple[str, str, str, int]]] = None
-            # 检查总开关是否打开，并且当前是群聊
+            # 构建传递给 format_user_info_prompt 的 users_data: List[Tuple[str, str]] (user_id, actual_nickname)
+            users_data_for_formatting: List[Tuple[str, str]] = []
+            for user_id_str in unique_user_ids_list:
+                actual_nickname = actual_nicknames_map.get(user_id_str)
+
+                if actual_nickname is not None: # 确保昵称存在（可以是空字符串）
+                    users_data_for_formatting.append((user_id_str, actual_nickname))
+                elif user_id_str == global_config.bot.qq_account: # 如果是机器人自己
+                    bot_actual_nickname = global_config.bot.nickname # 机器人的配置昵称
+                    users_data_for_formatting.append((user_id_str, bot_actual_nickname))
+                else:
+                    # 如果批量获取未返回昵称，可以考虑一个备用逻辑，比如从消息列表的 user_info 中取最新的 nickname
+                    # 或者直接标记为未知，但为了 prompt 的信息量，尝试从历史消息获取
+                    fallback_nickname = next(
+                        (
+                            m["user_info"].get("user_nickname")
+                            for m in reversed(message_list_before_now) # 从当前上下文消息中查找
+                            if str(m["user_info"].get("user_id")) == user_id_str and m["user_info"].get("user_nickname")
+                        ),
+                        None # 如果找不到，则为 None
+                    )
+                    if fallback_nickname:
+                         users_data_for_formatting.append((user_id_str, fallback_nickname))
+                         logger.debug(f"{log_prefix} 用户 {user_id_str} 未在批量获取中找到实际昵称，使用上下文中找到的昵称: {fallback_nickname}")
+                    else:
+                        logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的实际平台昵称，也未在上下文中找到备用昵称。")
+            
+            if not users_data_for_formatting:
+                logger.debug(f"{log_prefix} 未能构建有效的用户列表（基于实际昵称）用于注入。")
+                return ""
+            
+            # 2. 条件性地获取群内常用绰号 (nickname_str)
+            selected_group_nicknames_for_formatting: Optional[List[Tuple[str, str, str, int]]] = None
+            # select_nicknames_for_prompt 的输入字典的键应该是用户的实际昵称
+
             if self.is_enabled and chat_stream.group_info and chat_stream.group_info.group_id:
                 group_id = str(chat_stream.group_info.group_id)
-                # 获取绰号数据，其键为 person_name
-                all_nicknames_data_by_person_name: Dict[str, Dict[str, Any]] = {}
+                
+                # get_users_group_nicknames 返回以实际昵称为键的字典
+                all_nicknames_data_by_actual_nickname: Dict[str, Dict[str, Any]] = {}
                 if unique_user_ids_list: # 确保有用户ID列表才去查询绰号
                     try:
-                        # get_users_group_nicknames 需要 user_id 列表
-                        all_nicknames_data_by_person_name = await relationship_manager.get_users_group_nicknames(
+                        # 此函数返回的键已经是实际昵称
+                        all_nicknames_data_by_actual_nickname = await relationship_manager.get_users_group_nicknames(
                             platform, unique_user_ids_list, group_id
                         )
                     except Exception as e:
                         logger.error(f"{log_prefix} 获取群组 '{group_id}' 的绰号时出错: {e}", exc_info=True)
                 
-                if all_nicknames_data_by_person_name:
-                    # select_nicknames_for_prompt 期望的输入是以 person_name 为键的字典
-                    # 其返回值为 List[Tuple[str, str, str, int]] (person_name, user_id, nickname, count)
-                    selected_nicknames_for_formatting = select_nicknames_for_prompt(all_nicknames_data_by_person_name)
-                    if selected_nicknames_for_formatting:
-                         logger.debug(f"{log_prefix} 为群组 '{group_id}' 选择了以下绰号进行注入: {selected_nicknames_for_formatting}")
-
-
-            # 4. 调用格式化函数
-            # format_user_info_prompt 现在处理两种情况
-            injection_str = format_user_info_prompt(users_for_prompt, selected_nicknames_for_formatting)
+                if all_nicknames_data_by_actual_nickname:
+                    # select_nicknames_for_prompt 输入字典的键是实际昵称
+                    # 返回 List[Tuple[str, str, str, int]] (actual_nickname, user_id, group_nickname_str, count)
+                    selected_group_nicknames_for_formatting = select_nicknames_for_prompt(all_nicknames_data_by_actual_nickname)
+                    if selected_group_nicknames_for_formatting:
+                         logger.debug(f"{log_prefix} 为群组 '{group_id}' 选择了以下用户常用绰号进行注入: {selected_group_nicknames_for_formatting}")
+            
+            # 3. 调用格式化函数
+            # format_user_info_prompt 接收 (user_id, actual_nickname) 列表
+            # selected_group_nicknames 的第一个元素也是 actual_nickname
+            injection_str = format_user_info_prompt(users_data_for_formatting, selected_group_nicknames_for_formatting)
             
             if injection_str:
-                logger.debug(f"{log_prefix} 生成的用户信息 Prompt 注入:\n{injection_str.strip()}") # strip() 移除末尾换行符以便日志查看
+                logger.debug(f"{log_prefix} 生成的用户信息 Prompt 注入:\n{injection_str.strip()}")
             return injection_str
 
         except Exception as e:
@@ -375,7 +360,7 @@ class NicknameManager:
             logger.warning(f"从队列接收到无效项目: {type(item)}")
             return
 
-        chat_history_str, bot_reply, platform, group_id, user_name_map = item
+        chat_history_str, bot_reply, platform, group_id = item
         log_prefix = f"[{platform}:{group_id}]"
         logger.debug(f"{log_prefix} 开始处理绰号分析任务...")
 
@@ -386,7 +371,7 @@ class NicknameManager:
             logger.error(f"{log_prefix} 数据库处理器不可用，无法更新计数。")
             return
 
-        analysis_result = await self._call_llm_for_analysis(chat_history_str, bot_reply, user_name_map)
+        analysis_result = await self._call_llm_for_analysis(chat_history_str, bot_reply)
 
         if analysis_result.get("is_exist") and analysis_result.get("data"):
             nickname_map_to_update = analysis_result["data"]
@@ -425,7 +410,6 @@ class NicknameManager:
         self,
         chat_history_str: str,
         bot_reply: str,
-        user_name_map: Dict[str, str],
     ) -> Dict[str, Any]:
         """
         内部方法：调用 LLM 分析聊天记录和 Bot 回复，提取可靠的 用户ID-绰号 映射。
@@ -434,7 +418,7 @@ class NicknameManager:
             logger.error("LLM 映射器未初始化，无法执行分析。")
             return {"is_exist": False}
 
-        prompt = build_mapping_prompt(chat_history_str, bot_reply, user_name_map)
+        prompt = build_mapping_prompt(chat_history_str, bot_reply)
         logger.debug(f"构建的绰号映射 Prompt (部分):\n{prompt}...") # 调整日志输出长度
 
         try:
@@ -474,7 +458,7 @@ class NicknameManager:
                 original_data = result.get("data")
                 if isinstance(original_data, dict) and original_data: # 确保 data 是非空字典
                     logger.info(f"LLM 找到的原始绰号映射: {original_data}")
-                    filtered_data = self._filter_llm_results(original_data, user_name_map)
+                    filtered_data = self._filter_llm_results(original_data)
                     if not filtered_data:
                         logger.info("所有找到的绰号映射都被过滤掉了。")
                         return {"is_exist": False} # 如果过滤后为空，也视为未找到
@@ -498,7 +482,7 @@ class NicknameManager:
             logger.error(f"绰号映射 LLM 调用或处理过程中发生意外错误: {e}", exc_info=True)
             return {"is_exist": False}
 
-    def _filter_llm_results(self, original_data: Dict[str, str], user_name_map: Dict[str, str]) -> Dict[str, str]:
+    def _filter_llm_results(self, original_data: Dict[str, str]) -> Dict[str, str]:
         """过滤 LLM 返回的绰号映射结果。"""
         filtered_data = {}
         bot_qq_str = global_config.bot.qq_account if global_config.bot.qq_account else None

@@ -8,46 +8,49 @@ logger = get_logger("nickname_utils")
 
 
 def select_nicknames_for_prompt(
-    all_nicknames_info_with_uid: Dict[str, Dict[str, Any]]
+    all_nicknames_info_by_actual_nickname: Dict[str, Dict[str, Any]] # 参数名修改以反映键的含义
 ) -> List[Tuple[str, str, str, int]]:
     """
     从给定的绰号信息中，根据映射次数加权随机选择最多 N 个绰号用于 Prompt。
 
     Args:
-        all_nicknames_info_with_uid: 包含用户及其绰号和 UID 信息的字典，格式为
-                        { "用户名1": {"user_id": "uid1", "nicknames": [{"绰号A": 次数}, {"绰号B": 次数}]}, ... }
-                        注意：这里的键是 person_name。
+        all_nicknames_info_by_actual_nickname: 包含用户及其绰号和 UID 信息的字典，格式为
+                        { "用户实际昵称1": {"user_id": "uid1", "nicknames": [{"绰号A": 次数}, ...]}, ... }
+                        注意：这里的键是用户的实际昵称。
 
     Returns:
-        List[Tuple[str, str, str, int]]: 选中的绰号列表，每个元素为 (用户名, user_id, 绰号, 次数)。
+        List[Tuple[str, str, str, int]]: 选中的绰号列表，每个元素为 (用户实际昵称, user_id, 群内常用绰号, 次数)。
                                     按次数降序排序。
     """
-    if not all_nicknames_info_with_uid:
+    if not all_nicknames_info_by_actual_nickname:
         return []
 
-    candidates = []  # 存储 (用户名, user_id, 绰号, 次数, 权重)
+    candidates = []  # 存储 (用户实际昵称, user_id, 群内常用绰号, 次数, 权重)
     smoothing_factor = global_config.group_nickname.nickname_probability_smoothing
 
-    for user_name, data in all_nicknames_info_with_uid.items():
+    # 修改：迭代时，user_key 现在是用户的实际昵称
+    for user_actual_nickname, data in all_nicknames_info_by_actual_nickname.items():
         user_id = data.get("user_id")
-        nicknames_list = data.get("nicknames")
+        nicknames_list = data.get("nicknames") # 这是群内常用绰号列表
 
         if not user_id or not isinstance(nicknames_list, list):
-            logger.warning(f"用户 '{user_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。 Data: {data}")
+            logger.warning(f"用户实际昵称 '{user_actual_nickname}' 的数据格式无效或缺少 user_id/nicknames。已跳过。 Data: {data}")
             continue
 
         for nickname_entry in nicknames_list:
             if isinstance(nickname_entry, dict) and len(nickname_entry) == 1:
-                nickname, count = list(nickname_entry.items())[0]
-                if isinstance(count, int) and count > 0 and isinstance(nickname, str) and nickname:
+                group_nickname_str, count = list(nickname_entry.items())[0] # 这是群内常用绰号
+                if isinstance(count, int) and count > 0 and isinstance(group_nickname_str, str) and group_nickname_str:
                     weight = count + smoothing_factor
-                    candidates.append((user_name, user_id, nickname, count, weight)) # 添加 user_id
+                    # 修改：存储 user_actual_nickname
+                    candidates.append((user_actual_nickname, user_id, group_nickname_str, count, weight))
                 else:
                     logger.warning(
-                        f"用户 '{user_name}' (UID: {user_id}) 的绰号条目无效: {nickname_entry} (次数非正整数或绰号为空)。已跳过。"
+                        f"用户实际昵称 '{user_actual_nickname}' (UID: {user_id}) 的群内常用绰号条目无效: {nickname_entry}。已跳过。"
                     )
             else:
-                logger.warning(f"用户 '{user_name}' (UID: {user_id}) 的绰号条目格式无效: {nickname_entry}。已跳过。")
+                logger.warning(f"用户实际昵称 '{user_actual_nickname}' (UID: {user_id}) 的群内常用绰号条目格式无效: {nickname_entry}。已跳过。")
+
 
     if not candidates:
         return []
@@ -89,16 +92,17 @@ def select_nicknames_for_prompt(
 
 
 def format_user_info_prompt(
-    users_data: List[Tuple[str, str]], # 改为接收 (user_id, person_name) 元组列表
-    selected_nicknames: Optional[List[Tuple[str, str, str, int]]] = None # (person_name, user_id, nickname, count)
+    users_data: List[Tuple[str, str]], # 接收 (user_id, actual_nickname) 元组列表
+    selected_group_nicknames: Optional[List[Tuple[str, str, str, int]]] = None # (actual_nickname, user_id, group_nickname_str, count)
 ) -> str:
     """
-    将用户基本信息和可选的绰号信息格式化为注入 Prompt 的字符串。
+    将用户基本信息和可选的群内常用绰号信息格式化为注入 Prompt 的字符串。
 
     Args:
-        users_data: 用户信息列表，每个元素为 (user_id, person_name)。
-        selected_nicknames: 可选的已选绰号列表 (person_name, user_id, 绰号, 次数)。
-                            此列表中的绰号应已按常用度排序。
+        users_data: 用户信息列表，每个元素为 (user_id, actual_nickname)。
+        selected_group_nicknames: 可选的已选群内常用绰号列表 
+                                  元组格式: (actual_nickname_key, user_id, group_nickname_str, count)。
+                                  此列表中的绰号应已按常用度排序。
 
     Returns:
         str: 格式化后的字符串，如果列表为空则返回空字符串。
@@ -108,25 +112,28 @@ def format_user_info_prompt(
 
     prompt_lines = ["以下是聊天记录中存在的对象的信息，与聊天记录中的 uid 一一映射，供你参考："]
     
-    nicknames_map: Dict[str, List[str]] = {} # Key: user_id, Value: List of formatted nickname strings ("“nickname”")
-    if selected_nicknames: # 仅当提供了绰号信息时才构建映射
-        for _p_name, u_id, nickname, _count in selected_nicknames: # 迭代已按全局频率排序的绰号
-            if u_id not in nicknames_map:
-                nicknames_map[u_id] = []
-            nicknames_map[u_id].append(f"“{nickname}”")
-        # nicknames_map[u_id] 中的绰号列表将自然地按其在 selected_nicknames 中的顺序排列（即按常用度）
+    # 构建 user_id 到其群内常用绰号字符串列表的映射
+    group_nicknames_map_by_uid: Dict[str, List[str]] = {} 
+    if selected_group_nicknames:
+        for _actual_nick_key, u_id, group_nickname_str, _count in selected_group_nicknames:
+            if u_id not in group_nicknames_map_by_uid:
+                group_nicknames_map_by_uid[u_id] = []
+            group_nicknames_map_by_uid[u_id].append(f"“{group_nickname_str}”")
 
-    for user_id, person_name in users_data:
-        line = f"uid:{user_id}，名为“{person_name}”"
-        if selected_nicknames and user_id in nicknames_map: # 如果有绰号信息且当前用户有绰号
-            nicknames_str = "、".join(nicknames_map[user_id])
-            line += f"，ta 在本群常被称为：{nicknames_str}"
+    for user_id, actual_nickname in users_data: # actual_nickname 是用户的平台昵称
+        line = f"uid:{user_id}，用户昵称为“{actual_nickname}”" # 使用 actual_nickname
+        
+        # 检查当前 user_id 是否有选中的群内常用绰号
+        if selected_group_nicknames and user_id in group_nicknames_map_by_uid:
+            group_nicknames_str_joined = "、".join(group_nicknames_map_by_uid[user_id])
+            line += f"，ta 在本群常被称为：{group_nicknames_str_joined}"
         prompt_lines.append(line)
 
-    if len(prompt_lines) > 1: # 确保除了标题行还有其他内容
+    if len(prompt_lines) > 1:
         return "\n".join(prompt_lines) + "\n"
     else:
-        return "" # 如果只有标题行（例如 users_data 为空，虽然前面有检查），则返回空
+        return ""
+
 
 
 def weighted_sample_without_replacement(

@@ -47,9 +47,6 @@ async def _process_relationship(message: MessageRecv) -> None:
     if not is_known:
         logger.info(f"首次认识用户: {nickname}")
         await relationship_manager.first_knowing_some_one(platform, user_id, nickname, cardname, "")
-    elif not await relationship_manager.is_qved_name(platform, user_id):
-        logger.info(f"给用户({nickname},{cardname})取名: {nickname}")
-        await relationship_manager.first_knowing_some_one(platform, user_id, nickname, cardname, "")
 
 
 async def _calculate_interest(message: MessageRecv) -> Tuple[float, bool]:

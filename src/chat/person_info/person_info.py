@@ -38,7 +38,6 @@ logger = get_logger("person_info")
 
 person_info_default = {
     "person_id": None,
-    "person_name": None,
     "name_reason": None,
     "platform": None,
     "user_id": None,
@@ -59,7 +58,6 @@ person_info_default = {
 
 class PersonInfoManager:
     def __init__(self):
-        self.person_name_list = {}
         # TODO: API-Adapter修改标记
         self.qv_name_llm = LLMRequest(
             model=global_config.model.normal,
@@ -69,13 +67,6 @@ class PersonInfoManager:
         if "person_info" not in db.list_collection_names():
             db.create_collection("person_info")
             db.person_info.create_index("person_id", unique=True)
-
-        # 初始化时读取所有person_name
-        cursor = db.person_info.find({"person_name": {"$exists": True}}, {"person_id": 1, "person_name": 1, "_id": 0})
-        for doc in cursor:
-            if doc.get("person_name"):
-                self.person_name_list[doc["person_id"]] = doc["person_name"]
-        logger.debug(f"已加载 {len(self.person_name_list)} 个用户名称")
 
     @staticmethod
     def get_person_id(platform: str, user_id: int):
@@ -214,75 +205,6 @@ class PersonInfoManager:
         # 如果所有方法都失败了，返回默认字典
         logger.warning(f"无法从文本中提取有效的JSON字典: {text}")
         return {"nickname": "", "reason": ""}
-
-    async def qv_person_name(
-        self, person_id: str, user_nickname: str, user_cardname: str, user_avatar: str, request: str = ""
-    ):
-        """给某个用户取名"""
-        if not person_id:
-            logger.debug("取名失败：person_id不能为空")
-            return None
-
-        old_name = await self.get_value(person_id, "person_name")
-        old_reason = await self.get_value(person_id, "name_reason")
-
-        max_retries = 5  # 最大重试次数
-        current_try = 0
-        existing_names = ""
-        while current_try < max_retries:
-            individuality = Individuality.get_instance()
-            prompt_personality = individuality.get_prompt(x_person=2, level=1)
-            bot_name = individuality.personality.bot_nickname
-
-            qv_name_prompt = f"你是{bot_name}，{prompt_personality}"
-            qv_name_prompt += f"现在你想给一个用户取一个昵称，用户是的qq昵称是{user_nickname}，"
-            qv_name_prompt += f"用户的qq群昵称名是{user_cardname}，"
-            if user_avatar:
-                qv_name_prompt += f"用户的qq头像是{user_avatar}，"
-            if old_name:
-                qv_name_prompt += f"你之前叫他{old_name}，是因为{old_reason}，"
-
-            qv_name_prompt += f"\n其他取名的要求是：{request}，不要太浮夸"
-
-            qv_name_prompt += (
-                "\n请根据以上用户信息，想想你叫他什么比较好，不要太浮夸，请最好使用用户的qq昵称，可以稍作修改"
-            )
-            if existing_names:
-                qv_name_prompt += f"\n请注意，以下名称已被使用，不要使用以下昵称：{existing_names}。\n"
-            qv_name_prompt += "请用json给出你的想法，并给出理由，示例如下："
-            qv_name_prompt += """{
-                "nickname": "昵称",
-                "reason": "理由"
-            }"""
-            # logger.debug(f"取名提示词：{qv_name_prompt}")
-            response = await self.qv_name_llm.generate_response(qv_name_prompt)
-            logger.trace(f"取名提示词：{qv_name_prompt}\n取名回复：{response}")
-            result = self._extract_json_from_text(response[0])
-
-            if not result["nickname"]:
-                logger.error("生成的昵称为空，重试中...")
-                current_try += 1
-                continue
-
-            # 检查生成的昵称是否已存在
-            if result["nickname"] not in self.person_name_list.values():
-                # 更新数据库和内存中的列表
-                await self.update_one_field(person_id, "person_name", result["nickname"])
-                # await self.update_one_field(person_id, "nickname", user_nickname)
-                # await self.update_one_field(person_id, "avatar", user_avatar)
-                await self.update_one_field(person_id, "name_reason", result["reason"])
-
-                self.person_name_list[person_id] = result["nickname"]
-                # logger.debug(f"用户 {person_id} 的名称已更新为 {result['nickname']}，原因：{result['reason']}")
-                return result
-            else:
-                existing_names += f"{result['nickname']}、"
-
-            logger.debug(f"生成的昵称 {result['nickname']} 已存在，重试中...")
-            current_try += 1
-
-        logger.error(f"在{max_retries}次尝试后仍未能生成唯一昵称")
-        return None
 
     @staticmethod
     async def del_one_document(person_id: str):
@@ -545,42 +467,5 @@ class PersonInfoManager:
             logger.debug(f"已为 {person_id} 创建新记录，初始数据: {initial_data}")
 
         return person_id
-
-    async def get_person_info_by_name(self, person_name: str) -> dict | None:
-        """根据 person_name 查找用户并返回基本信息 (如果找到)"""
-        if not person_name:
-            logger.debug("get_person_info_by_name 获取失败：person_name 不能为空")
-            return None
-
-        # 优先从内存缓存查找 person_id
-        found_person_id = None
-        for pid, name in self.person_name_list.items():
-            if name == person_name:
-                found_person_id = pid
-                break  # 找到第一个匹配就停止
-
-        if not found_person_id:
-            # 如果内存没有，尝试数据库查询（可能内存未及时更新或启动时未加载）
-            document = db.person_info.find_one({"person_name": person_name})
-            if document:
-                found_person_id = document.get("person_id")
-            else:
-                logger.debug(f"数据库中也未找到名为 '{person_name}' 的用户")
-                return None  # 数据库也找不到
-
-        # 根据找到的 person_id 获取所需信息
-        if found_person_id:
-            required_fields = ["person_id", "platform", "user_id", "nickname", "user_cardname", "user_avatar"]
-            person_data = await self.get_values(found_person_id, required_fields)
-            if person_data:  # 确保 get_values 成功返回
-                return person_data
-            else:
-                logger.warning(f"找到了 person_id '{found_person_id}' 但获取详细信息失败")
-                return None
-        else:
-            # 这理论上不应该发生，因为上面已经处理了找不到的情况
-            logger.error(f"逻辑错误：未能为 '{person_name}' 确定 person_id")
-            return None
-
 
 person_info_manager = PersonInfoManager()

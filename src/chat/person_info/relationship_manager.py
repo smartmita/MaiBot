@@ -82,54 +82,76 @@ class RelationshipManager:
         is_known = await person_info_manager.is_person_known(platform, user_id, nickname)
         return is_known
 
-    # --- [修改] 使用全局 db 对象进行查询 ---
     @staticmethod
-    async def get_person_names_batch(platform: str, user_ids: List[str]) -> Dict[str, str]:
+    async def get_actual_nicknames_batch(platform: str, user_ids: List[str]) -> Dict[str, str]:
         """
-        批量获取多个用户的 person_name。
+        批量获取多个用户的实际平台昵称 (nickname)。
+
+        Args:
+            platform (str): 平台名称。
+            user_ids (List[str]): 用户 ID 列表 (期望是字符串形式的 UID)。
+
+        Returns:
+            Dict[str, str]: 映射 {user_id: actual_nickname}。
+                            其中 user_id 是输入列表中的原始 ID 字符串。
         """
         if not user_ids:
+            logger.debug("get_actual_nicknames_batch 调用时 user_ids 为空，返回空字典。")
             return {}
 
-        person_ids = [person_info_manager.get_person_id(platform, str(uid)) for uid in user_ids]
-        names_map = {}
+        person_id_to_original_uid_map: Dict[str, str] = {}
+        person_ids_to_query: List[str] = []
+
+        for uid in user_ids:
+            uid_str = str(uid) # 确保输入的UID是字符串
+            person_id = person_info_manager.get_person_id(platform, uid_str)
+            person_ids_to_query.append(person_id)
+            # 即使 person_id 可能因哈希碰撞（理论上极低概率）重复，
+            # 对于给定的 (platform, uid_str) 组合，person_id 是确定的。
+            # 我们用 person_id 作为查找键，并映射回原始的 uid_str。
+            if person_id not in person_id_to_original_uid_map:
+                 person_id_to_original_uid_map[person_id] = uid_str
+            # 如果在输入 user_ids 列表中有重复的 uid，这里会用最后一个 uid_str 覆盖，
+            # 但通常批量查询的 user_ids 应该是唯一的。
+
+        actual_nicknames_map: Dict[str, str] = {}
+        if not person_ids_to_query: # 如果处理后没有有效的 person_id 可供查询
+            return {}
+
         try:
             cursor = db.person_info.find(
-                {"person_id": {"$in": person_ids}},
-                {"_id": 0, "person_id": 1, "user_id": 1, "person_name": 1},  # 只查询需要的字段
+                {"person_id": {"$in": person_ids_to_query}},
+                {"_id": 0, "person_id": 1, "nickname": 1}  # 只需要 person_id 和 nickname
             )
 
-            for doc in cursor:
-                user_id_val = doc.get("user_id")  # 获取原始值
-                original_user_id = None  # 初始化
+            async for doc in cursor:
+                db_person_id = doc.get("person_id")
+                actual_nickname = doc.get("nickname") # 这是用户的实际平台昵称
 
-                if isinstance(user_id_val, (int, float)):  # 检查是否是数字类型
-                    original_user_id = str(user_id_val)  # 直接转换为字符串
-                elif isinstance(user_id_val, str):  # 检查是否是字符串
-                    if "_" in user_id_val:  # 如果包含下划线，则分割
-                        original_user_id = user_id_val.split("_", 1)[-1]
-                    else:  # 如果不包含下划线，则直接使用该字符串
-                        original_user_id = user_id_val
-                # else: # 其他类型或 None，original_user_id 保持为 None
+                # 通过 person_id 从映射中找回原始输入的 user_id
+                original_input_uid = person_id_to_original_uid_map.get(db_person_id)
 
-                person_name = doc.get("person_name")
+                if original_input_uid and actual_nickname is not None: # 确保昵称存在（可以是空字符串）
+                    actual_nicknames_map[original_input_uid] = actual_nickname
+                elif original_input_uid and actual_nickname is None:
+                    logger.debug(f"用户 (UID: {original_input_uid}, PersonID: {db_person_id}) 在数据库中 'nickname' 字段为 null 或缺失。")
+                # 如果 original_input_uid 为 None，意味着数据库返回了一个我们没有请求的 person_id，这不应发生。
 
-                # 确保 original_user_id 和 person_name 都有效
-                if original_user_id and person_name:
-                    names_map[original_user_id] = person_name
+            found_count = len(actual_nicknames_map)
+            requested_count = len(set(uid_str for uid_str in user_ids)) # 计算去重后的请求数量
+            logger.debug(f"批量获取 {requested_count} 个用户的实际昵称，成功从数据库匹配并返回 {found_count} 个。")
 
-            logger.debug(f"批量获取 {len(user_ids)} 个用户的 person_name，找到 {len(names_map)} 个。")
         except AttributeError as e:
-            # 如果 db 对象没有 person_info 属性，或者 find 方法不存在
-            logger.error(f"访问数据库时出错: {e}。请检查 common/database.py 和集合名称。")
+            logger.error(f"批量获取实际昵称时访问数据库出错 (AttributeError): {e}。请检查common/database.py和集合名称。")
         except Exception as e:
-            logger.error(f"批量获取 person_name 时出错: {e}", exc_info=True)
-        return names_map
+            logger.error(f"批量获取用户实际昵称时发生未知错误: {e}", exc_info=True)
+        
+        return actual_nicknames_map
 
     @staticmethod
     async def get_users_group_nicknames(
         platform: str, user_ids: List[str], group_id: str
-    ) -> Dict[str, Dict[str, Any]]: # 修改返回类型提示
+    ) -> Dict[str, Dict[str, Any]]:
         """
         批量获取多个用户在指定群组的绰号信息和 user_id。
 
@@ -139,101 +161,107 @@ class RelationshipManager:
             group_id (str): 群组 ID。
 
         Returns:
-            Dict[str, Dict[str, Any]]: 映射 {person_name: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]} }
+            Dict[str, Dict[str, Any]]: 映射 {nickname: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]} }
+                                       其中 nickname 是用户在平台上的实际昵称。
         """
         if not user_ids or not group_id:
             return {}
 
-        person_ids_map = {person_info_manager.get_person_id(platform, str(uid)): str(uid) for uid in user_ids} # person_id 到 user_id 的映射
-        person_ids = list(person_ids_map.keys())
-        nicknames_data = {}
+        # 创建 person_id 到原始 user_id (字符串形式) 的映射
+        person_ids_map = {person_info_manager.get_person_id(platform, str(uid)): str(uid) for uid in user_ids}
+        person_ids_to_query = list(person_ids_map.keys())
+        
+        nicknames_data_by_actual_nickname = {} # 存储结果的字典，键为用户的实际昵称
         group_id_str = str(group_id)
 
         try:
+            # 从数据库查询时，确保包含 nickname 字段
             cursor = db.person_info.find(
-                {"person_id": {"$in": person_ids}},
-                {"_id": 0, "person_id": 1, "person_name": 1, "group_nicknames": 1, "user_id": 1}, # 添加 user_id 到查询
+                {"person_id": {"$in": person_ids_to_query}},
+                {
+                    "_id": 0,
+                    "person_id": 1,
+                    "nickname": 1,  # 获取用户的实际平台昵称
+                    "group_nicknames": 1,
+                    "user_id": 1
+                },
             )
 
-            for doc in cursor:
-                person_name = doc.get("person_name")
-                original_user_id_from_doc = None
-                user_id_val = doc.get("user_id")
+            async for doc in cursor: # 使用 async for
+                actual_nickname_from_db = doc.get("nickname") # 获取用户的实际平台昵称
 
+                user_id_val = doc.get("user_id")
+                original_user_id_from_doc = None # 用于存储从文档中解析出的 user_id
+
+                # 解析文档中的 user_id (这部分逻辑保持不变)
                 if isinstance(user_id_val, (int, float)):
                     original_user_id_from_doc = str(user_id_val)
                 elif isinstance(user_id_val, str):
-                    if "_" in user_id_val:
+                    if "_" in user_id_val: # 假设 user_id 可能存储为 "platform_actualuid" 格式
                         original_user_id_from_doc = user_id_val.split("_", 1)[-1]
                     else:
                         original_user_id_from_doc = user_id_val
 
-                # 如果通过 person_id 映射能找到原始请求的 user_id，优先使用它，以保证是输入时的 user_id
-                # 否则，使用从文档中解析的 user_id
-                current_person_id = doc.get("person_id")
-                actual_user_id = person_ids_map.get(current_person_id, original_user_id_from_doc)
+                current_person_id_from_doc = doc.get("person_id")
+                # 优先使用请求时映射的 user_id，如果找不到，则使用从文档中解析的 user_id
+                # 这确保了即使数据库中的 user_id 字段格式多样，也能尽量关联回请求时的 uid
+                actual_user_id_for_output = person_ids_map.get(current_person_id_from_doc, original_user_id_from_doc)
 
-
-                if not person_name or not actual_user_id: # 确保 person_name 和 actual_user_id 都有效
+                # 关键检查：确保我们有有效的实际昵称 (actual_nickname_from_db) 和用户ID (actual_user_id_for_output)
+                if not actual_nickname_from_db or not actual_user_id_for_output:
                     logger.warning(
-                        f"跳过处理，因为 person_name ('{person_name}') 或 actual_user_id ('{actual_user_id}') 无效。 Doc person_id: {current_person_id}"
+                        f"跳过处理，因为从数据库获取的实际昵称 ('{actual_nickname_from_db}') 或 "
+                        f"解析的用户ID ('{actual_user_id_for_output}') 无效。 "
+                        f"文档 Person ID: {current_person_id_from_doc}"
                     )
                     continue
 
-                group_nicknames_list = doc.get("group_nicknames", [])
-                target_group_nicknames = []
+                group_nicknames_list_from_doc = doc.get("group_nicknames", [])
+                target_group_nicknames_raw = [] # 存储目标群组的原始绰号列表
 
-                for group_entry in group_nicknames_list:
+                # 提取特定群组的绰号 (这部分逻辑保持不变)
+                for group_entry in group_nicknames_list_from_doc:
                     if isinstance(group_entry, dict) and group_entry.get("group_id") == group_id_str:
-                        nicknames_raw = group_entry.get("nicknames", [])
-                        if isinstance(nicknames_raw, list):
-                            target_group_nicknames = nicknames_raw
+                        nicknames_raw_for_group = group_entry.get("nicknames", [])
+                        if isinstance(nicknames_raw_for_group, list):
+                            target_group_nicknames_raw = nicknames_raw_for_group
                         break
 
-                if target_group_nicknames:
-                    valid_nicknames_formatted = []
-                    for item in target_group_nicknames:
+                valid_nicknames_formatted = [] # 存储格式化且有效的绰号
+                if target_group_nicknames_raw:
+                    for item in target_group_nicknames_raw:
                         if (
                             isinstance(item, dict)
                             and isinstance(item.get("name"), str)
                             and isinstance(item.get("count"), int)
-                            and item["count"] > 0
+                            and item["count"] > 0 # 确保绰号计数有效
                         ):
                             valid_nicknames_formatted.append({item["name"]: item["count"]})
                         else:
                             logger.warning(
-                                f"数据库中用户 {person_name} (UID: {actual_user_id}) 群组 {group_id_str} 的绰号格式无效或 count <= 0: {item}"
+                                f"数据库中用户 (实际昵称: {actual_nickname_from_db}, UID: {actual_user_id_for_output}) "
+                                f"在群组 {group_id_str} 中的绰号格式无效或 count <= 0: {item}"
                             )
 
-                    if valid_nicknames_formatted:
-                        # 修改存储结构
-                        nicknames_data[person_name] = {
-                            "user_id": actual_user_id,
-                            "nicknames": valid_nicknames_formatted
-                        }
+                # 如果找到了有效的绰号，则以用户的实际昵称 (actual_nickname_from_db) 为键存储
+                if valid_nicknames_formatted:
+                    nicknames_data_by_actual_nickname[actual_nickname_from_db] = {
+                        "user_id": actual_user_id_for_output,
+                        "nicknames": valid_nicknames_formatted
+                    }
+
             logger.debug(
-                f"批量获取群组 {group_id_str} 中 {len(user_ids)} 个用户的绰号和UID，找到 {len(nicknames_data)} 个用户的数据。"
+                f"批量获取群组 {group_id_str} 中 {len(user_ids)} 个用户的绰号和UID (以实际昵称为键)，"
+                f"找到 {len(nicknames_data_by_actual_nickname)} 个用户的数据。"
             )
 
-        except AttributeError as e:
+        except AttributeError as e: # 捕获数据库对象属性错误
             logger.error(f"访问数据库时出错: {e}。请检查 common/database.py 和集合名称 'person_info'。")
-        except Exception as e:
-            logger.error(f"批量获取群组绰号时出错: {e}", exc_info=True)
+        except Exception as e: # 捕获其他潜在错误
+            logger.error(f"批量获取群组绰号时发生未知错误: {e}", exc_info=True)
 
-        return nicknames_data
+        return nicknames_data_by_actual_nickname
 
-    @staticmethod
-    async def is_qved_name(platform, user_id):
-        """判断是否认识某人"""
-        person_id = person_info_manager.get_person_id(platform, user_id)
-        is_qved = await person_info_manager.has_one_field(person_id, "person_name")
-        old_name = await person_info_manager.get_value(person_id, "person_name")
-        # print(f"old_name: {old_name}")
-        # print(f"is_qved: {is_qved}")
-        if is_qved and old_name is not None:
-            return True
-        else:
-            return False
 
     @staticmethod
     async def first_knowing_some_one(
@@ -249,9 +277,6 @@ class RelationshipManager:
         }
         await person_info_manager.update_one_field(
             person_id=person_id, field_name="nickname", value=user_nickname, data=data
-        )
-        await person_info_manager.qv_person_name(
-            person_id=person_id, user_nickname=user_nickname, user_cardname=user_cardname, user_avatar=user_avatar
         )
 
     async def calculate_update_relationship_value(self, user_info: UserInfo, platform: str, label: str, stance: str):
@@ -434,8 +459,7 @@ class RelationshipManager:
         else:
             # print(f"person: {person}")
             person_id = person_info_manager.get_person_id(person[0], person[1])
-        person_name = await person_info_manager.get_value(person_id, "person_name")
-        # print(f"person_name: {person_name}")
+        user_id = await person_info_manager.get_value(person_id, "user_id")
         relationship_value = await person_info_manager.get_value(person_id, "relationship_value")
         level_num = self.calculate_level_num(relationship_value)
 
@@ -449,7 +473,7 @@ class RelationshipManager:
                 "积极回复",
                 "友善和包容的回复",
             ]
-            return f"你{relationship_level[level_num]}{person_name}，打算{relation_prompt2_list[level_num]}。\n"
+            return f"你{relationship_level[level_num]}{user_id}，打算{relation_prompt2_list[level_num]}。\n"
         elif level_num == 2:
             return ""
         else:
@@ -463,7 +487,7 @@ class RelationshipManager:
                     "积极回复",
                     "友善和包容的回复",
                 ]
-                return f"你{relationship_level[level_num]}{person_name}，打算{relation_prompt2_list[level_num]}。\n"
+                return f"你{relationship_level[level_num]}{user_id}，打算{relation_prompt2_list[level_num]}。\n"
             else:
                 return ""
 
