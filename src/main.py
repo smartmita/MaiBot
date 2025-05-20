@@ -184,7 +184,7 @@ class MainSystem:
     async def learn_and_store_expression_task():
         """学习并存储表达方式任务"""
         while True:
-            await asyncio.sleep(60)
+            await asyncio.sleep(600)
             print("\033[1;32m[表达方式学习]\033[0m 开始学习表达方式...")
             await expression_learner.learn_and_store_expression()
             print("\033[1;32m[表达方式学习]\033[0m 表达方式学习完成")
