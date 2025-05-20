@@ -24,6 +24,7 @@ from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from .reply_generator import ReplyGenerator
 from .PFC_idle.idle_chat import IdleChat
+from .PFC_idle.idle_manager import IdleManager
 from .waiter import Waiter
 from .reply_checker import ReplyChecker
 
@@ -133,8 +134,12 @@ class Conversation:
 
         # 停止其他组件
         if self.idle_chat:
-            await self.idle_chat.decrement_active_instances()  # 减少活跃实例计数
-            logger.debug(f"[私聊][{self.private_name}] 已减少IdleChat活跃实例计数")
+            await IdleManager._global_lock.acquire()
+            try:
+                IdleManager._global_active_instances_count = max(0, IdleManager._global_active_instances_count - 1)
+                logger.debug(f"[私聊][{self.private_name}] 已减少IdleChat活跃实例计数，当前计数：{IdleManager._global_active_instances_count}")
+            finally:
+                IdleManager._global_lock.release()
         if self.observation_info and self.chat_observer:  # 确保二者都存在
             self.observation_info.unbind_from_chat_observer()  # 解绑
 
