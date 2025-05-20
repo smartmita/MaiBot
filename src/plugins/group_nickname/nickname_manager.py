@@ -236,7 +236,7 @@ class NicknameManager:
     async def get_nickname_prompt_injection(self, chat_stream: ChatStream, message_list_before_now: List[Dict]) -> str:
         """
         获取并格式化用于 Prompt 注入的用户信息字符串。
-        包含 UID、用户实际昵称，以及在群聊中可选的群内常用绰号。
+        包含 UID、用户实际昵称、群名片、群头衔（仅群聊），以及在群聊中可选的群内常用绰号。
         """
         if not chat_stream:
             logger.warning("无效的 chat_stream，无法获取用户信息注入。")
@@ -245,6 +245,7 @@ class NicknameManager:
         log_prefix = f"[{chat_stream.stream_id}]"
         try:
             platform = chat_stream.platform
+            is_group = bool(chat_stream.group_info and chat_stream.group_info.group_id) # 判断是否为群聊
 
             user_ids_in_context = {
                 str(msg["user_info"]["user_id"])
@@ -257,78 +258,88 @@ class NicknameManager:
                 return ""
 
             unique_user_ids_list = sorted(list(user_ids_in_context))
-            
-            # 1. 批量获取用户的实际平台昵称 (actual_nickname)
-            actual_nicknames_map: Dict[str, str] = {} # user_id -> actual_nickname
+
+            actual_nicknames_map: Dict[str, str] = {}
             if unique_user_ids_list:
                 try:
-                    # 调用新的批量获取实际昵称的方法
                     actual_nicknames_map = await relationship_manager.get_actual_nicknames_batch(platform, unique_user_ids_list)
                 except Exception as e:
                     logger.error(f"{log_prefix} 批量获取用户实际昵称时出错: {e}", exc_info=True)
-                    # 出错则 actual_nicknames_map 为空，后续逻辑会处理
 
-            # 构建传递给 format_user_info_prompt 的 users_data: List[Tuple[str, str]] (user_id, actual_nickname)
-            users_data_for_formatting: List[Tuple[str, str]] = []
+            users_data_with_extras: List[Dict[str, Any]] = []
+            # 为每个 unique_user_id 从 message_list_before_now 中查找最新的 cardname 和 titlename
+            # 创建一个 user_id 到其最新 user_info 的映射，以便快速查找
+            latest_user_info_map: Dict[str, Dict[str, Any]] = {}
+            if is_group: # 群名片和头衔仅在群聊中查找
+                for msg_dict in reversed(message_list_before_now): # 从最新消息开始查找
+                    user_info = msg_dict.get("user_info")
+                    if user_info and isinstance(user_info, dict):
+                        msg_user_id_str = str(user_info.get("user_id"))
+                        if msg_user_id_str in unique_user_ids_list and msg_user_id_str not in latest_user_info_map:
+                            # 只记录每个用户最新的一条信息
+                            latest_user_info_map[msg_user_id_str] = user_info
+                        # 如果所有 unique_user_ids_list 中的用户都找到了信息，可以提前中断
+                        if len(latest_user_info_map) == len(unique_user_ids_list):
+                            break
+
             for user_id_str in unique_user_ids_list:
+                user_data_entry: Dict[str, Any] = {"user_id": user_id_str}
                 actual_nickname = actual_nicknames_map.get(user_id_str)
 
-                if actual_nickname is not None: # 确保昵称存在（可以是空字符串）
-                    users_data_for_formatting.append((user_id_str, actual_nickname))
-                elif user_id_str == global_config.bot.qq_account: # 如果是机器人自己
-                    bot_actual_nickname = global_config.bot.nickname # 机器人的配置昵称
-                    users_data_for_formatting.append((user_id_str, bot_actual_nickname))
+                if actual_nickname is not None:
+                    user_data_entry["actual_nickname"] = actual_nickname
+                elif user_id_str == global_config.bot.qq_account:
+                    user_data_entry["actual_nickname"] = global_config.bot.nickname
                 else:
-                    # 如果批量获取未返回昵称，可以考虑一个备用逻辑，比如从消息列表的 user_info 中取最新的 nickname
-                    # 或者直接标记为未知，但为了 prompt 的信息量，尝试从历史消息获取
+                    # 备用昵称逻辑 (从 message_list_before_now 中查找)
                     fallback_nickname = next(
                         (
                             m["user_info"].get("user_nickname")
-                            for m in reversed(message_list_before_now) # 从当前上下文消息中查找
+                            for m in reversed(message_list_before_now)
                             if str(m["user_info"].get("user_id")) == user_id_str and m["user_info"].get("user_nickname")
                         ),
-                        None # 如果找不到，则为 None
+                        None
                     )
                     if fallback_nickname:
-                         users_data_for_formatting.append((user_id_str, fallback_nickname))
-                         logger.debug(f"{log_prefix} 用户 {user_id_str} 未在批量获取中找到实际昵称，使用上下文中找到的昵称: {fallback_nickname}")
+                        user_data_entry["actual_nickname"] = fallback_nickname
+                        logger.debug(f"{log_prefix} 用户 {user_id_str} 未在批量获取中找到实际昵称，使用上下文中找到的昵称: {fallback_nickname}")
                     else:
-                        logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的实际平台昵称，也未在上下文中找到备用昵称。")
-            
-            if not users_data_for_formatting:
-                logger.debug(f"{log_prefix} 未能构建有效的用户列表（基于实际昵称）用于注入。")
-                return ""
-            
-            # 2. 条件性地获取群内常用绰号 (nickname_str)
-            selected_group_nicknames_for_formatting: Optional[List[Tuple[str, str, str, int]]] = None
-            # select_nicknames_for_prompt 的输入字典的键应该是用户的实际昵称
+                        logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的实际平台昵称，也未在上下文中找到备用昵称，将使用空字符串。")
+                        user_data_entry["actual_nickname"] = "" # 或者标记为"未知用户"
 
-            if self.is_enabled and chat_stream.group_info and chat_stream.group_info.group_id:
-                group_id = str(chat_stream.group_info.group_id)
-                
-                # get_users_group_nicknames 返回以实际昵称为键的字典
+                # 如果是群聊，尝试获取群名片和群头衔
+                if is_group:
+                    user_specific_info = latest_user_info_map.get(user_id_str)
+                    if user_specific_info:
+                        user_data_entry["group_cardname"] = user_specific_info.get("user_cardname") # get 会在键不存在时返回 None
+                        user_data_entry["group_titlename"] = user_specific_info.get("user_titlename") # get 会在键不存在时返回 None
+
+                users_data_with_extras.append(user_data_entry)
+
+            if not users_data_with_extras:
+                logger.debug(f"{log_prefix} 未能构建有效的用户列表（包含附加信息）用于注入。")
+                return ""
+
+            selected_group_nicknames_for_formatting: Optional[List[Tuple[str, str, str, int]]] = None
+            if self.is_enabled and is_group: # 常用绰号也仅在群聊且功能启用时处理
+                group_id = str(chat_stream.group_info.group_id) # 确保 group_id 是字符串
                 all_nicknames_data_by_actual_nickname: Dict[str, Dict[str, Any]] = {}
-                if unique_user_ids_list: # 确保有用户ID列表才去查询绰号
+                if unique_user_ids_list:
                     try:
-                        # 此函数返回的键已经是实际昵称
                         all_nicknames_data_by_actual_nickname = await relationship_manager.get_users_group_nicknames(
                             platform, unique_user_ids_list, group_id
                         )
                     except Exception as e:
                         logger.error(f"{log_prefix} 获取群组 '{group_id}' 的绰号时出错: {e}", exc_info=True)
-                
+
                 if all_nicknames_data_by_actual_nickname:
-                    # select_nicknames_for_prompt 输入字典的键是实际昵称
-                    # 返回 List[Tuple[str, str, str, int]] (actual_nickname, user_id, group_nickname_str, count)
                     selected_group_nicknames_for_formatting = select_nicknames_for_prompt(all_nicknames_data_by_actual_nickname)
                     if selected_group_nicknames_for_formatting:
-                         logger.debug(f"{log_prefix} 为群组 '{group_id}' 选择了以下用户常用绰号进行注入: {selected_group_nicknames_for_formatting}")
-            
-            # 3. 调用格式化函数
-            # format_user_info_prompt 接收 (user_id, actual_nickname) 列表
-            # selected_group_nicknames 的第一个元素也是 actual_nickname
-            injection_str = format_user_info_prompt(users_data_for_formatting, selected_group_nicknames_for_formatting)
-            
+                        logger.debug(f"{log_prefix} 为群组 '{group_id}' 选择了以下用户常用绰号进行注入: {selected_group_nicknames_for_formatting}")
+
+            # 调用格式化函数，传入新的数据结构和群聊状态
+            injection_str = format_user_info_prompt(users_data_with_extras, selected_group_nicknames_for_formatting, is_group)
+
             if injection_str:
                 logger.debug(f"{log_prefix} 生成的用户信息 Prompt 注入:\n{injection_str.strip()}")
             return injection_str

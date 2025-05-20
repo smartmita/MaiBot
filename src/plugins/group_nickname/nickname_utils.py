@@ -92,47 +92,72 @@ def select_nicknames_for_prompt(
 
 
 def format_user_info_prompt(
-    users_data: List[Tuple[str, str]], # 接收 (user_id, actual_nickname) 元组列表
-    selected_group_nicknames: Optional[List[Tuple[str, str, str, int]]] = None # (actual_nickname, user_id, group_nickname_str, count)
+    users_data_with_extras: List[Dict[str, Any]], # 修改：接收包含更丰富信息的用户数据列表
+    selected_group_nicknames: Optional[List[Tuple[str, str, str, int]]] = None,
+    is_group_chat: bool = False # 新增参数，判断是否为群聊
 ) -> str:
     """
-    将用户基本信息和可选的群内常用绰号信息格式化为注入 Prompt 的字符串。
+    将用户基本信息、群名片、群头衔和可选的群内常用绰号信息格式化为注入 Prompt 的字符串。
 
     Args:
-        users_data: 用户信息列表，每个元素为 (user_id, actual_nickname)。
-        selected_group_nicknames: 可选的已选群内常用绰号列表 
+        users_data_with_extras: 用户信息列表，每个元素为字典，期望包含:
+            "user_id": str,
+            "actual_nickname": str,
+            "group_cardname": Optional[str], (仅群聊相关)
+            "group_titlename": Optional[str]  (仅群聊相关)
+        selected_group_nicknames: 可选的已选群内常用绰号列表
                                   元组格式: (actual_nickname_key, user_id, group_nickname_str, count)。
-                                  此列表中的绰号应已按常用度排序。
+        is_group_chat: bool, 指示当前是否为群聊上下文。
 
     Returns:
         str: 格式化后的字符串，如果列表为空则返回空字符串。
     """
-    if not users_data:
+    if not users_data_with_extras:
         return ""
 
     prompt_lines = ["以下是聊天记录中存在的对象的信息，与聊天记录中的 uid 一一映射，供你参考："]
-    
-    # 构建 user_id 到其群内常用绰号字符串列表的映射
-    group_nicknames_map_by_uid: Dict[str, List[str]] = {} 
-    if selected_group_nicknames:
+
+    # 构建 user_id 到其群内常用绰号字符串列表的映射 (这部分逻辑不变)
+    group_nicknames_map_by_uid: Dict[str, List[str]] = {}
+    if selected_group_nicknames: # 只有提供了 selected_group_nicknames 时才处理
         for _actual_nick_key, u_id, group_nickname_str, _count in selected_group_nicknames:
             if u_id not in group_nicknames_map_by_uid:
                 group_nicknames_map_by_uid[u_id] = []
             group_nicknames_map_by_uid[u_id].append(f"“{group_nickname_str}”")
 
-    for user_id, actual_nickname in users_data: # actual_nickname 是用户的平台昵称
-        if user_id == global_config.bot.qq_account:
+    for user_data in users_data_with_extras:
+        user_id = user_data.get("user_id")
+        actual_nickname = user_data.get("actual_nickname")
+
+        if not user_id or actual_nickname is None: # actual_nickname 可以是空字符串，但不应是None
+            logger.warning(f"format_user_info_prompt 跳过无效用户数据: {user_data}")
+            continue
+
+        if user_id == global_config.bot.qq_account: # 对机器人本身的特殊处理
             line = f"uid:{user_id}，这是你，你的昵称为“{actual_nickname}”"
         else:
-            line = f"uid:{user_id}，用户昵称为“{actual_nickname}”" # 使用 actual_nickname
+            line = f"uid:{user_id}，用户昵称为“{actual_nickname}”"
 
-        # 检查当前 user_id 是否有选中的群内常用绰号
-        if selected_group_nicknames and user_id in group_nicknames_map_by_uid:
+        # 处理群名片和群头衔 (仅群聊)
+        if is_group_chat:
+            group_cardname = user_data.get("group_cardname")
+            group_titlename = user_data.get("group_titlename")
+
+            if group_cardname: # 如果存在群名片
+                line += f"，在本群的群名片为“{group_cardname}”"
+
+            if group_titlename: # 如果存在群头衔
+                line += f"，群特殊头衔为“{group_titlename}”"
+
+        # 处理群内常用绰号 (原有逻辑，但现在依赖 is_group_chat 和 selected_group_nicknames)
+        # 确保 selected_group_nicknames 只有在群聊且功能启用时才应被传入并处理
+        if is_group_chat and selected_group_nicknames and user_id in group_nicknames_map_by_uid:
             group_nicknames_str_joined = "、".join(group_nicknames_map_by_uid[user_id])
             line += f"，ta 在本群常被称为：{group_nicknames_str_joined}"
+
         prompt_lines.append(line)
 
-    if len(prompt_lines) > 1:
+    if len(prompt_lines) > 1: # 确保除了标题行还有其他内容
         return "\n".join(prompt_lines) + "\n"
     else:
         return ""
