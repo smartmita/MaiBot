@@ -38,7 +38,6 @@ logger = get_logger("person_info")
 
 person_info_default = {
     "person_id": None,
-    "name_reason": None,
     "platform": None,
     "user_id": None,
     "nickname": None,
