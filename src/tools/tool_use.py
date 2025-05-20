@@ -48,7 +48,7 @@ class ToolUser:
         # prompt += "必须调用 'lpmm_get_knowledge' 工具来获取知识。\n"
         prompt += "你现在需要对群里的聊天内容进行回复，请你思考应该使用什么工具，然后选择工具来对消息和你的回复进行处理，你是否需要额外的信息，比如回忆或者搜寻已有的知识，改变关系和情感，或者了解你现在正在做什么。"
 
-        prompt = await relationship_manager.convert_all_person_sign_to_person_name(prompt)
+        # prompt = await relationship_manager.convert_all_person_sign_to_person_name(prompt) <- ?
         prompt = parse_text_timestamps(prompt, mode="lite")
 
         return prompt

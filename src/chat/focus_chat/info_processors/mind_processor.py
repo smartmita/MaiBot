@@ -192,9 +192,9 @@ class MindProcessor(BaseProcessor):
                 chat_target_info = observation.chat_target_info
                 chat_target_name = "对方"  # 私聊默认名称
                 if not is_group_chat and chat_target_info:
-                    # 优先使用person_name，其次user_nickname，最后回退到默认值
+                    # 优先使用 user_nickname，最后回退到默认值
                     chat_target_name = (
-                        chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or chat_target_name
+                        chat_target_info.get("user_nickname") or chat_target_name
                     )
                 # 获取聊天内容
                 chat_observe_info = observation.get_observe_info()

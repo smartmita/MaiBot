@@ -498,11 +498,6 @@ class NicknameManager:
                 logger.debug(f"过滤掉用户 {user_id} 的空绰号。")
                 continue
 
-            # 移除了与 person_name 比较的过滤，因为 LLM prompt 已指示不要输出与已知名称相同的词
-            # person_name = user_name_map.get(user_id)
-            # if person_name and person_name == nickname.strip():
-            #     logger.debug(f"过滤掉用户 {user_id} 的映射: 绰号 '{nickname}' 与其名称 '{person_name}' 相同。")
-            #     continue
             filtered_data[user_id] = nickname.strip() # 存储处理过的绰号
 
         return filtered_data

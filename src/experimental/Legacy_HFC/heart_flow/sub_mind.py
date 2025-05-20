@@ -300,7 +300,7 @@ class SubMind:
         chat_target_name = "对方"  # Default for private
         if not is_group_chat and chat_target_info:
             chat_target_name = (
-                chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or chat_target_name
+                chat_target_info.get("user_nickname") or chat_target_name
             )
         # --- End getting observation info ---
 

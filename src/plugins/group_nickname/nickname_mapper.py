@@ -16,7 +16,6 @@ def build_mapping_prompt(chat_history_str: str, bot_reply: str) -> str:
     Args:
         chat_history_str: 格式化后的聊天历史记录字符串。
         bot_reply: Bot 的最新回复字符串。
-        user_name_map: 用户 ID 到已知名称（person_name 或 fallback nickname）的映射。
 
     Returns:
         str: 构建好的 Prompt 字符串。

@@ -462,8 +462,6 @@ class PersonInfoManager:
 
             # 注意：create_person_info 是静态方法
             await PersonInfoManager.create_person_info(person_id, data=initial_data)
-            # 创建后，可以考虑立即为其取名，但这可能会增加延迟
-            # await self.qv_person_name(person_id, nickname, user_cardname, user_avatar)
             logger.debug(f"已为 {person_id} 创建新记录，初始数据: {initial_data}")
 
         return person_id

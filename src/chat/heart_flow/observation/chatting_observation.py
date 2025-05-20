@@ -210,10 +210,9 @@ class ChattingObservation(Observation):
                     # Determine the target name for the prompt
                     chat_target_name = "对方"  # Default fallback
                     if self.chat_target_info:
-                        # Prioritize person_name, then nickname
+                        # Prioritize nickname
                         chat_target_name = (
-                            self.chat_target_info.get("person_name")
-                            or self.chat_target_info.get("user_nickname")
+                            self.chat_target_info.get("user_nickname")
                             or chat_target_name
                         )
 

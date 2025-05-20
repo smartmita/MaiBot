@@ -163,10 +163,9 @@ class DefaultExpressor:
             # --- Determine sender_name for private chat ---
             sender_name_for_prompt = "某人"  # Default for group or if info unavailable
             if not self.is_group_chat and self.chat_target_info:
-                # Prioritize person_name, then nickname
+                # Prioritize nickname
                 sender_name_for_prompt = (
-                    self.chat_target_info.get("person_name")
-                    or self.chat_target_info.get("user_nickname")
+                    self.chat_target_info.get("user_nickname")
                     or sender_name_for_prompt
                 )
             # --- End determining sender_name ---

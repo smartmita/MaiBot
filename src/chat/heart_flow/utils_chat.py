@@ -18,7 +18,7 @@ async def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional[Di
         Tuple[bool, Optional[Dict]]:
             - bool: 是否为群聊 (True 是群聊, False 是私聊或未知)
             - Optional[Dict]: 如果是私聊，包含对方信息的字典；否则为 None。
-            字典包含: platform, user_id, user_nickname, person_id, person_name
+            字典包含: platform, user_id, user_nickname, person_id
     """
     is_group_chat = False  # Default to private/unknown
     chat_target_info = None
@@ -43,23 +43,17 @@ async def get_chat_type_and_target_info(chat_id: str) -> Tuple[bool, Optional[Di
                     "user_id": user_id,
                     "user_nickname": user_info.user_nickname,
                     "person_id": None,
-                    "person_name": None,
                 }
 
                 # Try to fetch person info
                 try:
                     # Assume get_person_id is sync (as per original code), keep using to_thread
                     person_id = await asyncio.to_thread(person_info_manager.get_person_id, platform, user_id)
-                    person_name = None
-                    if person_id:
-                        # get_value is async, so await it directly
-                        person_name = await person_info_manager.get_value(person_id, "person_name")
 
                     target_info["person_id"] = person_id
-                    target_info["person_name"] = person_name
                 except Exception as person_e:
                     logger.warning(
-                        f"获取 person_id 或 person_name 时出错 for {platform}:{user_id} in utils: {person_e}"
+                        f"获取 person_id 时出错 for {platform}:{user_id} in utils: {person_e}"
                     )
 
                 chat_target_info = target_info

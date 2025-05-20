@@ -76,7 +76,7 @@ class ChattingInfoProcessor(BaseProcessor):
                         chat_type = "group"
                     else:
                         chat_type = "private"
-                        obs_info.set_chat_target(obs.chat_target_info.get("person_name", "某人"))
+                        obs_info.set_chat_target(obs.chat_target_info.get("nickname", "某人"))
                     obs_info.set_chat_type(chat_type)
 
                     # logger.debug(f"聊天信息处理器处理后的信息: {obs_info}")

@@ -191,58 +191,14 @@ async def _build_readable_messages_internal(
 
         # 根据 replace_bot_name 参数决定是否替换机器人名称
         if replace_bot_name and user_id == global_config.bot.qq_account:
-            person_name = f"{global_config.bot.qq_account}(你)"
-        else:
-            person_name = user_id
+            user_id += "(你)"
 
-        # 如果 person_name 未设置，则使用消息中的 nickname 或默认名称
-        if not person_name:
-            if user_cardname:
-                person_name = f"昵称：{user_cardname}"
-            elif user_nickname:
-                person_name = f"{user_nickname}"
-            else:
-                person_name = "某人"
-
-        # 检查是否有 回复<aaa:bbb> 字段
-        reply_pattern = r"回复<([^:<>]+):([^:<>]+)>"
-        match = re.search(reply_pattern, content)
-        if match:
-            aaa = match.group(1)
-            bbb = match.group(2)
-            reply_person_id = person_info_manager.get_person_id(platform, bbb)
-            reply_person_name = await person_info_manager.get_value(reply_person_id, "person_name")
-            if not reply_person_name:
-                reply_person_name = aaa
-            # 在内容前加上回复信息
-            content = re.sub(reply_pattern, f"回复 {reply_person_name}", content, count=1)
-
-        # 检查是否有 @<aaa:bbb> 字段 @<{member_info.get('nickname')}:{member_info.get('user_id')}>
-        at_pattern = r"@<([^:<>]+):([^:<>]+)>"
-        at_matches = list(re.finditer(at_pattern, content))
-        if at_matches:
-            new_content = ""
-            last_end = 0
-            for m in at_matches:
-                new_content += content[last_end : m.start()]
-                aaa = m.group(1)
-                bbb = m.group(2)
-                at_person_id = person_info_manager.get_person_id(platform, bbb)
-                at_person_name = await person_info_manager.get_value(at_person_id, "person_name")
-                if not at_person_name:
-                    at_person_name = aaa
-                new_content += f"@{at_person_name}"
-                last_end = m.end()
-            new_content += content[last_end:]
-            content = new_content
-
-        target_str = "这是QQ的一个功能，用于提及某人，但没那么明显"
-        if target_str in content:
-            if random.random() < 0.6:
-                content = content.replace(target_str, "")
+        # 如果 user_id 获取失败，则使用默认名称
+        if not user_id:
+            user_id = "unknow_id"
 
         if content != "":
-            message_details_raw.append((timestamp, person_name, content))
+            message_details_raw.append((timestamp, user_id, content))
 
     if not message_details_raw:
         return "", []

@@ -221,7 +221,7 @@ class ActionPlanner:
             chat_target_name = None  # Only relevant for private
             if not is_group_chat and chat_target_info:
                 chat_target_name = (
-                    chat_target_info.get("person_name") or chat_target_info.get("user_nickname") or "对方"
+                    chat_target_info.get("user_nickname") or "对方"
                 )
                 chat_context_description = f"你正在和 {chat_target_name} 私聊"
 
