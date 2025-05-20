@@ -5,7 +5,7 @@ from ...config.config import global_config
 from ..message_receive.message import MessageRecv
 from ..message_receive.storage import MessageStorage
 from ..utils.utils import is_mentioned_bot_in_message
-from .....maim_message.src.maim_message import Seg
+from maim_message import Seg
 from src.chat.heart_flow.heartflow import heartflow
 from src.common.logger_manager import get_logger
 from ..message_receive.chat_stream import chat_manager

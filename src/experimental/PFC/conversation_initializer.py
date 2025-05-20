@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from src.common.logger_manager import get_logger
 from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
-from .....maim_message.src.maim_message import UserInfo
+from maim_message import UserInfo
 from src.chat.message_receive.chat_stream import chat_manager
 from src.config.config import global_config
 

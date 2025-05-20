@@ -1,6 +1,6 @@
 import asyncio
 import time
-from ...maim_message.src.maim_message import MessageServer
+from maim_message import MessageServer
 from .common.remote import TelemetryHeartBeatTask
 from .manager.async_task_manager import async_task_manager
 from .chat.utils.statistic import OnlineTimeRecordTask, StatisticOutputTask

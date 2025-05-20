@@ -8,7 +8,7 @@ import urllib3
 from src.common.logger_manager import get_logger
 from .chat_stream import ChatStream
 from ..utils.utils_image import image_manager
-from .....maim_message.src.maim_message import Seg, UserInfo, BaseMessageInfo, MessageBase
+from maim_message import Seg, UserInfo, BaseMessageInfo, MessageBase
 from rich.traceback import install
 
 install(extra_lines=3)

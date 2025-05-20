@@ -14,7 +14,7 @@ from .pfc_types import ConversationState
 from .observation_info import ObservationInfo
 from .conversation_info import ConversationInfo
 from src.chat.utils.utils_image import image_path_to_base64
-from .....maim_message.src.maim_message import Seg
+from maim_message import Seg
 
 if TYPE_CHECKING:
     from .conversation import Conversation

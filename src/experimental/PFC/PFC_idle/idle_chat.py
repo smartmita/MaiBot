@@ -14,7 +14,7 @@ from src.chat.message_receive.chat_stream import ChatStream
 from ..chat_observer import ChatObserver
 from ..message_sender import DirectMessageSender
 from ..pfc_relationship import PfcRepationshipTranslator, PfcRelationshipUpdater
-from ......maim_message.src.maim_message import Seg
+from maim_message import Seg
 from rich.traceback import install
 from ..pfc_utils import build_chat_history_text
 from .idle_weight import process_instances_weights, find_max_relationship_user, get_user_relationship_data, calculate_base_trigger_probability

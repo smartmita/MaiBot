@@ -6,7 +6,7 @@ from typing import Dict, Optional
 
 
 from ...common.database import db
-from .....maim_message.src.maim_message import GroupInfo, UserInfo
+from maim_message import GroupInfo, UserInfo
 
 from src.common.logger_manager import get_logger
 from rich.traceback import install

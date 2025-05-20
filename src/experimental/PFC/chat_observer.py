@@ -3,7 +3,7 @@ import asyncio
 import traceback
 from typing import Optional, Dict, Any, List
 from src.common.logger_manager import get_logger
-from .....maim_message.src.maim_message import UserInfo
+from maim_message import UserInfo
 from src.config.config import global_config
 from src.experimental.PFC.chat_states import (
     NotificationManager,

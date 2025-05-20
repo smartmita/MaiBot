@@ -2,7 +2,7 @@ import time
 import traceback
 from dateutil import tz
 from typing import List, Optional, Dict, Any, Set
-from .....maim_message.src.maim_message import UserInfo
+from maim_message import UserInfo
 from src.common.logger_manager import get_logger
 from src.chat.utils.chat_message_builder import build_readable_messages
 
