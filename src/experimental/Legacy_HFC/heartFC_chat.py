@@ -55,7 +55,7 @@ logger = get_logger("hfc")  # Logger Name Changed
 
 # 默认动作定义
 DEFAULT_ACTIONS = {"no_reply": "不回复",
-                    "text_reply": "文本回复, 可选附带表情和 at",
+                    "text_reply": "文本回复, 可选附带表情和 at 还有戳一戳",
                     "emoji_reply": "仅表情回复",
                     "exit_focus_mode": "主动结束当前专注聊天模式，不再聚焦于群内消息"}
 
@@ -537,7 +537,7 @@ class HeartFChatting:
             logger.info(f"{self.log_prefix} {global_config.bot.nickname}决定'{action_str}', 原因'{reasoning}'")
 
             return await self._handle_action(
-                action, reasoning, planner_result.get("emoji_query", ""), planner_result.get("at_user", ""), cycle_timers, planner_start_db_time
+                action, reasoning, planner_result.get("emoji_query", ""), planner_result.get("at_user", ""), planner_result.get("poke_user", ""), cycle_timers, planner_start_db_time
             )
 
         except PlannerError as e:
@@ -547,7 +547,7 @@ class HeartFChatting:
             return False, ""
 
     async def _handle_action(
-        self, action: str, reasoning: str, emoji_query: str, at_user: str, cycle_timers: dict, planner_start_db_time: float
+        self, action: str, reasoning: str, emoji_query: str, at_user: str, poke_user: str, cycle_timers: dict, planner_start_db_time: float
     ) -> tuple[bool, str]:
         """
         处理规划动作
@@ -577,7 +577,7 @@ class HeartFChatting:
         try:
             if action == "text_reply":
                 # 调用文本回复处理，它会返回 (bool, thinking_id)
-                success, thinking_id = await handler(reasoning, emoji_query, at_user, cycle_timers)
+                success, thinking_id = await handler(reasoning, emoji_query, at_user, poke_user, cycle_timers)
                 return success, thinking_id  # 直接返回结果
             elif action == "emoji_reply":
                 # 调用表情回复处理，它只返回 bool
@@ -603,7 +603,7 @@ class HeartFChatting:
             self._lian_xu_deng_dai_shi_jian = 0.0  # 重置累计等待时间
             return False, ""
 
-    async def _handle_text_reply(self, reasoning: str, emoji_query: str, at_user: str, cycle_timers: dict) -> tuple[bool, str]:
+    async def _handle_text_reply(self, reasoning: str, emoji_query: str, at_user: str, poke_user: str, cycle_timers: dict) -> tuple[bool, str]:
         """
         处理文本回复
 
@@ -657,6 +657,7 @@ class HeartFChatting:
                     response_set=reply,
                     send_emoji=emoji_query,
                     at_user=at_user,
+                    poke_user=poke_user,
                 )
 
             # 调用工具函数触发绰号分析
@@ -996,6 +997,7 @@ class HeartFChatting:
                     extracted_reasoning = parsed_json.get("reasoning", "LLM未提供理由")
                     extracted_emoji_query = parsed_json.get("emoji_query", "")
                     extracted_at_user = parsed_json.get("at_user", "")
+                    extracted_poke_user = parsed_json.get("poke_user", "")
 
                     # 验证动作是否在当前可用列表中
                     # !! 使用调用 prompt 时实际可用的动作列表进行验证
@@ -1022,6 +1024,7 @@ class HeartFChatting:
                         reasoning = extracted_reasoning
                         emoji_query = extracted_emoji_query
                         at_user = extracted_at_user
+                        poke_user = extracted_poke_user
                         llm_error = False  # 解析成功
                         logger.debug(
                             f"{self.log_prefix}[要做什么]\nPrompt:\n{prompt}\n\n决策结果 (来自JSON): {action}, 理由: {reasoning}, 表情查询: '{emoji_query}'"
@@ -1035,6 +1038,7 @@ class HeartFChatting:
                     action = "no_reply"  # 解析失败则默认不回复
                     emoji_query = ""
                     at_user = ""
+                    poke_user = ""
                     llm_error = True  # 标记解析错误
                 except Exception as parse_e:
                     logger.error(f"{self.log_prefix}[Planner] 处理LLM响应时发生意外错误: {parse_e}")
@@ -1042,6 +1046,7 @@ class HeartFChatting:
                     action = "no_reply"
                     emoji_query = ""
                     at_user = ""
+                    poke_user = ""
                     llm_error = True
             elif not llm_error and not llm_content:
                 # LLM 请求成功但返回空内容
@@ -1050,6 +1055,7 @@ class HeartFChatting:
                 action = "no_reply"
                 emoji_query = ""
                 at_user = ""
+                poke_user = ""
                 llm_error = True  # 标记为空响应错误
 
             # 如果 llm_error 在此阶段为 True，意味着请求成功但解析失败或返回空
@@ -1062,6 +1068,7 @@ class HeartFChatting:
             reasoning = f"Planner 内部处理错误: {outer_e}"
             emoji_query = ""
             at_user = ""
+            poke_user = ""
             llm_error = True
         finally:
             # --- 确保动作恢复 ---
@@ -1091,6 +1098,7 @@ class HeartFChatting:
             "reasoning": reasoning,
             "emoji_query": emoji_query,
             "at_user": at_user,
+            "poke_user": poke_user,
             "current_mind": current_mind,
             "observed_messages": observed_messages,
             "llm_error": llm_error,  # 返回错误状态
@@ -1138,6 +1146,7 @@ class HeartFChatting:
         response_set: List[str],
         send_emoji: str,  # Emoji query decided by planner or tools
         at_user: str,
+        poke_user: str,
     ):
         """
         发送器 (Sender): 使用 HeartFCSender 实例发送生成的回复。
@@ -1151,7 +1160,7 @@ class HeartFChatting:
             # 它需要负责创建 MessageThinking 和 MessageSending 对象
             # 并调用 self.sender.register_thinking 和 self.sender.type_and_send_message
             first_bot_msg = await self._send_response_messages(
-                anchor_message=anchor_message, response_set=response_set, thinking_id=thinking_id, at_user=at_user
+                anchor_message=anchor_message, response_set=response_set, thinking_id=thinking_id, at_user=at_user, poke_user=poke_user
             )
 
             if first_bot_msg:
@@ -1231,7 +1240,7 @@ class HeartFChatting:
         return prompt
 
     async def _send_response_messages(
-        self, anchor_message: Optional[MessageRecv], response_set: List[str], thinking_id: str, at_user: str
+        self, anchor_message: Optional[MessageRecv], response_set: List[str], thinking_id: str, at_user: str , poke_user: str
     ) -> Optional[MessageSending]:
         """发送回复消息 (尝试锚定到 anchor_message)，使用 HeartFCSender"""
         if not anchor_message or not anchor_message.chat_stream:
@@ -1266,16 +1275,26 @@ class HeartFChatting:
         for i, msg_text in enumerate(response_set):
             # 为每个消息片段生成唯一ID
             part_message_id = f"{thinking_id}_{i}"
-            if i == 0 and at_user != "":
-                segments = []
-                at_user_list = at_user.split(",")
-                for at_user_id in at_user_list:
-                    segments.append(Seg(type="at", data=at_user_id))
-                    segments.append(Seg(type="text", data=" "))
+            segments = []
+            if i == 0 and (at_user != "" or poke_user != ""):
+                #处理戳一戳
+                if poke_user != "":
+                    poke_user_list = poke_user.split(",")
+                    for poke_user_id in poke_user_list:
+                        segments.append(Seg(type="poke", data=poke_user_id))
+                #处理at
+                if at_user != "":
+                    at_user_list = at_user.split(",")
+                    for at_user_id in at_user_list:
+                        segments.append(Seg(type="at", data=at_user_id))
+                        segments.append(Seg(type="text", data=" "))
+                #处理消息主体
                 segments.append(Seg(type="text", data=msg_text))
-                message_segment = Seg(type="seglist", data=segments)
             else:
-                message_segment = Seg(type="text", data=msg_text)
+                segments.append(Seg(type="text", data=msg_text))
+            
+            message_segment = Seg(type="seglist", data=segments)
+
             bot_message = MessageSending(
                 message_id=part_message_id,  # 使用片段的唯一ID
                 chat_stream=chat,

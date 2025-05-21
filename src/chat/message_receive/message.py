@@ -214,6 +214,8 @@ class MessageProcessBase(Message):
                 return "[表情，网卡了加载不出来]"
             elif seg.type == "at":
                 return f"[@{seg.data}]"
+            elif seg.type == "poke":
+                return f"[戳了戳{seg.data}]"
             elif seg.type == "reply":
                 if self.reply and hasattr(self.reply, "processed_plain_text"):
                     return f"[回复：{self.reply.processed_plain_text}]"
