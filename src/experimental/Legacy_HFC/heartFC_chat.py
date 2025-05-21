@@ -1270,7 +1270,7 @@ class HeartFChatting:
                 segments = []
                 at_user_list = at_user.split(",")
                 for at_user_id in at_user_list:
-                    segments.append(Seg(type="at", data=at_user))
+                    segments.append(Seg(type="at", data=at_user_id))
                     segments.append(Seg(type="text", data=" "))
                 segments.append(Seg(type="text", data=msg_text))
                 message_segment = Seg(type="seglist", data=segments)
