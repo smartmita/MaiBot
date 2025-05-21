@@ -258,16 +258,20 @@ class SubMind:
 
         # ---------- 0. 更新和清理 structured_info ----------
         if self.structured_info:
-            logger.debug(
-                f"{self.log_prefix} 清理前 structured_info 中包含的lpmm_knowledge数量: "
-                f"{len([item for item in self.structured_info if item.get('type') == 'lpmm_knowledge'])}"
-            )
-            # 筛选出所有不是 lpmm_knowledge 类型的条目，或者其他需要保留的条目
-            info_to_keep = [item for item in self.structured_info if item.get("type") != "lpmm_knowledge"]
+            # 知识库数据自然 -1 即可，大概无需额外过滤
+            # if not is_toolused:  # 使用工具后的循环心流不删除计数
+            #     logger.debug(
+            #         f"{self.log_prefix} 清理前 structured_info 中包含的lpmm_knowledge数量: "
+            #         f"{len([item for item in self.structured_info if item.get('type') == 'lpmm_knowledge'])}"
+            #     )
+            #     # 筛选出所有不是 lpmm_knowledge 类型的条目，或者其他需要保留的条目
+            #     info_to_keep = [item for item in self.structured_info if item.get("type") != "lpmm_knowledge"]
+            # else:
+            #     info_to_keep = self.structured_info
 
             # 针对我们仅希望 lpmm_knowledge "用完即弃" 的情况：
             processed_info_to_keep = []
-            for item in info_to_keep:  # info_to_keep 已经不包含 lpmm_knowledge
+            for item in self.structured_info:  # info_to_keep 已经不包含 lpmm_knowledge
                 if not is_toolused:  # 使用工具后的循环心流不删除计数
                     item["ttl"] -= 1
                 if item["ttl"] > 0:
@@ -366,6 +370,8 @@ class SubMind:
         # 确保 observation 对象存在且可用
         if not observation:
             logger.warning(f"{self.log_prefix} Observation 对象不可用，跳过知识库检索。")
+        elif is_toolused:
+            logger.info(f"{self.log_prefix} 工具调用后心流，跳过知识库搜索。")
         else:
             # 阶段1和阶段2的阶梯检索
             for step_config in self.knowledge_retrieval_steps:
