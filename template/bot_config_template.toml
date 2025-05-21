@@ -381,7 +381,7 @@ pri_out = 8
 [model.nickname_mapping] # 绰号映射生成模型（如果开启）
 name = "Qwen/Qwen2.5-32B-Instruct"
 provider = "SILICONFLOW"
-temp = 0.7
+temp = 0.2
 max_tokens = 2048
 pri_in = 1.26
 pri_out = 1.26
