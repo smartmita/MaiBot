@@ -478,10 +478,7 @@ class SubMind:
         # ---------- 3. 准备工具和个性化数据 ----------
         # 初始化工具
         tool_instance = ToolUser()
-        if tool_calls_str:
-            tools = []
-        else:
-            tools = tool_instance._define_tools()
+        tools = tool_instance._define_tools()
 
         # 获取个性化信息
         individuality = Individuality.get_instance()
