@@ -43,7 +43,7 @@ async def _process_relationship(message: MessageRecv) -> None:
     nickname = message.message_info.user_info.user_nickname
     cardname = message.message_info.user_info.user_cardname or nickname
 
-    is_known = await relationship_manager.is_known_some_one(platform, user_id)
+    is_known = await relationship_manager.is_known_some_one(platform, user_id, nickname)
 
     if not is_known:
         logger.info(f"首次认识用户: {nickname}")
