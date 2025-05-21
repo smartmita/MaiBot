@@ -121,7 +121,7 @@ class IdlePlanner:
             self._decision_stats["positive_decisions"] += 1
         
         # 记录用户特定的决策
-        logger.info(f"[私聊][{self.private_name}] 决策记录：总计{self._decision_stats['total_decisions']}次，"
+        logger.debug(f"[私聊][{self.private_name}] 决策记录：总计{self._decision_stats['total_decisions']}次，"
                    f"肯定决策{self._decision_stats['positive_decisions']}次，"
                    f"LLM失败{self._decision_stats['llm_failures']}次")
     
@@ -193,10 +193,6 @@ class IdlePlanner:
         else:  # 大于等于1天
             last_interaction_time_desc = f"约{int(hours_since_last / 24)}天前"
         
-        # 检查冷却时间
-        if not await self.can_chat_now():
-            return False, "时间过短，避免过于频繁", []
-            
         # 提取用户兴趣
         await self.extract_user_interests(chat_history_text)
         user_interests_text = self.get_user_interests_text()

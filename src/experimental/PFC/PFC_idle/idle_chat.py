@@ -127,6 +127,14 @@ class IdleChat:
             current_activity: 当前活动
         """
         try:
+            today_schedule = ""
+            try:
+                # 获取全天日程
+                if hasattr(bot_schedule, 'today_schedule_text') and bot_schedule.today_schedule_text:
+                    today_schedule = bot_schedule.today_schedule_text.strip()
+            except Exception as e:
+                logger.error(f"[私聊][{self.private_name}]获取全天日程时出错: {str(e)}")
+                
             bot_nickname = global_config.bot.nickname
             
             # 创建用于决策的LLM请求
