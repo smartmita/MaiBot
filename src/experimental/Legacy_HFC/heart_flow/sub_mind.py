@@ -4,7 +4,7 @@ from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from ..schedule.schedule_generator import bot_schedule
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
-from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
 import time
 import re
 import traceback

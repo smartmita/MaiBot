@@ -14,7 +14,7 @@ from src.manager.mood_manager import mood_manager
 from src.chat.memory_system.Hippocampus import HippocampusManager
 from .schedule.schedule_generator import bot_schedule
 from src.chat.knowledge.knowledge_lib import qa_manager
-from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
 from src.chat.focus_chat.expressors.exprssion_learner import expression_learner
 import traceback
 from .heartFC_Cycleinfo import CycleInfo

@@ -17,7 +17,7 @@ from src.individuality.individuality import Individuality
 from src.chat.focus_chat.planners.action_factory import ActionManager
 from src.chat.focus_chat.planners.action_factory import ActionInfo
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat
-from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
 
 logger = get_logger("planner")
 
