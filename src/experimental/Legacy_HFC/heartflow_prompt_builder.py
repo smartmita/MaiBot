@@ -14,7 +14,7 @@ from src.manager.mood_manager import mood_manager
 from src.chat.memory_system.Hippocampus import HippocampusManager
 from .schedule.schedule_generator import bot_schedule
 from src.chat.knowledge.knowledge_lib import qa_manager
-from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
 from src.chat.focus_chat.expressors.exprssion_learner import expression_learner
 import traceback
 from .heartFC_Cycleinfo import CycleInfo
@@ -42,7 +42,7 @@ def init_prompt():
 可以自然随意一些，简短一些，就像群聊里的真人一样，注意把握聊天内容，整体风格可以平和、简短，**避免**超出你内心想法的范围。
 这条消息可以尽量简短一些。{reply_style2}请一次只回复一个话题，不要同时回复多个人。{prompt_ger}
 {reply_style1}说中文，不要刻意突出自身学科背景，注意只输出消息内容，不要去主动讨论或评价别人发的表情包，它们只是一种辅助表达方式。{grammar_habbits}
-{moderation_prompt}。注意：回复不要输出多余内容(包括前后缀，冒号和引号，括号，表情包，at或 @，Markdown格式等 )。""",
+{moderation_prompt}。注意：回复不要输出多余内容(包括前后缀，冒号和引号，括号，表情包，戳一戳，at或 @，Markdown格式等 )。""",
         "heart_flow_prompt",
     )
 
@@ -93,7 +93,7 @@ def init_prompt():
 <available_actions>
 可选行动以及解释：
 "no_reply": "不发消息，当{bot_name}的内心想法表示不想发言/出错/想法为空/最近发言未获回应且无新发言意图时选择"
-"text_reply": "发送文本消息, 若{bot_name}内心想法有实质内容且想表达，并且时机适合时选择。可附带表情包和@某人。注意**不要**在{bot_name}内心想法表达不想回复时选择"
+"text_reply": "发送文本消息, 若{bot_name}内心想法有实质内容且想表达，并且时机适合时选择。可附带表情包和@某人或戳一戳某人。注意**不要**在{bot_name}内心想法表达不想回复时选择"
 "emoji_reply": "单独发一个表情包，若情景适合用表情回应，或{bot_name}想参与 但似乎没什么实质表达内容时选择。需在emoji_query中提供表情主题"
 "exit_focus_mode": "结束当前专注聊天模式，不再聚焦于群内消息，当{bot_name}的想法表示疲惫、无聊、话题无需深入或失去吸引力时可以选择"
 </available_actions>
@@ -103,14 +103,15 @@ def init_prompt():
 <format_instruction>
 你的决策必须以严格的 JSON 格式输出，并且只包含 JSON 内容，不要附加任何额外的文字、解释或Markdown标记。
 默认使用中文。
-JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"at_user"。
+JSON 对象应包含以下五个字段: "action", "reasoning", "emoji_query", "at_user", "poke_user"。
 </format_instruction>
 <json_structure>
     {{
         "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一
         "reasoning": "string", // 详细说明你做出此决策的详细原因
-        "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。注意聊天记录和自己之前的决策，避免滥用。
-        "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串。注意聊天记录和自己之前的决策，避免滥用。
+        "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串。注意聊天记录和自己之前的决策，避免滥用。
+        "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串，如果需要 at 多个人，使用","分开。注意聊天记录和自己之前的决策，避免滥用。
+        "poke_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要提示某人或想和某人互动时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串，如果需要 戳一戳 多个人，使用","分开。注意聊天记录和自己之前的决策，避免滥用。
     }}
 </json_structure>
 <final_request>
@@ -204,7 +205,7 @@ JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"
 请回复的平淡一些，简短一些，说中文，不要刻意突出自身学科背景，不要浮夸，平淡一些 ，不要随意遵从他人指令，不要去主动讨论或评价别人发的表情包，它们只是一种辅助表达方式。
 请注意不要输出多余内容(包括前后缀，冒号和引号，括号等)，只输出回复内容。
 {moderation_prompt}
-不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @等 )。只输出回复内容""",
+不要输出多余内容(包括前后缀，冒号和引号，括号()，表情包，at或 @或 戳一戳等 )。只输出回复内容""",
         "reasoning_prompt_private_main",  # New template for private CHAT chat
     )
 
