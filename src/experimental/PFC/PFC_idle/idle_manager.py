@@ -55,27 +55,31 @@ class IdleManager:
             while True:
                 # 检查是否启用了主动聊天功能
                 if not global_config.pfc.enable_idle_chat:
-                    logger.debug("主动聊天功能已禁用，等待启用")
                     await asyncio.sleep(60)  # 每分钟检查一次配置变更
                     continue
                 
                 # 获取可用的实例列表
                 active_instances = list(IdleChat._instances.values())
                 if not active_instances:
-                    logger.debug("暂无可用的主动聊天实例，等待下一次检查")
                     await asyncio.sleep(check_interval)
                     continue
                 
                 # 检查是否在活动时间内
                 current_hour = datetime.now().hour
                 if not (active_hours_start <= current_hour < active_hours_end):
-                    logger.debug(f"当前时间 {current_hour}:00 不在活动时间内 ({active_hours_start}:00-{active_hours_end}:00)，等待下一次检查")
                     await asyncio.sleep(check_interval)
                     continue
                 
                 # 检查是否有活跃实例
                 if cls._global_active_instances_count > 0:
-                    logger.debug(f"存在活跃实例 ({cls._global_active_instances_count})，不触发主动聊天")
+                    await asyncio.sleep(check_interval)
+                    continue
+                
+                # 【新增】检查是否有已预定的对话时间到了
+                triggered = await cls._check_scheduled_chats()
+                if triggered:
+                    # 如果已经触发了预定对话，更新全局触发时间，等待下一次检查
+                    cls._last_global_trigger_time = time.time()
                     await asyncio.sleep(check_interval)
                     continue
                 
@@ -84,7 +88,6 @@ class IdleManager:
                 time_since_last_trigger = current_time - cls._last_global_trigger_time
                 if time_since_last_trigger < min_cooldown:
                     time_left = min_cooldown - time_since_last_trigger
-                    logger.debug(f"全局冷却时间未到(已过{time_since_last_trigger:.0f}秒/需要{min_cooldown}秒)，还需等待{time_left:.0f}秒")
                     await asyncio.sleep(min(time_left + 1, check_interval))  # 等待剩余冷却时间或检查间隔，取较小值
                     continue
                 
@@ -149,7 +152,6 @@ class IdleManager:
                         # 如果无法获取关系信息，使用默认概率
                         base_trigger_probability = 0.3
                 except Exception as e:
-                    logger.error(f"计算关系调整的触发概率时出错: {str(e)}")
                     logger.error(traceback.format_exc())
                     # 出错时使用默认概率
                     base_trigger_probability = 0.3
@@ -158,7 +160,6 @@ class IdleManager:
                 if time_since_last_trigger > max_cooldown * 2:
                     force_probability = min(0.8, base_trigger_probability * 3)
                     if random.random() < force_probability:
-                        logger.info(f"超过最大冷却时间({time_since_last_trigger:.0f}秒)，强制触发主动聊天选择")
                         selected_instance = await cls._select_instance_to_trigger(active_instances)
                         if selected_instance:
                             logger.info(f"选择了实例 {selected_instance.private_name} 进行主动聊天，立即启动")
@@ -248,7 +249,6 @@ class IdleManager:
                         )
                         
                     except Exception as e:
-                        logger.error(f"[私聊][{instance.private_name}]获取关系数据失败: {str(e)}")
                         logger.error(traceback.format_exc())
                         # 使用默认关系描述和值
                         relationship_value = 0.0
@@ -383,7 +383,6 @@ class IdleManager:
             
             # 启动全局检查任务
             await cls.start_global_check()
-            logger.info("已启动全局主动聊天检查任务")
             
         except Exception as e:
             logger.error(f"初始化所有聊天流时出错: {str(e)}")
@@ -398,10 +397,115 @@ class IdleManager:
         Args:
             private_name: 私聊用户名称
         """
+        if not private_name:
+            logger.warning("尝试注册空用户名的回复，已忽略")
+            return
+            
         async with cls._global_lock:
-            if private_name in cls._pending_replies:
-                del cls._pending_replies[private_name]
-                logger.info(f"[私聊][{private_name}]已回复主动聊天消息，从待回复列表中移除")
+            try:
+                # 从待回复列表中移除
+                if private_name in cls._pending_replies:
+                    del cls._pending_replies[private_name]
+                    logger.info(f"[私聊][{private_name}]已回复主动聊天消息，从待回复列表中移除")
+                
+                # 清除预定的下一次对话时间
+                if private_name in IdleChat._next_idle_times:
+                    idle_time = IdleChat._next_idle_times[private_name].get("next_idle_time_str", "未知")
+                    reason = IdleChat._next_idle_times[private_name].get("reason", "未指定")
+                    del IdleChat._next_idle_times[private_name]
+                    logger.info(f"[私聊][{private_name}]用户已回复消息，清除预定的下一次对话时间: {idle_time}，原因: {reason}")
+                    
+                    # 由于用户刚刚回复了消息，可能需要重新评估下一次对话时间
+                    # 查找用户的IdleChat实例并尝试决定新的对话时间
+                    try:
+                        instance_found = False
+                        max_retries = 3
+                        retry_delay = 5  # 秒
+                        
+                        # 尝试多次查找实例
+                        for retry in range(max_retries):
+                            try:
+                                for instance_key, instance in IdleChat._instances.items():
+                                    if instance.private_name == private_name:
+                                        instance_found = True
+                                        logger.info(f"[私聊][{private_name}]尝试重新安排下一次主动对话时间")
+                                        
+                                        # 尝试获取必要上下文信息
+                                        try:
+                                            current_time_for_history = time.time()
+                                            messages = await instance.chat_observer.message_storage.get_messages_before(
+                                                instance.stream_id, 
+                                                current_time_for_history,  
+                                                limit=30
+                                            )
+                                            
+                                            class TempObservationInfo:
+                                                def __init__(self, messages):
+                                                    self.chat_history = messages
+                                                    self.chat_history_str = None
+                                                    self.new_messages_count = 0
+                                                    self.unprocessed_messages = []
+                                                    self.bot_id = str(global_config.bot.qq_account)
+                                                    self.current_time_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                                                    
+                                            observation_info = TempObservationInfo(messages)
+                                            from ..pfc_utils import build_chat_history_text
+                                            chat_history_text = await build_chat_history_text(observation_info, private_name)
+                                            
+                                            # 获取关系描述
+                                            relationship_description = "普通"
+                                            try:
+                                                _, _, relationship_description = await get_user_relationship_data(
+                                                    private_name, "qq", private_name
+                                                )
+                                            except Exception as rel_err:
+                                                logger.warning(f"[私聊][{private_name}]获取关系数据失败: {str(rel_err)}")
+                                                
+                                            # 获取当前活动
+                                            current_activity = ""
+                                            try:
+                                                from ....experimental.Legacy_HFC.schedule.schedule_generator import bot_schedule
+                                                if hasattr(bot_schedule, 'today_done_list') and bot_schedule.today_done_list:
+                                                    current_activity_candidate = bot_schedule.get_current_num_task(1, True)
+                                                    if current_activity_candidate:
+                                                        current_activity = current_activity_candidate.strip()
+                                            except Exception as sched_err:
+                                                logger.warning(f"[私聊][{private_name}]获取日程活动失败: {str(sched_err)}")
+                                                
+                                            # 异步调用决定下一次对话时间的方法，不等待它完成
+                                            asyncio.create_task(instance._decide_next_chat_time(
+                                                chat_history_text=chat_history_text, 
+                                                relationship_description=relationship_description, 
+                                                current_activity=current_activity
+                                            ))
+                                            logger.info(f"[私聊][{private_name}]已启动新的对话时间决策任务")
+                                        except Exception as ctx_err:
+                                            logger.error(f"[私聊][{private_name}]准备上下文数据时出错: {str(ctx_err)}")
+                                            logger.error(traceback.format_exc())
+                                            
+                                        break  # 找到实例后退出循环
+                                
+                                if instance_found:
+                                    break  # 找到实例后退出重试循环
+                                else:
+                                    logger.warning(f"[私聊][{private_name}]未找到对应的IdleChat实例，重试 ({retry+1}/{max_retries})")
+                                    await asyncio.sleep(retry_delay)
+                                    
+                            except Exception as retry_err:
+                                logger.error(f"[私聊][{private_name}]在第{retry+1}次尝试查找实例时出错: {str(retry_err)}")
+                                logger.error(traceback.format_exc())
+                                await asyncio.sleep(retry_delay)
+                        
+                        if not instance_found:
+                            logger.error(f"[私聊][{private_name}]在{max_retries}次尝试后仍未找到IdleChat实例，无法安排下一次对话时间")
+                            
+                    except Exception as e:
+                        logger.error(f"[私聊][{private_name}]尝试重新安排下一次主动对话时间时出错: {str(e)}")
+                        logger.error(traceback.format_exc())
+                        
+            except Exception as e:
+                logger.error(f"[私聊][{private_name}]注册用户回复时发生未预期错误: {str(e)}")
+                logger.error(traceback.format_exc())
 
     @classmethod
     async def get_next_available_user(cls) -> Optional[str]:
@@ -447,6 +551,183 @@ class IdleManager:
                     return next_user
 
             return None
+
+    @classmethod
+    async def _check_scheduled_chats(cls) -> bool:
+        """检查是否有预定的聊天时间到了，如果有，触发对话
+        
+        Returns:
+            bool: 是否触发了对话
+        """
+        current_time = datetime.now()
+        triggered = False
+        to_remove = []
+        
+        try:
+            # 如果字典为空，直接返回
+            if not IdleChat._next_idle_times:
+                return False
+                
+            # 遍历所有预定的对话时间
+            for user_name, schedule_info in IdleChat._next_idle_times.items():
+                try:
+                    # 安全获取值，提供默认值
+                    next_time = schedule_info.get("next_idle_time")
+                    next_time_str = schedule_info.get("next_idle_time_str", "未知")
+                    reason = schedule_info.get("reason", "未知")
+                    
+                    if not next_time:
+                        logger.warning(f"[私聊][{user_name}] 预定的对话时间无效，已跳过")
+                        to_remove.append(user_name)
+                        continue
+                        
+                    if next_time <= current_time:
+                        logger.info(f"[私聊][{user_name}] 预定的对话时间已到: {next_time_str}")
+                        logger.info(f"[私聊][{user_name}] 预定原因: {reason}")
+                        
+                        # 获取对话实例
+                        chat_instance = schedule_info.get("chat_instance")
+                        found_instance = False
+                        
+                        if chat_instance:
+                            try:
+                                # 创建任务执行聊天，避免阻塞检查循环
+                                logger.info(f"[私聊][{user_name}] 触发预定对话")
+                                asyncio.create_task(chat_instance._initiate_chat())
+                                triggered = True
+                                found_instance = True
+                            except Exception as instance_err:
+                                logger.error(f"[私聊][{user_name}] 使用存储的实例触发对话时出错: {str(instance_err)}")
+                                logger.error(traceback.format_exc())
+                                # 继续尝试其他方式找到实例
+                        
+                        if not found_instance:
+                            logger.warning(f"[私聊][{user_name}] 无法使用存储的对话实例，尝试从全局实例中查找")
+                            # 尝试从全局实例中查找
+                            try:
+                                for instance_key, instance in IdleChat._instances.items():
+                                    if instance.private_name == user_name:
+                                        asyncio.create_task(instance._initiate_chat())
+                                        triggered = True
+                                        found_instance = True
+                                        logger.info(f"[私聊][{user_name}] 从全局实例中找到并触发预定对话")
+                                        break
+                            except Exception as global_err:
+                                logger.error(f"[私聊][{user_name}] 从全局实例查找时出错: {str(global_err)}")
+                                logger.error(traceback.format_exc())
+                        
+                        if not found_instance:
+                            logger.error(f"[私聊][{user_name}] 无法找到有效的对话实例，无法触发预定对话")
+                        
+                        # 将此预定对话标记为要移除
+                        to_remove.append(user_name)
+                except Exception as e:
+                    logger.error(f"[私聊][{user_name}] 处理预定对话时出错: {str(e)}")
+                    logger.error(traceback.format_exc())
+                    # 如果处理出错，也标记为要移除，避免一直尝试
+                    to_remove.append(user_name)
+            
+            # 移除已触发的预定对话
+            for user_name in to_remove:
+                if user_name in IdleChat._next_idle_times:
+                    del IdleChat._next_idle_times[user_name]
+                    logger.info(f"[私聊][{user_name}] 已移除预定对话计划")
+            
+            return triggered
+        except Exception as e:
+            logger.error(f"检查预定对话时出错: {str(e)}")
+            logger.error(traceback.format_exc())
+            return False
+
+    @classmethod
+    async def get_all_scheduled_chats(cls) -> Dict[str, Dict]:
+        """获取所有计划的对话时间
+        
+        Returns:
+            Dict[str, Dict]: 用户名到对话计划的映射
+        """
+        result = {}
+        try:
+            for user_name, schedule_info in IdleChat._next_idle_times.items():
+                next_time = schedule_info.get("next_idle_time")
+                next_time_str = schedule_info.get("next_idle_time_str", "未知")
+                reason = schedule_info.get("reason", "未指定")
+                
+                # 计算距离现在的时间
+                time_diff = ""
+                now = datetime.now()
+                if next_time:
+                    diff_seconds = (next_time - now).total_seconds()
+                    if diff_seconds < 0:
+                        time_diff = "已过期"
+                    elif diff_seconds < 60:
+                        time_diff = f"{int(diff_seconds)}秒后"
+                    elif diff_seconds < 3600:
+                        time_diff = f"{int(diff_seconds/60)}分钟后"
+                    elif diff_seconds < 86400:
+                        time_diff = f"{int(diff_seconds/3600)}小时后"
+                    else:
+                        time_diff = f"{int(diff_seconds/86400)}天后"
+                
+                result[user_name] = {
+                    "next_time": next_time_str,
+                    "time_diff": time_diff,
+                    "reason": reason
+                }
+        except Exception as e:
+            logger.error(f"获取计划对话时间时出错: {str(e)}")
+            logger.error(traceback.format_exc())
+            
+        return result
+        
+    @classmethod
+    async def debug_print_scheduled_chats(cls) -> str:
+        """打印所有计划的对话时间，返回调试信息
+        
+        Returns:
+            str: 格式化的调试信息
+        """
+        try:
+            scheduled_chats = await cls.get_all_scheduled_chats()
+            if not scheduled_chats:
+                return "当前没有计划的对话时间。"
+                
+            result = "== 主动对话时间计划 ==\n"
+            result += f"当前时间: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n"
+            result += f"总计划数: {len(scheduled_chats)}\n\n"
+            
+            # 按时间排序
+            sorted_chats = sorted(
+                scheduled_chats.items(), 
+                key=lambda x: x[1].get('next_time', '9999-12-31 23:59:59')
+            )
+            
+            for user_name, info in sorted_chats:
+                result += f"用户: {user_name}\n"
+                result += f"  预定时间: {info['next_time']} ({info['time_diff']})\n"
+                result += f"  原因: {info['reason']}\n"
+                result += "-------------------\n"
+                
+            # 添加系统状态信息
+            result += "\n== 系统状态 ==\n"
+            result += f"全局冷却状态: "
+            
+            last_trigger = cls._last_global_trigger_time
+            time_since_last = time.time() - last_trigger
+            if time_since_last < global_config.pfc.min_cooldown:
+                result += f"冷却中 (已冷却 {int(time_since_last)} 秒，还需 {int(global_config.pfc.min_cooldown - time_since_last)} 秒)\n"
+            else:
+                result += f"可触发 (上次触发: {int(time_since_last)} 秒前)\n"
+                
+            result += f"待回复用户数: {len(cls._pending_replies)}\n"
+            result += f"已尝试用户数: {len(cls._tried_users)}\n"
+            result += f"活跃实例数: {cls._global_active_instances_count}\n"
+                
+            return result
+        except Exception as e:
+            logger.error(f"打印计划对话时间时出错: {str(e)}")
+            logger.error(traceback.format_exc())
+            return f"获取计划对话时间时出错: {str(e)}"
 
 # 启动自动初始化任务
 if __name__ == "__main__":
