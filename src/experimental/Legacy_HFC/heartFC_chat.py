@@ -1275,34 +1275,25 @@ class HeartFChatting:
         for i, msg_text in enumerate(response_set):
             # 为每个消息片段生成唯一ID
             part_message_id = f"{thinking_id}_{i}"
-            if i == 0 and at_user != "" and poke_user != "":
-                segments = []
-                poke_user_list = poke_user.split(",")
-                for poke_user_id in poke_user_list:
-                    segments.append(Seg(type="poke", data=poke_user_id))
-                at_user_list = at_user.split(",")
-                for at_user_id in at_user_list:
-                    segments.append(Seg(type="at", data=at_user_id))
-                    segments.append(Seg(type="text", data=" "))
+            segments = []
+            if i == 0 and (at_user != "" or poke_user != ""):
+                #处理戳一戳
+                if poke_user != "":
+                    poke_user_list = poke_user.split(",")
+                    for poke_user_id in poke_user_list:
+                        segments.append(Seg(type="poke", data=poke_user_id))
+                #处理at
+                if at_user != "":
+                    at_user_list = at_user.split(",")
+                    for at_user_id in at_user_list:
+                        segments.append(Seg(type="at", data=at_user_id))
+                        segments.append(Seg(type="text", data=" "))
+                #处理消息主体
                 segments.append(Seg(type="text", data=msg_text))
-                message_segment = Seg(type="seglist", data=segments)
-            elif i == 0 and at_user != "":
-                segments = []
-                at_user_list = at_user.split(",")
-                for at_user_id in at_user_list:
-                    segments.append(Seg(type="at", data=at_user_id))
-                    segments.append(Seg(type="text", data=" "))
-                segments.append(Seg(type="text", data=msg_text))
-                message_segment = Seg(type="seglist", data=segments)
-            elif i == 0 and poke_user != "":
-                segments = []
-                poke_user_list = poke_user.split(",")
-                for poke_user_id in poke_user_list:
-                    segments.append(Seg(type="poke", data=poke_user_id))
-                segments.append(Seg(type="text", data=msg_text))
-                message_segment = Seg(type="seglist", data=segments)
             else:
-                message_segment = Seg(type="text", data=msg_text)
+                segments.append(Seg(type="text", data=msg_text))
+            
+            message_segment = Seg(type="seglist", data=segments)
 
             bot_message = MessageSending(
                 message_id=part_message_id,  # 使用片段的唯一ID
