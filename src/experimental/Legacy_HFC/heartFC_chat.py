@@ -845,7 +845,7 @@ class HeartFChatting:
                 )
                 if tool_calls_str:
                     current_mind, _past_mind, tool_calls_str = await self.sub_mind.do_thinking_before_reply(
-                        history_cycle=self._cycle_history, tool_calls_str=tool_calls_str
+                        history_cycle=self._cycle_history, tool_calls_str=tool_calls_str, pass_mind=current_mind
                     )
                 return current_mind
         except Exception as e:
