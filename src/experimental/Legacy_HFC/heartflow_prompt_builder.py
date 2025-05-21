@@ -109,8 +109,8 @@ JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"
     {{
         "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一
         "reasoning": "string", // 详细说明你做出此决策的详细原因
-        "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。注意聊天记录和自己之前的决策，避免滥用。
-        "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串。注意聊天记录和自己之前的决策，避免滥用。
+        "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串。注意聊天记录和自己之前的决策，避免滥用。
+        "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串，如果需要 at 多个人，使用","分开。注意聊天记录和自己之前的决策，避免滥用。
     }}
 </json_structure>
 <final_request>

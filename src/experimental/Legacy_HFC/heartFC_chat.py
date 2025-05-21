@@ -1267,7 +1267,13 @@ class HeartFChatting:
             # 为每个消息片段生成唯一ID
             part_message_id = f"{thinking_id}_{i}"
             if i == 0 and at_user != "":
-                message_segment = Seg(type="seglist", data=[Seg(type="at", data=at_user),Seg(type="text", data=" " + msg_text)])
+                segments = []
+                at_user_list = at_user.split(",")
+                for at_user_id in at_user_list:
+                    segments.append(Seg(type="at", data=at_user))
+                    segments.append(Seg(type="text", data=" "))
+                segments.append(Seg(type="text", data=msg_text))
+                message_segment = Seg(type="seglist", data=segments)
             else:
                 message_segment = Seg(type="text", data=msg_text)
             bot_message = MessageSending(
