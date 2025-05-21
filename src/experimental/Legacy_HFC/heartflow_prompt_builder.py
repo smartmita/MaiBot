@@ -63,90 +63,59 @@ def init_prompt():
 </planner_task_definition>
 
 <contextual_information>
-    <profile_info>
+
+<profile_info>
 {nickname_info}
-    </profile_info>
-    <identity>
-        <bot_name>{bot_name}</bot_name>
-    </identity>
-    <live_chat_context>
-        <chat_log>{chat_content_block}</chat_log>
-    </live_chat_context>
-    <internal_state>
-        <current_thoughts>{current_mind_block}</current_thoughts>
-        <recent_action_history>{cycle_info_block}</recent_action_history>
-    </internal_state>
+</profile_info>
+
+   
+<chat_log>
+{chat_content_block}
+</chat_log>
+
+    
+<current_thoughts>
+{current_mind_block}
+</current_thoughts>
+
+<recent_action_history>
+{cycle_info_block}
+</recent_action_history>
+
 </contextual_information>
 
 <decision_framework>
-    <guidance>
-        综合分析聊天内容、{bot_name}的内心想法以及近期互动历史，参考以下决策原则，选择一个最合适的行动。目标是让{bot_name}的参与自然且符合群聊社交节奏。
-    </guidance>
+<guidance>
+综合分析聊天内容、{bot_name}的内心想法以及近期互动历史，参考以下决策以及解释，选择一个最合适的行动。目标是让{bot_name}的参与自然且符合群聊社交节奏。
+注意**避免**在无人回应{bot_name}时连续发言，除非{bot_name}有新的重要补充
+</guidance>
 
-    <decision_principles>
-        <principle_no_reply>
-            1. 何时不回复 (action: 'no_reply'):
-            - {bot_name}的内心想法明确表示不想发言或无实质内容。
-            - 聊天话题对{bot_name}而言无关、无聊或不适合参与。
-            - {bot_name}最近的发言未得到回应，此时继续发言可能显得突兀或不顾他人反应。
-            - {bot_name}发送了上一条消息后，群内无人回应{bot_name}，且{bot_name}没有新的、针对其他内容的回复意愿。
-            - 讨论{bot_name}不了解的专业话题或梗，且对{bot_name}来说不重要。
-            - （特殊情况）{bot_name}的内心想法返回错误、为空或无明确意图。
-        </principle_no_reply>
-
-        <principle_text_reply>
-            2. 何时发送文字消息 (action: 'text_reply'):
-            - {bot_name}的内心想法包含明确的、有实质内容的表达意愿，且当前时机适合发言。
-            - 如果希望附带表情，可在 'emoji_query' 中指明表情的适用场合或主题，但注意不要滥用。
-            - 如果需要特别提及某人，可在 'at_user' 中指明 @ 对象的 uid，但请注意不要滥用。
-        </principle_text_reply>
-
-        <principle_emoji_reply>
-            3. 何时仅发送表情 (action: 'emoji_reply'):
-            - 当情景适合用表情回应，或者{bot_name}想参与互动但无实质文字内容可表达时。
-            - 必须在 'emoji_query' 中提供清晰的表情适用场合或主题。
-            - 考虑到群聊氛围，例如其他人也正在使用表情包互动时。
-        </principle_emoji_reply>
-
-        <principle_exit_focus>  
-            5. 何时主动结束专注 (action: 'exit_focus_mode'):
-            - 当 {bot_name} 的内心想法明确表示想要结束当前的专注对话，例如感到疲惫、无聊，或者认为当前话题已无需继续深入。
-            - 当前聊天话题对 {bot_name} 而言已失去吸引力或重要性。
-            - 即使群内依然有人在讨论，但 {bot_name} 基于自身判断和个性，决定不再以专注模式参与当前对话。
-            - 例如，内心想法可能是：“这个话题聊得差不多了” 或 “没什么好说的了”。
-        </principle_exit_focus>
-
-        <principle_dialogue_management>
-            6. 对话管理通用原则:
-            - 注意对话节奏，避免{bot_name}出现自言自语或强行延续已冷却话题的情况。
-            - 如果{bot_name}的上一条消息无人回应，通常不宜继续围绕该话题发言，除非有新的重要补充。
-            - 保持对话的自然流动，除非有充分理由，否则避免长时间停留在单一话题上。
-        </principle_dialogue_management>
-    </decision_principles>
-
-    <available_actions>
-        决策任务：基于以上信息，从下列可用行动中选择一项：
-        {action_options_text}
-    </available_actions>
+<available_actions>
+可选行动以及解释：
+"no_reply": "不发消息，当{bot_name}的内心想法表示不想发言/出错/想法为空/最近发言未获回应且无新发言意图时选择"
+"text_reply": "发送文本消息, 若{bot_name}内心想法有实质内容且想表达，并且时机适合时选择。可附带表情包和@某人。注意**不要**在{bot_name}内心想法表达不想回复时选择"
+"emoji_reply": "单独发一个表情包，若情景适合用表情回应，或{bot_name}想参与 但似乎没什么实质表达内容时选择。需在emoji_query中提供表情主题"
+"exit_focus_mode": "结束当前专注聊天模式，不再聚焦于群内消息，当{bot_name}的想法表示疲惫、无聊、话题无需深入或失去吸引力时可以选择"
+</available_actions>
 </decision_framework>
 
 <output_requirements>
-    <format_instruction>
-        你的决策必须以严格的 JSON 格式输出，并且只包含 JSON 内容，不要附加任何额外的文字、解释或Markdown标记。
-        默认使用中文。
-        JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"at_user"。
-    </format_instruction>
-    <json_structure>
-        {{
-          "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一 (例如: '{example_action}')
-          "reasoning": "string", // 详细说明你做出此决策的理由，以及是如何应用 <decision_principles> 中的原则的。
-          "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。请遵循回复原则，避免滥用。
-          "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串。请遵循回复原则，避免滥用。
-        }}
-    </json_structure>
-    <final_request>
-        请输出你的决策 JSON：
-    </final_request>
+<format_instruction>
+你的决策必须以严格的 JSON 格式输出，并且只包含 JSON 内容，不要附加任何额外的文字、解释或Markdown标记。
+默认使用中文。
+JSON 对象应包含以下四个字段: "action", "reasoning", "emoji_query"，"at_user"。
+</format_instruction>
+<json_structure>
+    {{
+        "action": "string",  // 必须是 <available_actions> 中列出的可用行动之一
+        "reasoning": "string", // 详细说明你做出此决策的详细原因
+        "emoji_query": "string"  // 可选。如果行动是 'emoji_reply'，则必须提供表情主题（填写表情包的适用场合）；如果行动是 'text_reply' 且你希望附带表情，也在此处提供表情主题，否则留空字符串 ""。注意聊天记录和自己之前的决策，避免滥用。
+        "at_user": "string"  // 可选。仅在行动为 'text_reply' 中可用，仅在你需要特别提及某人时使用，否则留空字符串。uid 在聊天记录中以发言者的方式提供，该值仅能为纯数字字符串。注意聊天记录和自己之前的决策，避免滥用。
+    }}
+</json_structure>
+<final_request>
+请输出你的决策 JSON：
+</final_request>
 </output_requirements>
 """,
     "planner_prompt",
