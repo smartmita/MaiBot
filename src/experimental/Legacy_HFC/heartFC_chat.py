@@ -38,7 +38,7 @@ from src.chat.utils.info_catcher import info_catcher_manager
 from src.chat.utils.chat_message_builder import num_new_messages_since, get_raw_msg_before_timestamp_with_chat
 from src.chat.utils.timer_calculator import Timer  # <--- Import Timer
 from .heartFC_sender import HeartFCSender
-from src.plugins.group_nickname.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
 
 install(extra_lines=3)
 
@@ -1267,7 +1267,13 @@ class HeartFChatting:
             # 为每个消息片段生成唯一ID
             part_message_id = f"{thinking_id}_{i}"
             if i == 0 and at_user != "":
-                message_segment = Seg(type="seglist", data=[Seg(type="at", data=at_user),Seg(type="text", data=" " + msg_text)])
+                segments = []
+                at_user_list = at_user.split(",")
+                for at_user_id in at_user_list:
+                    segments.append(Seg(type="at", data=at_user_id))
+                    segments.append(Seg(type="text", data=" "))
+                segments.append(Seg(type="text", data=msg_text))
+                message_segment = Seg(type="seglist", data=segments)
             else:
                 message_segment = Seg(type="text", data=msg_text)
             bot_message = MessageSending(
