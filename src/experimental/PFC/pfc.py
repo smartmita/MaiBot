@@ -44,7 +44,10 @@ class GoalAnalyzer:
     def __init__(self, stream_id: str, private_name: str):
         # TODO: API-Adapter修改标记
         self.llm = LLMRequest(
-            model=global_config.model.normal, temperature=0.7, max_tokens=1000, request_type="conversation_goal"
+            model=global_config.model.think_goal, 
+            temperature=global_config.model.think_goal["temp"], 
+            max_tokens=global_config.model.think_goal["max_tokens"], 
+            request_type="conversation_goal"
         )
 
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)

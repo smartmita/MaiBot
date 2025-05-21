@@ -75,7 +75,11 @@ class IdleChat:
         self.relationship_updater = PfcRelationshipUpdater(private_name, global_config.bot.nickname)
 
         # LLM请求（推理模型），用于生成主动对话内容
-        self.llm = LLMRequest(model=global_config.model.normal, temperature=0.3, max_tokens=500, request_type="idle_chat")
+        self.llm = LLMRequest(
+            model=global_config.model.idle_chat, 
+            temperature=global_config.model.idle_chat["temp"], 
+            max_tokens=global_config.model.idle_chat["max_tokens"], 
+            request_type="idle_chat")
         
         # 初始化 IdlePlanner
         self.idle_planner = IdlePlanner(private_name=self.private_name)

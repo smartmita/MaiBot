@@ -978,7 +978,6 @@ class LLMRequest:
         self, prompt: str, image_base64: str = None, image_format: str = None, merged_params: dict = None
     ) -> dict:
         """构建请求体 (区分 Gemini 和 OpenAI)，使用合并和转换后的参数"""
-        # (代码不变)
         if merged_params is None:
             merged_params = self.params
 
@@ -991,6 +990,20 @@ class LLMRequest:
             if image_base64:
                 mime_type = f"image/{image_format.lower() if image_format else 'jpeg'}"
                 parts.append({"inlineData": {"mimeType": mime_type, "data": image_base64}})
+            generation_config = params_copy.get("generationConfig", {})
+
+            # 检查并设置 maxOutputTokens 的默认值
+            if "maxOutputTokens" not in generation_config:
+                # 从 global_config 中获取，或者设置一个较大的默认值，例如 8192 或更大
+                # Gemini 2.5 Flash 的最大输出令牌是 65536，你可以根据需要调整
+                if hasattr(global_config.model, "model_max_output_length"):
+                    generation_config["maxOutputTokens"] = global_config.model.model_max_output_length
+                else:
+                    generation_config["maxOutputTokens"] = 65536 # 此为最大值，理论上没问题，但未经过测试，经过测试的是50000
+
+            # 将更新后的 generation_config 放回 params_copy
+            params_copy["generationConfig"] = generation_config
+
             payload = {"contents": [{"parts": parts}], **params_copy}
             payload.pop("model", None)
             # --- 添加 Gemini 安全设置 ---

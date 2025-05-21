@@ -18,21 +18,24 @@ class NormalChatGenerator:
         # TODO: API-Adapter修改标记
         self.model_reasoning = LLMRequest(
             model=global_config.model.reasoning,
-            temperature=0.7,
-            max_tokens=3000,
+            temperature=global_config.model.reasoning["temp"],
+            max_tokens=global_config.model.reasoning["max_tokens"],
             request_type="response_reasoning",
         )
         self.model_normal = LLMRequest(
             model=global_config.model.normal,
             temperature=global_config.model.normal["temp"],
-            max_tokens=256,
+            max_tokens=global_config.model.normal["max_tokens"],
             request_type="response_reasoning",
         )
 
         self.model_sum = LLMRequest(
-            model=global_config.model.summary, temperature=0.7, max_tokens=3000, request_type="relation"
+            model=global_config.model.summary, 
+            temperature=global_config.model.summary["temp"], 
+            max_tokens=global_config.model.summary["max_tokens"], 
+            request_type="relation"
         )
-        self.current_model_type = "r1"  # 默认使用 R1
+        # self.current_model_type = "r1"  # 默认使用 R1
         self.current_model_name = "unknown model"
 
     async def generate_response(self, message: MessageThinking, thinking_id: str) -> Optional[Union[str, List[str]]]:

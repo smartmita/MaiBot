@@ -193,7 +193,7 @@ class ReplyGenerator:
         self.llm = LLMRequest(
             model=global_config.model.pfc_chat,
             temperature=global_config.model.pfc_chat["temp"],
-            max_tokens=300,  # 对于JSON输出，这个可能需要适当调整，但一般回复短，JSON结构也简单
+            max_tokens=global_config.model.pfc_chat["max_tokens"],
             request_type="reply_generation",
         )
         self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)

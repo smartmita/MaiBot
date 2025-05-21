@@ -37,7 +37,10 @@ class Heartflow:
         # LLM模型配置
         # TODO: API-Adapter修改标记
         self.llm_model = LLMRequest(
-            model=global_config.model.heartflow, temperature=0.6, max_tokens=1000, request_type="heart_flow"
+            model=global_config.model.heartflow, 
+            temperature=global_config.model.heartflow["temp"], 
+            max_tokens=global_config.model.heartflow["max_tokens"], 
+            request_type="heart_flow"
         )
 
         # 外部依赖模块

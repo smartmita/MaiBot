@@ -27,9 +27,7 @@ class PfcEmotionUpdater:
             logger.debug(f"[私聊][{self.private_name}] 使用 llm_summary 配置初始化情绪判断LLM。")
             self.llm = LLMRequest(
                 model=llm_config_summary,
-                temperature=llm_config_summary.get(
-                    "temperature", 0.5
-                ),  # temperature 来自其自身配置或默认0.7，这里用0.5
+                temperature=llm_config_summary.get("temp", 0.5),  # temperature 来自其自身配置或默认0.7，这里用0.5
                 max_tokens=llm_config_summary.get("max_tokens", 256),  # 情绪词输出不需要很多token
                 request_type="pfc_emotion_evaluation",
             )

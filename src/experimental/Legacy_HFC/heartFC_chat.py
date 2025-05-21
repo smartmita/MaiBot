@@ -232,7 +232,7 @@ class HeartFChatting:
         self.model_normal = LLMRequest(  # <-- 新增 LLM 初始化
             model=global_config.model.normal,
             temperature=global_config.model.normal["temp"],
-            max_tokens=256,
+            max_tokens=global_config.model.normal["max_tokens"],
             request_type="response_heartflow",
         )
         self.heart_fc_sender = HeartFCSender()
@@ -240,7 +240,8 @@ class HeartFChatting:
         # LLM规划器配置
         self.planner_llm = LLMRequest(
             model=global_config.model.plan,
-            max_tokens=1000,
+            temperature=global_config.model.plan["temp"],
+            max_tokens=global_config.model.plan["max_tokens"],
             request_type="action_planning",  # 用于动作规划
         )
 
@@ -839,9 +840,13 @@ class HeartFChatting:
             with Timer("思考", cycle_timers):
                 # 获取上一个循环的动作
                 # 传递上一个循环的信息给 do_thinking_before_reply
-                current_mind, _past_mind = await self.sub_mind.do_thinking_before_reply(
+                current_mind, _past_mind, is_toolused = await self.sub_mind.do_thinking_before_reply(
                     history_cycle=self._cycle_history
                 )
+                if is_toolused:
+                    current_mind, _past_mind, is_toolused = await self.sub_mind.do_thinking_before_reply(
+                        history_cycle=self._cycle_history, is_toolused=is_toolused
+                    )
                 return current_mind
         except Exception as e:
             logger.error(f"{self.log_prefix}子心流 思考失败: {e}")

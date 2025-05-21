@@ -53,7 +53,8 @@ class ToolProcessor(BaseProcessor):
         self.log_prefix = f"[{subheartflow_id}:ToolExecutor] "
         self.llm_model = LLMRequest(
             model=global_config.model.tool_use,
-            max_tokens=500,
+            temperature=global_config.model.tool_use["temp"], # 设置模型的温度参数
+            max_tokens=global_config.model.tool_use["max_tokens"],
             request_type="tool_execution",
         )
         self.structured_info = []

@@ -72,7 +72,8 @@ class ActionPlanner:
         # LLM规划器配置
         self.planner_llm = LLMRequest(
             model=global_config.model.plan,
-            max_tokens=1000,
+            temperature=global_config.model.plan["temp"],
+            max_tokens=global_config.model.plan["max_tokens"],
             request_type="action_planning",  # 用于动作规划
         )
         self.action_manager = action_manager
