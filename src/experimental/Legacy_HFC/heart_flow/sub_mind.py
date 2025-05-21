@@ -277,11 +277,11 @@ class SubMind:
                 if item["ttl"] > 0:
                     processed_info_to_keep.append(item)
                 else:
-                    logger.debug(f"{self.log_prefix} 移除过期的非lpmm_knowledge项: {item.get('id', '未知ID')}")
+                    logger.debug(f"{self.log_prefix} 移除过期的项: {item.get('id', '未知ID')}")
 
             self.structured_info = processed_info_to_keep
             logger.debug(
-                f"{self.log_prefix} 清理后 structured_info (仅保留非lpmm_knowledge且TTL有效项): "
+                f"{self.log_prefix} 清理后 structured_info : "
                 f"{safe_json_dumps(self.structured_info, ensure_ascii=False)}"
             )
 
