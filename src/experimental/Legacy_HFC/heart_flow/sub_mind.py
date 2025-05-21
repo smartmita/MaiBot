@@ -518,6 +518,7 @@ class SubMind:
         ]
 
         if tool_calls_str:
+            self._update_structured_info_str()  # 更新字符串表示
             if_replan_prompt = f"出于这个想法，你刚刚调用了 {tool_calls_str} 工具，获取的内容在 <structured_information> 中。而你上一次行动为：{last_action}\n因为：{last_reasoning}\n"
             last_loop_prompt = (await global_prompt_manager.get_prompt_async("last_loop")).format(
                 current_thinking_info=pass_mind, if_replan_prompt=if_replan_prompt
