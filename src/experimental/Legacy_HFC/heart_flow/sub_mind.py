@@ -246,7 +246,7 @@ class SubMind:
         self.structured_info_str = "\n".join(lines)
         logger.debug(f"{self.log_prefix} 更新 structured_info_str: \n{self.structured_info_str}")
 
-    async def do_thinking_before_reply(self, history_cycle: list[CycleInfo] = None, is_toolused: bool = False):
+    async def do_thinking_before_reply(self, history_cycle: list[CycleInfo] = None, tool_calls_str: str = None):
         """
         在回复前进行思考，生成内心想法并收集工具调用结果
 
@@ -259,7 +259,7 @@ class SubMind:
         # ---------- 0. 更新和清理 structured_info ----------
         if self.structured_info:
             # 知识库数据自然 -1 即可，大概无需额外过滤
-            # if not is_toolused:  # 使用工具后的循环心流不删除计数
+            # if not tool_calls_str:  # 使用工具后的循环心流不删除计数
             #     logger.debug(
             #         f"{self.log_prefix} 清理前 structured_info 中包含的lpmm_knowledge数量: "
             #         f"{len([item for item in self.structured_info if item.get('type') == 'lpmm_knowledge'])}"
@@ -272,7 +272,7 @@ class SubMind:
             # 针对我们仅希望 lpmm_knowledge "用完即弃" 的情况：
             processed_info_to_keep = []
             for item in self.structured_info:  # info_to_keep 已经不包含 lpmm_knowledge
-                if not is_toolused:  # 使用工具后的循环心流不删除计数
+                if not tool_calls_str:  # 使用工具后的循环心流不删除计数
                     item["ttl"] -= 1
                 if item["ttl"] > 0:
                     processed_info_to_keep.append(item)
@@ -322,164 +322,166 @@ class SubMind:
             logger.error(f"{self.log_prefix} 获取日程信息时出错: {e}")
             current_schedule_info = "摸鱼发呆。"
 
-        # ---------- 2. 获取记忆 ----------
-        try:
-            # 从聊天内容中提取关键词
-            chat_words = set(jieba.cut(chat_observe_info))
-            # 过滤掉停用词和单字词
-            keywords = [word for word in chat_words if len(word) > 1]
-            # 去重并限制数量
-            keywords = list(set(keywords))[:5]
+        if not tool_calls_str:  # 使用工具后的循环心流使用工具调用前心流获取的信息
+            # ---------- 2. 获取记忆 ----------
+            try:
+                # 从聊天内容中提取关键词
+                chat_words = set(jieba.cut(chat_observe_info))
+                # 过滤掉停用词和单字词
+                keywords = [word for word in chat_words if len(word) > 1]
+                # 去重并限制数量
+                keywords = list(set(keywords))[:5]
 
-            logger.debug(f"{self.log_prefix} 提取的关键词: {keywords}")
-            # 检查已有记忆，过滤掉已存在的主题
-            existing_topics = set()
-            for item in self.structured_info:
-                if item["type"] == "memory":
-                    existing_topics.add(item["id"])
+                logger.debug(f"{self.log_prefix} 提取的关键词: {keywords}")
+                # 检查已有记忆，过滤掉已存在的主题
+                existing_topics = set()
+                for item in self.structured_info:
+                    if item["type"] == "memory":
+                        existing_topics.add(item["id"])
 
-            # 过滤掉已存在的主题
-            filtered_keywords = [k for k in keywords if k not in existing_topics]
+                # 过滤掉已存在的主题
+                filtered_keywords = [k for k in keywords if k not in existing_topics]
 
-            if not filtered_keywords:
-                logger.debug(f"{self.log_prefix} 所有关键词对应的记忆都已存在，跳过记忆提取")
-            else:
-                # 调用记忆系统获取相关记忆
-                related_memory = await HippocampusManager.get_instance().get_memory_from_topic(
-                    valid_keywords=filtered_keywords, max_memory_num=3, max_memory_length=2, max_depth=3
-                )
-
-                logger.debug(f"{self.log_prefix} 获取到的记忆: {related_memory}")
-
-                if related_memory:
-                    for topic, memory in related_memory:
-                        new_item = {"type": "memory", "id": topic, "content": memory, "ttl": 3}
-                        self.structured_info.append(new_item)
-                        logger.debug(f"{self.log_prefix} 添加新记忆: {topic} - {memory}")
+                if not filtered_keywords:
+                    logger.debug(f"{self.log_prefix} 所有关键词对应的记忆都已存在，跳过记忆提取")
                 else:
-                    logger.debug(f"{self.log_prefix} 没有找到相关记忆")
-
-        except Exception as e:
-            logger.error(f"{self.log_prefix} 获取记忆时出错: {e}")
-            logger.error(traceback.format_exc())
-
-        # ---------- 2.5 阶梯式获取知识库信息 ----------
-        final_knowledge_to_add = None
-        retrieval_source_info = "未进行知识检索"
-
-        # 确保 observation 对象存在且可用
-        if not observation:
-            logger.warning(f"{self.log_prefix} Observation 对象不可用，跳过知识库检索。")
-        elif is_toolused:
-            logger.info(f"{self.log_prefix} 工具调用后心流，跳过知识库搜索。")
-        else:
-            # 阶段1和阶段2的阶梯检索
-            for step_config in self.knowledge_retrieval_steps:
-                step_name = step_config["name"]
-                limit = step_config["limit"]
-                threshold = step_config["relevance_threshold"]
-
-                logger.info(f"{self.log_prefix} 尝试阶梯检索 - 阶段: {step_name} (最近{limit}条, 阈值>{threshold})")
-
-                try:
-                    # 1. 获取当前阶段的聊天记录上下文
-                    # 我们需要从 observation 中获取原始消息列表来构建特定长度的上下文
-                    # get_raw_msg_before_timestamp_with_chat 在 observation.py 中被导入
-                    # from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
-
-                    # 需要确保 ChattingObservation 的实例 (self.observations[0]) 能提供 chat_id
-                    # 并且 build_readable_messages 可用
-                    context_messages_dicts = get_raw_msg_before_timestamp_with_chat(
-                        chat_id=observation.chat_id, timestamp=time.time(), limit=limit
+                    # 调用记忆系统获取相关记忆
+                    related_memory = await HippocampusManager.get_instance().get_memory_from_topic(
+                        valid_keywords=filtered_keywords, max_memory_num=3, max_memory_length=2, max_depth=3
                     )
 
-                    if not context_messages_dicts:
-                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未获取到聊天记录，跳过此阶段。")
-                        continue
+                    logger.debug(f"{self.log_prefix} 获取到的记忆: {related_memory}")
 
-                    current_context_text = await build_readable_messages(
-                        messages=context_messages_dicts,
-                        timestamp_mode="lite",  # 或者您认为适合知识检索的模式
-                    )
-
-                    if not current_context_text:
-                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 构建的上下文为空，跳过此阶段。")
-                        continue
-
-                    logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 使用上下文: '{current_context_text[:150]}...'")
-
-                    # 2. 调用知识库进行检索
-                    raw_knowledge_str = qa_manager.get_knowledge(current_context_text)
-
-                    if raw_knowledge_str:
-                        # 3. 解析知识并检查相关性
-                        knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
-                        logger.info(f"{self.log_prefix} 阶段 '{step_name}' 检索到知识，最高相关性: {max_relevance:.4f}")
-
-                        if max_relevance >= threshold:
-                            logger.info(
-                                f"{self.log_prefix} 阶段 '{step_name}' 满足阈值 ({max_relevance:.4f} >= {threshold})，采纳此知识。"
-                            )
-                            final_knowledge_to_add = knowledge_content
-                            retrieval_source_info = f"阶段 '{step_name}' (最近{limit}条, 相关性 {max_relevance:.4f})"
-                            break  # 找到符合条件的知识，跳出阶梯循环
-                        else:
-                            logger.info(
-                                f"{self.log_prefix} 阶段 '{step_name}' 未满足阈值 ({max_relevance:.4f} < {threshold})，继续下一阶段。"
-                            )
+                    if related_memory:
+                        for topic, memory in related_memory:
+                            new_item = {"type": "memory", "id": topic, "content": memory, "ttl": 3}
+                            self.structured_info.append(new_item)
+                            logger.debug(f"{self.log_prefix} 添加新记忆: {topic} - {memory}")
                     else:
-                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未从知识库检索到任何内容。")
+                        logger.debug(f"{self.log_prefix} 没有找到相关记忆")
 
-                except Exception as e_step:
-                    logger.error(f"{self.log_prefix} 阶梯检索阶段 '{step_name}' 发生错误: {e_step}")
-                    logger.error(traceback.format_exc())
-                    continue  # 当前阶段出错，尝试下一阶段
+            except Exception as e:
+                logger.error(f"{self.log_prefix} 获取记忆时出错: {e}")
+                logger.error(traceback.format_exc())
 
-            # 阶段3: 如果前面的阶梯都没有成功，则使用完整的 chat_observe_info (即您配置的20条)
-            if not final_knowledge_to_add and chat_observe_info:  # 确保 chat_observe_info 可用
-                logger.info(
-                    f"{self.log_prefix} 前序阶梯均未满足条件，尝试使用完整观察窗口 ('{observation.max_now_obs_len}'条)进行检索。"
-                )
-                try:
-                    raw_knowledge_str = qa_manager.get_knowledge(chat_observe_info)
-                    if raw_knowledge_str:
-                        # 对于完整窗口，我们可能不强制要求阈值，或者使用一个较低的阈值
-                        # 或者，您可以选择在这里仍然应用一个阈值，例如 self.knowledge_retrieval_steps 中最后一个的阈值，或一个特定值
-                        knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
-                        logger.info(
-                            f"{self.log_prefix} 完整窗口检索到知识，（此处未设阈值，或相关性: {max_relevance:.4f}）。"
-                        )
-                        final_knowledge_to_add = knowledge_content  # 默认采纳
-                        retrieval_source_info = (
-                            f"完整窗口 (最多{observation.max_now_obs_len}条, 相关性 {max_relevance:.4f})"
-                        )
-                    else:
-                        logger.debug(f"{self.log_prefix} 完整窗口检索也未找到知识。")
-                except Exception as e_full:
-                    logger.error(f"{self.log_prefix} 完整窗口知识检索发生错误: {e_full}")
-                    logger.error(traceback.format_exc())
+            # ---------- 2.5 阶梯式获取知识库信息 ----------
+            final_knowledge_to_add = None
+            retrieval_source_info = "未进行知识检索"
 
-            # 将最终选定的知识（如果有）添加到 structured_info
-            if final_knowledge_to_add:
-                knowledge_item = {
-                    "type": "lpmm_knowledge",
-                    "id": f"lpmm_knowledge_{time.time()}",
-                    "content": final_knowledge_to_add,
-                    "ttl": 1,  # 由于是当轮精心选择的，可以让TTL短一些，下次重新评估（或者按照您的意愿设为3）
-                }
-                # 我们在方法开头已经清理了旧的 lpmm_knowledge，这里直接添加新的
-                self.structured_info.append(knowledge_item)
-                logger.info(
-                    f"{self.log_prefix} 添加了来自 '{retrieval_source_info}' 的知识到 structured_info (ID: {knowledge_item['id']})"
-                )
-                self._update_structured_info_str()  # 更新字符串表示
+            # 确保 observation 对象存在且可用
+            if not observation:
+                logger.warning(f"{self.log_prefix} Observation 对象不可用，跳过知识库检索。")
             else:
-                logger.info(f"{self.log_prefix} 经过所有阶梯检索后，没有最终采纳的知识。")
+                # 阶段1和阶段2的阶梯检索
+                for step_config in self.knowledge_retrieval_steps:
+                    step_name = step_config["name"]
+                    limit = step_config["limit"]
+                    threshold = step_config["relevance_threshold"]
+
+                    logger.info(f"{self.log_prefix} 尝试阶梯检索 - 阶段: {step_name} (最近{limit}条, 阈值>{threshold})")
+
+                    try:
+                        # 1. 获取当前阶段的聊天记录上下文
+                        # 我们需要从 observation 中获取原始消息列表来构建特定长度的上下文
+                        # get_raw_msg_before_timestamp_with_chat 在 observation.py 中被导入
+                        # from src.plugins.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
+
+                        # 需要确保 ChattingObservation 的实例 (self.observations[0]) 能提供 chat_id
+                        # 并且 build_readable_messages 可用
+                        context_messages_dicts = get_raw_msg_before_timestamp_with_chat(
+                            chat_id=observation.chat_id, timestamp=time.time(), limit=limit
+                        )
+
+                        if not context_messages_dicts:
+                            logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未获取到聊天记录，跳过此阶段。")
+                            continue
+
+                        current_context_text = await build_readable_messages(
+                            messages=context_messages_dicts,
+                            timestamp_mode="lite",  # 或者您认为适合知识检索的模式
+                        )
+
+                        if not current_context_text:
+                            logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 构建的上下文为空，跳过此阶段。")
+                            continue
+
+                        logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 使用上下文: '{current_context_text[:150]}...'")
+
+                        # 2. 调用知识库进行检索
+                        raw_knowledge_str = qa_manager.get_knowledge(current_context_text)
+
+                        if raw_knowledge_str:
+                            # 3. 解析知识并检查相关性
+                            knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
+                            logger.info(f"{self.log_prefix} 阶段 '{step_name}' 检索到知识，最高相关性: {max_relevance:.4f}")
+
+                            if max_relevance >= threshold:
+                                logger.info(
+                                    f"{self.log_prefix} 阶段 '{step_name}' 满足阈值 ({max_relevance:.4f} >= {threshold})，采纳此知识。"
+                                )
+                                final_knowledge_to_add = knowledge_content
+                                retrieval_source_info = f"阶段 '{step_name}' (最近{limit}条, 相关性 {max_relevance:.4f})"
+                                break  # 找到符合条件的知识，跳出阶梯循环
+                            else:
+                                logger.info(
+                                    f"{self.log_prefix} 阶段 '{step_name}' 未满足阈值 ({max_relevance:.4f} < {threshold})，继续下一阶段。"
+                                )
+                        else:
+                            logger.debug(f"{self.log_prefix} 阶段 '{step_name}' 未从知识库检索到任何内容。")
+
+                    except Exception as e_step:
+                        logger.error(f"{self.log_prefix} 阶梯检索阶段 '{step_name}' 发生错误: {e_step}")
+                        logger.error(traceback.format_exc())
+                        continue  # 当前阶段出错，尝试下一阶段
+
+                # 阶段3: 如果前面的阶梯都没有成功，则使用完整的 chat_observe_info (即您配置的20条)
+                if not final_knowledge_to_add and chat_observe_info:  # 确保 chat_observe_info 可用
+                    logger.info(
+                        f"{self.log_prefix} 前序阶梯均未满足条件，尝试使用完整观察窗口 ('{observation.max_now_obs_len}'条)进行检索。"
+                    )
+                    try:
+                        raw_knowledge_str = qa_manager.get_knowledge(chat_observe_info)
+                        if raw_knowledge_str:
+                            # 对于完整窗口，我们可能不强制要求阈值，或者使用一个较低的阈值
+                            # 或者，您可以选择在这里仍然应用一个阈值，例如 self.knowledge_retrieval_steps 中最后一个的阈值，或一个特定值
+                            knowledge_content, max_relevance = parse_knowledge_and_get_max_relevance(raw_knowledge_str)
+                            logger.info(
+                                f"{self.log_prefix} 完整窗口检索到知识，（此处未设阈值，或相关性: {max_relevance:.4f}）。"
+                            )
+                            final_knowledge_to_add = knowledge_content  # 默认采纳
+                            retrieval_source_info = (
+                                f"完整窗口 (最多{observation.max_now_obs_len}条, 相关性 {max_relevance:.4f})"
+                            )
+                        else:
+                            logger.debug(f"{self.log_prefix} 完整窗口检索也未找到知识。")
+                    except Exception as e_full:
+                        logger.error(f"{self.log_prefix} 完整窗口知识检索发生错误: {e_full}")
+                        logger.error(traceback.format_exc())
+
+                # 将最终选定的知识（如果有）添加到 structured_info
+                if final_knowledge_to_add:
+                    knowledge_item = {
+                        "type": "lpmm_knowledge",
+                        "id": f"lpmm_knowledge_{time.time()}",
+                        "content": final_knowledge_to_add,
+                        "ttl": 1,  # 由于是当轮精心选择的，可以让TTL短一些，下次重新评估（或者按照您的意愿设为3）
+                    }
+                    # 我们在方法开头已经清理了旧的 lpmm_knowledge，这里直接添加新的
+                    self.structured_info.append(knowledge_item)
+                    logger.info(
+                        f"{self.log_prefix} 添加了来自 '{retrieval_source_info}' 的知识到 structured_info (ID: {knowledge_item['id']})"
+                    )
+                    self._update_structured_info_str()  # 更新字符串表示
+                else:
+                    logger.info(f"{self.log_prefix} 经过所有阶梯检索后，没有最终采纳的知识。")
 
         # ---------- 3. 准备工具和个性化数据 ----------
         # 初始化工具
         tool_instance = ToolUser()
-        tools = tool_instance._define_tools()
+        if tool_calls_str:
+            tools = []
+        else:
+            tools = tool_instance._define_tools()
 
         # 获取个性化信息
         individuality = Individuality.get_instance()
@@ -526,6 +528,8 @@ class SubMind:
             is_replan = last_cycle.replanned
             if is_replan:
                 if_replan_prompt = f"但是你有了上述想法之后，有了新消息，你决定重新思考后，你做了：{last_action}\n因为：{last_reasoning}\n"
+            if tool_calls_str:
+                if_replan_prompt = f"出于这个想法，你刚刚调用了 {tool_calls_str} 工具，获取的内容在 <structured_information> 中。而你上一次行动为：{last_action}\n因为：{last_reasoning}\n"
             else:
                 if_replan_prompt = f"出于这个想法，你刚才做了：{last_action}\n因为：{last_reasoning}\n"
         else:
@@ -534,6 +538,8 @@ class SubMind:
             is_replan = False
             if_replan_prompt = ""
         if previous_mind:
+            if tool_calls_str:
+                if_replan_prompt = f"出于这个想法，你刚刚调用了 {tool_calls_str} 工具，获取的内容在 <structured_information> 中。而你上一次行动为：{last_action}\n因为：{last_reasoning}\n"
             last_loop_prompt = (await global_prompt_manager.get_prompt_async("last_loop")).format(
                 current_thinking_info=previous_mind, if_replan_prompt=if_replan_prompt
             )
@@ -672,7 +678,6 @@ class SubMind:
 
                     # 收集工具执行结果
                     await self._execute_tool_calls(valid_tool_calls, tool_instance)
-                    is_toolused = True
                 elif not success:
                     logger.warning(f"{self.log_prefix} 处理工具调用时出错: {error_msg}")
             else:
@@ -771,7 +776,7 @@ class SubMind:
         # 更新当前思考内容
         self.update_current_mind(content)
 
-        return self.current_mind, self.past_mind, is_toolused
+        return self.current_mind, self.past_mind, tool_calls_str
 
     async def _execute_tool_calls(self, tool_calls, tool_instance):
         """
