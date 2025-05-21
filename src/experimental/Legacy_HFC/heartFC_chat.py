@@ -840,9 +840,13 @@ class HeartFChatting:
             with Timer("思考", cycle_timers):
                 # 获取上一个循环的动作
                 # 传递上一个循环的信息给 do_thinking_before_reply
-                current_mind, _past_mind = await self.sub_mind.do_thinking_before_reply(
+                current_mind, _past_mind, is_toolused = await self.sub_mind.do_thinking_before_reply(
                     history_cycle=self._cycle_history
                 )
+                if is_toolused:
+                    current_mind, _past_mind, is_toolused = await self.sub_mind.do_thinking_before_reply(
+                        history_cycle=self._cycle_history, is_toolused=is_toolused
+                    )
                 return current_mind
         except Exception as e:
             logger.error(f"{self.log_prefix}子心流 思考失败: {e}")

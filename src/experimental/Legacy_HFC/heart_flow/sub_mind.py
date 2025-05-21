@@ -246,7 +246,7 @@ class SubMind:
         self.structured_info_str = "\n".join(lines)
         logger.debug(f"{self.log_prefix} 更新 structured_info_str: \n{self.structured_info_str}")
 
-    async def do_thinking_before_reply(self, history_cycle: list[CycleInfo] = None):
+    async def do_thinking_before_reply(self, history_cycle: list[CycleInfo] = None, is_toolused: bool = False):
         """
         在回复前进行思考，生成内心想法并收集工具调用结果
 
@@ -268,7 +268,8 @@ class SubMind:
             # 针对我们仅希望 lpmm_knowledge "用完即弃" 的情况：
             processed_info_to_keep = []
             for item in info_to_keep:  # info_to_keep 已经不包含 lpmm_knowledge
-                item["ttl"] -= 1
+                if not is_toolused:  # 使用工具后的循环心流不删除计数
+                    item["ttl"] -= 1
                 if item["ttl"] > 0:
                     processed_info_to_keep.append(item)
                 else:
@@ -665,6 +666,7 @@ class SubMind:
 
                     # 收集工具执行结果
                     await self._execute_tool_calls(valid_tool_calls, tool_instance)
+                    is_toolused = True
                 elif not success:
                     logger.warning(f"{self.log_prefix} 处理工具调用时出错: {error_msg}")
             else:
@@ -763,7 +765,7 @@ class SubMind:
         # 更新当前思考内容
         self.update_current_mind(content)
 
-        return self.current_mind, self.past_mind
+        return self.current_mind, self.past_mind, is_toolused
 
     async def _execute_tool_calls(self, tool_calls, tool_instance):
         """
