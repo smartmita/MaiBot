@@ -49,6 +49,7 @@ EMOJI_SEND_PRO = 0.3  # 设置一个概率，比如 30% 才真的发
 
 CONSECUTIVE_NO_REPLY_THRESHOLD = 3  # 连续不回复的阈值
 
+force_rethink_tools = global_config.experimental.force_rethink_tool_list
 
 logger = get_logger("hfc")  # Logger Name Changed
 
@@ -841,13 +842,37 @@ class HeartFChatting:
             with Timer("思考", cycle_timers):
                 # 获取上一个循环的动作
                 # 传递上一个循环的信息给 do_thinking_before_reply
-                current_mind, _past_mind, tool_calls_str = await self.sub_mind.do_thinking_before_reply(
+                current_mind, _past_mind, tool_calls_str_from_first_pass = await self.sub_mind.do_thinking_before_reply(
                     history_cycle=self._cycle_history
                 )
-                if tool_calls_str:
-                    current_mind, _past_mind, tool_calls_str = await self.sub_mind.do_thinking_before_reply(
-                        history_cycle=self._cycle_history, tool_calls_str=tool_calls_str, pass_mind=current_mind
+
+                should_rethink = False # 初始化一个标志变量
+                if tool_calls_str_from_first_pass:
+                    # tool_calls_str_from_first_pass 是一个类似 "tool_name1, tool_name2" 的字符串
+                    # 我们需要把它解析成工具名称的列表
+                    called_tool_names = [name.strip() for name in tool_calls_str_from_first_pass.split(",")]
+
+                    # 检查是否有任何一个被调用的工具在我们的强制二次思考列表中
+                    for tool_name in called_tool_names:
+                        if tool_name in force_rethink_tools:
+                            should_rethink = True
+                            logger.debug(f"{self.log_prefix} 工具 '{tool_name}' 在强制二次思考列表中，将进行二次思考。")
+                            break # 找到一个就需要二次思考，可以跳出循环
+
+                    if not should_rethink:
+                        logger.debug(f"{self.log_prefix} 调用了工具 ({tool_calls_str_from_first_pass})，但它们不在强制二次思考列表中。工具结果已存入structured_info，但不进行二次LLM思考。")
+
+                # 如果需要二次思考
+                if should_rethink:
+                    logger.info(f"{self.log_prefix} 检测到需要二次思考的工具调用 ({tool_calls_str_from_first_pass})，将基于工具结果再次思考。")
+                    # 进行第二次调用，传入第一次思考的结果 (current_mind) 和工具调用信息
+                    current_mind, _past_mind, _ = await self.sub_mind.do_thinking_before_reply(
+                        history_cycle=self._cycle_history, 
+                        tool_calls_str=tool_calls_str_from_first_pass, # 传递实际调用的工具信息
+                        pass_mind=current_mind # 传递第一次LLM的内心想法
                     )
+                    # 第二次调用后返回的 tool_calls_str 通常我们期望是空的，所以用 _ 忽略
+
                 return current_mind
         except Exception as e:
             logger.error(f"{self.log_prefix}子心流 思考失败: {e}")
