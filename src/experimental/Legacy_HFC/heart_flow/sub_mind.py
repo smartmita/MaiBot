@@ -15,8 +15,9 @@ from src.chat.utils.prompt_builder import Prompt, global_prompt_manager
 from src.tools.tool_use import ToolUser
 from src.chat.utils.json_utils import safe_json_dumps, process_llm_tool_calls
 from .chat_state_info import ChatStateInfo
-from src.chat.message_receive.chat_stream import chat_manager
+from src.chat.message_receive.chat_stream import chat_manager,ChatStream
 from ..heartFC_Cycleinfo import CycleInfo
+from typing import Optional
 import difflib
 from src.chat.person_info.relationship_manager import relationship_manager
 from src.chat.memory_system.Hippocampus import HippocampusManager
@@ -790,10 +791,20 @@ class SubMind:
         tool_results = []
         new_structured_items = []  # 收集新产生的结构化信息
 
+        # --- 获取当前的 ChatStream 对象 ---
+        current_chat_stream: Optional[ChatStream] = None
+        try:
+            # self.subheartflow_id 就是当前 SubMind 关联的 chat_id
+            current_chat_stream = chat_manager.get_stream(self.subheartflow_id) 
+            if not current_chat_stream:
+                logger.warning(f"{self.log_prefix} 在 _execute_tool_calls 中未能获取到 chat_stream 对象。")
+        except Exception as e_cs:
+            logger.error(f"{self.log_prefix} 在 _execute_tool_calls 中获取 chat_stream 时出错: {e_cs}")
+
         # 执行所有工具调用
         for tool_call in tool_calls:
             try:
-                result = await tool_instance._execute_tool_call(tool_call)
+                result = await tool_instance._execute_tool_call(tool_call, chat_stream=current_chat_stream) 
                 if result:
                     tool_results.append(result)
                     # 创建新的结构化信息项
