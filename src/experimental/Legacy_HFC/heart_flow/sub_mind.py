@@ -80,9 +80,8 @@ def init_prompt():
 </output_requirements_for_inner_thought>
 
 <tool_usage_instructions>
-1. 输出想法后考虑是否需要使用工具
+1. 输出想法后，综合所有情况，灵活的判断是否使用函数工具，使用哪个工具
 2. 工具可获取信息或执行操作
-3. 如需处理消息或回复，请使用工具。
 </tool_usage_instructions>
 
 """
