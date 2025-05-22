@@ -45,7 +45,7 @@ person_info_default = {
     "relationship_value": 0,
     # "saved" : True,
     # "impression" : None,
-    # "gender" : Unkown,
+    "gender_mark": "未知",
     "konw_time": 0,
     "msg_interval": 2000,
     "msg_interval_list": [],

@@ -3,11 +3,13 @@ from src.config.config import global_config
 import json
 from src.common.logger_manager import get_logger
 from src.tools.tool_can_use import get_all_tool_definitions, get_tool_instance
+from typing import Optional
 import traceback
 from src.chat.person_info.relationship_manager import relationship_manager
 from src.chat.utils.utils import parse_text_timestamps
 from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.heart_flow.observation.chatting_observation import ChattingObservation
+import inspect
 
 logger = get_logger("tool_use")
 
@@ -63,7 +65,7 @@ class ToolUser:
         return get_all_tool_definitions()
 
     @staticmethod
-    async def _execute_tool_call(tool_call):
+    async def _execute_tool_call(tool_call, chat_stream: Optional[ChatStream] = None):
         """执行特定的工具调用
 
         Args:
@@ -75,30 +77,45 @@ class ToolUser:
         """
         try:
             function_name = tool_call["function"]["name"]
-            function_args = json.loads(tool_call["function"]["arguments"])
+            # 确保 function_args 是字典
+            raw_function_args = tool_call["function"]["arguments"]
+            if isinstance(raw_function_args, str):
+                function_args = json.loads(raw_function_args)
+            elif isinstance(raw_function_args, dict):
+                function_args = raw_function_args
+            else:
+                logger.error(f"工具参数格式未知: {type(raw_function_args)}")
+                return None
 
-            # 获取对应工具实例
+
             tool_instance = get_tool_instance(function_name)
             if not tool_instance:
                 logger.warning(f"未知工具名称: {function_name}")
                 return None
 
-            # 执行工具
-            result = await tool_instance.execute(function_args)
-            if result:
-                # 直接使用 function_name 作为 tool_type
-                tool_type = function_name
+            tool_execute_params = inspect.signature(tool_instance.execute).parameters
+            if 'chat_stream' in tool_execute_params:
+                # 特别注意：这里传递的是 chat_stream 对象本身
+                result = await tool_instance.execute(function_args, chat_stream=chat_stream)
+            else:
+                result = await tool_instance.execute(function_args) 
 
+            if result: # 确保 result 是一个字典
+                tool_type = function_name 
                 return {
                     "tool_call_id": tool_call["id"],
                     "role": "tool",
                     "name": function_name,
-                    "type": tool_type,
-                    "content": result["content"],
+                    "type": result.get("type", tool_type), # 优先使用工具返回的type
+                    "content": result.get("content", "工具执行完成但未返回主要内容。"),
+                    "id": result.get("id", function_args.get("user_id", function_name)) 
                 }
             return None
+        except json.JSONDecodeError as json_err:
+            logger.error(f"解析工具参数 JSON 失败: {json_err}. 原始参数: {tool_call['function']['arguments']}")
+            return None
         except Exception as e:
-            logger.error(f"执行工具调用时发生错误: {str(e)}")
+            logger.error(f"执行工具调用 {tool_call.get('function',{}).get('name','UnknownTool')} 时发生错误: {str(e)}", exc_info=True)
             return None
 
     async def use_tool(self, message_txt: str, chat_stream: ChatStream = None, observation: ChattingObservation = None):
@@ -160,7 +177,8 @@ class ToolUser:
 
                 # 执行所有工具调用
                 for tool_call in tool_calls:
-                    result = await self._execute_tool_call(tool_call)
+                # 将 chat_stream 传递给 _execute_tool_call
+                    result = await self._execute_tool_call(tool_call, chat_stream=chat_stream) 
                     if result:
                         tool_results.append(result)
                         # 使用工具名称作为键

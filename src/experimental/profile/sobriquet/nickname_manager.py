@@ -307,6 +307,23 @@ class NicknameManager:
                         logger.warning(f"{log_prefix} 未能获取到 user_id '{user_id_str}' 的实际平台昵称，也未在上下文中找到备用昵称，将使用空字符串。")
                         user_data_entry["actual_nickname"] = "" # 或者标记为"未知用户"
 
+                # 获取性别标记
+                gender_mark_value = "未知" # 默认值
+                try:
+                    # 同样需要将 user_id_str 转为 int 来调用 get_person_id
+                    user_id_for_gender_lookup = int(user_id_str)
+                    person_id = person_info_manager.get_person_id(platform, user_id_for_gender_lookup)
+                    if person_id:
+                        # PersonInfoManager.get_value 是异步的
+                        fetched_gender = await person_info_manager.get_value(person_id, "gender_mark")
+                        if fetched_gender is not None: # get_value 在字段不存在时会返回默认值，这里我们就是想要那个默认值
+                            gender_mark_value = fetched_gender
+                except ValueError:
+                    logger.warning(f"{log_prefix} 用户ID '{user_id_str}' 无法转为整数，无法获取其 person_id 以查询性别。")
+                except Exception as e_gender:
+                    logger.error(f"{log_prefix} 获取用户 {user_id_str} 性别标记时出错: {e_gender}", exc_info=True)
+                user_data_entry["gender_mark"] = gender_mark_value
+
                 # 如果是群聊，尝试获取群名片和群头衔
                 if is_group:
                     user_specific_info = latest_user_info_map.get(user_id_str)
