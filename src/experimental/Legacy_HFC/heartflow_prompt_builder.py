@@ -54,7 +54,7 @@ def init_prompt():
 5.  {reply_style1}
 6.  请使用中文，不要刻意突出自身学科背景。
 7.  注意只输出消息内容，不要去主动讨论或评价别人发的表情包，它们只是一种辅助表达方式。
-8.  请参考并自然融入以下学习到的语言和句法习惯（如果情景合适）：
+8.  可以参考并自然融入以下学习到的语言和句法习惯（如果情景合适）：
     {style_habbits}
     {grammar_habbits}
 9.  {moderation_prompt}
@@ -112,7 +112,7 @@ def init_prompt():
 "no_reply": "不发消息，当{bot_name}的内心想法表示不想发言/出错/想法为空/最近发言未获回应且无新发言意图时选择"
 "text_reply": "发送文本消息, 若{bot_name}内心想法有实质内容且想表达，并且时机适合时选择。可附带表情包和@某人或戳一戳某人。注意**不要**在{bot_name}内心想法表达不想回复时选择"
 "emoji_reply": "单独发一个表情包，若情景适合用表情回应，或{bot_name}想参与 但似乎没什么实质表达内容时选择。需在emoji_query中提供表情主题"
-"exit_focus_mode": "结束当前专注聊天模式，不再聚焦于群内消息，当{bot_name}的想法表示疲惫、无聊、话题无需深入或失去吸引力时可以选择"
+"exit_focus_mode": "结束当前专注聊天模式，不再聚焦于群内消息，当{bot_name}的想法表示疲惫、无聊、不想聊了、或失去吸引力时选择"
 </available_actions>
 </decision_framework>
 
@@ -259,8 +259,8 @@ async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_s
     prompt_ger = ""
     if random.random() < 0.60:
         prompt_ger += "**不用输出对方的网名或绰号**"
-    if random.random() < 0.00:
-        prompt_ger += "你喜欢用反问句"
+    if random.random() < 0.40:
+        prompt_ger += " "
     if is_group_chat and global_config.personality.enable_expression_learner:
         # 从/data/expression/对应chat_id/expressions.json中读取表达方式
         (
