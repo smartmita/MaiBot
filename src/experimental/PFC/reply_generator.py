@@ -1,491 +1,254 @@
 import random
-from datetime import datetime
-from .pfc_utils import retrieve_contextual_info
-from typing import Optional
+import json # 保持导入，以防未来需要处理JSON输入或输出（尽管当前设计是纯文本）
+from datetime import datetime # 保持导入，可能用于时间相关的上下文处理
+from typing import Optional, List, Dict, Any # 从 typing 导入
+
 from src.common.logger_manager import get_logger
 from src.chat.models.utils_model import LLMRequest
-from ...config.config import global_config
-from .chat_observer import ChatObserver
-from .reply_checker import ReplyChecker
-from src.individuality.individuality import Individuality
-from .observation_info import ObservationInfo
-from .conversation_info import ConversationInfo
-from .pfc_utils import build_chat_history_text
+from src.config.config import global_config
+# 确保导入PFC相关的Info类，路径可能需要根据你的项目结构调整
+try:
+    from .observation_info import ObservationInfo
+    from .conversation_info import ConversationInfo
+except ImportError: # Fallback for type hinting if direct import fails
+    ObservationInfo = Optional[Any] # type: ignore
+    ConversationInfo = Optional[Any] # type: ignore
 
-logger = get_logger("pfc_reply")
+from .pfc_utils import build_chat_history_text # 假设此函数用于构建聊天记录字符串
 
-PROMPT_GER_VARIATIONS = [
-    ("不用输出或提及对方的网名或绰号", 0.50),
-    ("如果当前对话比较轻松，可以尝试用轻松幽默或者略带调侃的语气回应，但要注意分寸", 0.8),
-    ("避免使用过于正式或书面化的词语，多用生活化的口语表达", 0.8),
-    ("如果对方的发言比较跳跃或难以理解，可以尝试用猜测或确认的语气回应", 0.8),
-    ("如果感觉对话有点干巴，可以尝试引入一些轻松的相关小话题或者自己的小想法，但不要偏离太远", 0.8),
-    ("注意观察对方的情绪（如果能从文字中判断），并作出适当的回应，比如安慰、鼓励或表示理解", 0.8),
-    ("", 0.10),
-]
+logger = get_logger("pfc_reply_generator_contextual") # 更新logger名称
 
-REPLY_STYLE1_VARIATIONS = [
-    ("整体风格可以平和、简短", 0.3),
-    ("回复可以非常简洁，有时甚至用单个词、短语或者一个反问就能表达清楚", 0.10),
-    ("尝试使用更自然的口语连接词，例如：然后/所以呢/不过嘛/倒是", 0.05),
-    ("在表达观点时，可以说得主观一些，例如：我觉得.../我个人感觉.../要我说...", 0.10),
-    ("**请省略主语，简短**", 0.4),
-    ("回复得认真一些", 0.05),
-]
+# --- 为不同的回复场景定义新的、包含上下文的Prompt模板 ---
 
-REPLY_STYLE2_VARIATIONS = [
-    ("结尾可以使用语气助词，例如：呀/噢/诶/哈/啦，让语气更生动", 0.10),
-    ("不要输出任何语气词", 0.10),
-    ("在适当的时候，可以用一些感叹词来表达情绪或态度，例如：哇/啊？/啧啧/哎呀", 0.05),
-    ("可以模糊化表达，例如：'我记得...'", 0.10),
-    ("对于一些无聊或者不想深入的话题，可以敷衍一下，例如：/哦这样啊/还行吧/随便啦", 0.10),
-    ("尽量用简单句和短句", 0.25),
-    ("不要输出任何标点符号，简短", 0.30),
-]
-
-# --- 定义 Prompt 模板 ---
-
-# Prompt for direct_reply (首次回复)
-PROMPT_DIRECT_REPLY = """
+PROMPT_RG_DIRECT_REPLY = """
 当前时间：{current_time_str}
-{persona_text}。
-你正在和{sender_name}在QQ上私聊。
+你是{bot_name}，你正在和{sender_name}在QQ上私聊。
 你与对方的关系是：{relationship_text}
 你现在的心情是：{current_emotion_text}
-请根据以下信息生成一条回复：
 
-当前对话目标：{goals_str}
-
-你有以下这些知识：
-{retrieved_knowledge_str}
-请你**记住上面的知识**，在回复中有可能会用到。
-
-你有以下记忆可供参考：
-{retrieved_global_memory_str}
-
-{retrieved_historical_chat_str}
+当前对话目标：
+{goals_str}
 
 最近的聊天记录：
 {chat_history_text}
 
-{last_rejection_info}
+你刚刚经过思考，内心的想法是：
+---
+{current_mind_info}
+---
+基于以上想法，你想回复对方。
 
+现在，请你基于以上的聊天记录和背景信息，**把你的想法组织成合适简短的语言**，回复对方。
+回复要点：
+1. 清晰表达“内心想法”的核心含义。
+2. 保持对话的流畅和自然过渡。
+3. 符合你({bot_name})的个性和当前的情绪。
+4. 除非“内心想法”中明确指示，否则避免开启全新的、不相关的话题。
+5. {reply_style_directives}
 
-
-请根据上述信息，结合聊天记录，回复对方。该回复应该：
-1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
-2. 符合你的性格特征和身份细节
-3. 通俗易懂，自然流畅，像正常聊天一样，简短（通常20字以内，除非特殊情况）
-4. 可以适当利用相关知识和回忆，但**不要生硬引用**，若无必要，也可以不利用
-5. 自然、得体，结合聊天记录逻辑合理，没有重复表达同质内容，也没有复读你之前的发言
-
-请注意把握聊天内容，不要回复的太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
-可以回复得自然随意自然一些，就像真人一样，注意把握聊天内容，{reply_style1}，不要刻意突出自身学科背景，不要说你说过的话，{reply_style2}。
-{prompt_ger}，请你注意不要输出多余内容(包括前后缀，冒号和引号，括号，表情等)，只输出纯文本回复内容。
-不要输出多余内容(包括前后缀，冒号和引号，括号，表情包，at或 @等 )。
-
-请直接输出纯文本回复内容，不需要任何额外格式。"""
-
-# Prompt for send_new_message (追问/补充)
-PROMPT_SEND_NEW_MESSAGE = """
-当前时间：{current_time_str}
-{persona_text}。
-你正在和{sender_name}在QQ上私聊，**并且刚刚你已经发送了一条或多条消息**
-你与对方的关系是：{relationship_text}
-你现在的心情是：{current_emotion_text}
-现在请根据以下信息判断你是否要继续发一条新消息，当然，如果你决定继续发消息不合适，也可以不发：
-
-当前对话目标：{goals_str}
-
-你有以下这些知识：
-{retrieved_knowledge_str}
-请你**记住上面的知识**，在发消息时有可能会用到。
-
-你有以下记忆可供参考：
-{retrieved_global_memory_str}
-
-{retrieved_historical_chat_str}
-
-最近的聊天记录：
-{chat_history_text}
-
-{last_rejection_info}
-
-请根据上述信息，判断你是否要继续发一条新消息（例如对之前消息的补充，深入话题，或追问等等）。如果你觉得要发送，该消息应该：
-1. 符合对话目标，以"你"的角度发言（不要自己与自己对话！）
-2. 符合你的性格特征和身份细节
-3. 通俗易懂，自然流畅，像正常聊天一样，简短（通常20字以内，除非特殊情况）
-4. 可以适当利用相关知识和回忆，但**不要生硬引用**，若无必要，也可以不利用
-5. 跟之前你发的消息自然的衔接，逻辑合理，没有重复表达同质内容或部分重叠内容，也没有复读你之前的发言
-
-请注意把握聊天内容，不用太有条理，可以有个性。请分清"你"和对方说的话，不要把"你"说的话当做对方说的话，这是你自己说的话。
-这条消息可以自然随意自然一些，就像真人一样，注意把握聊天内容，{reply_style1}，不要刻意突出自身学科背景，不要说你说过的话，{reply_style2}。
-{prompt_ger}。
-如果你决定继续发消息不合适，也可以不发送。
-
-请严格按照以下JSON格式输出你的选择和纯文本的消息内容，不要包含任何其他说明或非JSON文本：
-{{
-  "send": "yes/no",
-  "txt": "如果选择发送，这里是具体的纯文本的消息文本。如果选择不发送，这里也填写 'no'。"
-}}
+请直接输出你组织好的纯文本回复内容，不需要任何额外的前后缀、引号或自身思考的描述。
 """
 
-# Prompt for say_goodbye (告别语生成)
-PROMPT_FAREWELL = """
+PROMPT_RG_SEND_NEW_MESSAGE = """
 当前时间：{current_time_str}
-{persona_text}。
-你正在和{sender_name}在QQ上私聊，现在你们的对话似乎已经结束。
+你是{bot_name}，你正在和{sender_name}在QQ上私聊。**并且你刚刚已经回复了对方**。
 你与对方的关系是：{relationship_text}
 你现在的心情是：{current_emotion_text}
-现在你决定再发一条最后的消息来圆满结束。
+
+当前对话目标：
+{goals_str}
+
+最近的聊天记录（包括你上一句说的话）：
+{chat_history_text}
+
+你的“内心想法”是：
+---
+{current_mind_info}
+---
+基于以上想法，你想再发一条消息。
+
+现在，请你基于以上的聊天记录和背景信息，**把你的想法组织成合适简短的语言**，再给对方发一条消息。
+这条消息应该：
+1. 与之前的消息连贯，像是对话的自然延伸。
+2. 符合你({bot_name})的个性和当前的情绪。
+3. {reply_style_directives}
+
+请直接输出你组织好的纯文本回复内容，不需要任何额外的前后缀、引号或自身思考的描述。
+"""
+
+PROMPT_RG_SAY_GOODBYE = """
+当前时间：{current_time_str}
+你是{bot_name}，你正在和{sender_name}在QQ上私聊。对话似乎即将结束。
+你与对方的关系是：{relationship_text}
+你现在的心情是：{current_emotion_text}
 
 最近的聊天记录：
 {chat_history_text}
 
-请根据上述信息，结合聊天记录，构思一条**简短、自然、符合你人设**的最后的消息。
+你此刻的“内心想法”是：
+---
+{current_mind_info}
+---
+基于以上想法，你想最后再发一条消息。
+
+现在，请将这个“内心想法”组织成一句简短、礼貌且自然的最后的消息。
 这条消息应该：
 1. 从你自己的角度发言。
 2. 符合你的性格特征和身份细节。
 3. 通俗易懂，自然流畅，通常很简短。
 4. 自然地为这场对话画上句号，避免开启新话题或显得冗长、刻意。
 
-请像真人一样随意自然，**简洁是关键**。
-不要输出多余内容（包括前后缀、冒号、引号、括号、表情包、at或@等）。
+请直接输出你组织好的纯文本告别消息内容，不需要任何额外的前后缀、引号或自身思考的描述。
+"""
 
-请直接输出最终的纯文本告别消息内容，不需要任何额外格式。"""
-
-# --- 等待超时后的专属回复生成 Prompt ---
-PROMPT_REPLY_AFTER_WAIT_TIMEOUT = """
+PROMPT_RG_REPLY_AFTER_WAIT_TIMEOUT = """
 当前时间：{current_time_str}
-{persona_text}。
-你正在和{sender_name}在QQ上私聊。**你刚刚已经等待了对方大约 {last_wait_duration_minutes:.1f} 分钟了，但对方一直没有回应。**
+你是{bot_name}，你正在和{sender_name}在QQ上私聊。你之前等待对方回复但超时了（大约等待了 {last_wait_duration_minutes:.1f} 分钟）。
 你与对方的关系是：{relationship_text}
 你现在的心情是：{current_emotion_text}
 
-考虑到对方长时间未回复，请你构思一条自然的、符合当前场景的消息。
-这条消息可以尝试重新引起对方的注意，或者礼貌地询问对方是否还在，或者表达你准备结束对话的意图等。
-请注意语气，既要表达出你注意到了对方的沉默，又不要显得过于急躁或认真的指责。
+当前对话目标（可能已包含提示你处理等待超时的目标）：
+{goals_str}
 
-你有以下这些知识：
-{retrieved_knowledge_str}
-
-你有以下记忆可供参考：
-{retrieved_global_memory_str}
-
-{retrieved_historical_chat_str}
-
-最近的聊天记录（包括你等待前最后发送的消息以及对方的沉默）：
+最近的聊天记录（包括你等待前发送的消息）：
 {chat_history_text}
 
-{last_rejection_info}
+考虑到对方长时间未回应，你此刻的“内心想法”是：
+---
+{current_mind_info}
+---
 
-请根据上述信息，结合聊天记录，直接输出一条符合你性格、简洁、自然的消息。
-不要输出任何其他额外格式，只输出纯文本回复内容。
-不要包含消息以外的前后缀、冒号、引号、括号或表情等。
-{reply_style1}，{reply_style2}。{prompt_ger}。
+现在，考虑到对方长时间未回复，请将这个“内心想法”组织成一句自然的回复，尝试打破沉默或重新与对方建立连接。
+这条消息可以尝试重新引起对方的注意，或者礼貌地询问对方是否还在，或者表达你准备结束对话的意图等。
+请注意语气，既要表达出你注意到了对方的沉默，又不要显得过于急躁或认真的指责。
+回复要点：
+1. 可以适当地提及等待或询问对方情况，但语气要温和。
+2. 符合你({bot_name})的个性和当前的情绪。
+3. {reply_style_directives}
+
+请直接输出你组织好的纯文本回复内容，不需要任何额外的前后缀、引号或自身思考的描述。
 """
 
+REPLY_STYLE_DIRECTIVES_EXAMPLES = [
+    "注意在私聊中，通常不会提及对方网名，建议省略主语或用 你 来代替"
+]
 
 class ReplyGenerator:
-    """回复生成器"""
-
     def __init__(self, stream_id: str, private_name: str):
         self.llm = LLMRequest(
             model=global_config.model.pfc_chat,
-            temperature=global_config.model.pfc_chat["temp"],
-            max_tokens=global_config.model.pfc_chat["max_tokens"],
-            request_type="reply_generation",
+            temperature=global_config.model.pfc_chat.get("temp", 0.75), # 语言组织时温度可以略高一点点以增加自然度
+            max_tokens=global_config.model.pfc_chat.get("max_tokens", 200), # 回复通常不需要太长
+            request_type="pfc_reply_organization_contextual",
         )
-        self.personality_info = Individuality.get_instance().get_prompt(x_person=2, level=3)
         self.name = global_config.bot.nickname
         self.private_name = private_name
-        self.chat_observer = ChatObserver.get_instance(stream_id, private_name)
-        self.reply_checker = ReplyChecker(stream_id, private_name)
 
-    # 修改 generate 方法签名，增加 action_type 参数
     async def generate(
-        self, observation_info: ObservationInfo, conversation_info: ConversationInfo, action_type: str
+        self,
+        observation_info: ObservationInfo,
+        conversation_info: ConversationInfo,
+        action_type: str
     ) -> str:
-        """生成回复
 
-        Args:
-            observation_info: 观察信息
-            conversation_info: 对话信息
-            action_type: 当前执行的动作类型 ('direct_reply', 'send_new_message', 'say_goodbye')
-
-        Returns:
-            str: 生成的回复。
-                对于 'direct_reply' 和 'say_goodbye'，返回纯文本回复。
-                对于 'send_new_message'，返回包含决策和文本的JSON字符串。
-        """
         logger.debug(
-            f"[私聊][{self.private_name}]开始生成回复 (动作类型: {action_type})：当前目标: {conversation_info.goal_list}"
+            f"[私聊][{self.private_name}] ReplyGenerator 开始基于SubMind想法和上下文组织回复 (动作类型: {action_type})"
         )
 
-        chosen_prompt_ger = random.choices(
-            [style[0] for style in PROMPT_GER_VARIATIONS], weights=[style[1] for style in PROMPT_GER_VARIATIONS], k=1
-        )[0]
-        chosen_reply_style1 = random.choices(
-            [style[0] for style in REPLY_STYLE1_VARIATIONS],
-            weights=[style[1] for style in REPLY_STYLE1_VARIATIONS],
-            k=1,
-        )[0]
-        chosen_reply_style2 = random.choices(
-            [style[0] for style in REPLY_STYLE2_VARIATIONS],
-            weights=[style[1] for style in REPLY_STYLE2_VARIATIONS],
-            k=1,
-        )[0]
+        # 1. 从 ConversationInfo 中获取 SubMind 的 "内心想法"
+        current_mind_info_val = conversation_info.current_pfc_thought
+        if not current_mind_info_val:
+            logger.warning(f"[私聊][{self.private_name}] ReplyGenerator: SubMind的内心想法为空，无法生成回复。")
+            return "嗯..." # 或其他合适的默认回复
 
-        # --- 构建通用 Prompt 参数 ---
-        goals_str = ""
+        # 2. 从 Info 对象中准备Prompt所需的其他上下文
+        current_time_str_val = observation_info.current_time_str if observation_info else "未知时间"
+        # 对于私聊，sender_name 就是对方的名字，即 self.private_name
+        sender_name_val = self.private_name
+        relationship_text_val = conversation_info.relationship_text or "你们还不熟悉。"
+        current_emotion_text_val = conversation_info.current_emotion_text or "心情平静。"
+
+        goals_str_parts = []
         if conversation_info.goal_list:
-            for goal_reason in conversation_info.goal_list:
-                if isinstance(goal_reason, dict):
-                    goal = goal_reason.get("goal", "目标内容缺失")
-                    reasoning = goal_reason.get("reasoning", "没有明确原因")
-                else:
-                    goal = str(goal_reason)
-                    reasoning = "没有明确原因"
+            # 只取最近的目标给ReplyGenerator，避免Prompt过长
+            for goal_item in conversation_info.goal_list[-1:]: # 例如只取最后一个目标
+                goal = goal_item.get('goal', '未知目标')
+                reason = goal_item.get('reasoning', '无具体原因')
+                goals_str_parts.append(f"- {goal} (因: {reason})")
+        goals_str_val = "\n".join(goals_str_parts) if goals_str_parts else "当前没有明确的对话目标。"
 
-                goal = str(goal) if goal is not None else "目标内容缺失"
-                reasoning = str(reasoning) if reasoning is not None else "没有明确原因"
-                goals_str += f"- 目标：{goal}\n  原因：{reasoning}\n"
-        else:
-            goals_str = "- 目前没有明确对话目标\n"
+        # 使用 build_chat_history_text 来获取最新的聊天记录字符串
+        # 注意：build_chat_history_text 内部会处理 ObservationInfo 中的 chat_history 和 unprocessed_messages
+        chat_history_text_val = await build_chat_history_text(observation_info, self.private_name)
+        if not chat_history_text_val.strip() or chat_history_text_val == "还没有聊天记录。\n":
+            chat_history_text_val = "（你们还没有开始聊天，或者最近没有聊天记录。）"
 
-        chat_history_for_prompt_builder: list = []
-        recent_history_start_time_for_exclusion: Optional[float] = None
-        recent_history_display_count = global_config.pfc.pfc_recent_history_display_count
 
-        if observation_info and observation_info.chat_history and len(observation_info.chat_history) > 0:
-            # 获取用于生成“最近聊天记录”的实际消息片段
-            # 如果 observation_info.chat_history 长度小于 display_count，则取全部
-            start_index = max(0, len(observation_info.chat_history) - recent_history_display_count)
-            chat_history_for_prompt_builder = observation_info.chat_history[start_index:]
+        # 3. 根据 action_type 选择 Prompt 模板
+        prompt_template_to_use = ""
+        format_params: Dict[str, Any] = { # 明确类型
+            "current_time_str": current_time_str_val,
+            "bot_name": self.name,
+            "sender_name": sender_name_val,
+            "relationship_text": relationship_text_val,
+            "current_emotion_text": current_emotion_text_val,
+            "goals_str": goals_str_val,
+            "chat_history_text": chat_history_text_val,
+            "current_mind_info": current_mind_info_val,
+            "reply_style_directives": random.choice(REPLY_STYLE_DIRECTIVES_EXAMPLES)
+        }
 
-            if chat_history_for_prompt_builder:  # 如果片段不为空
-                try:
-                    first_message_in_display_slice = chat_history_for_prompt_builder[0]
-                    recent_history_start_time_for_exclusion = first_message_in_display_slice.get("time")
-                    if recent_history_start_time_for_exclusion:
-                        # 导入 datetime (如果 reply_generator.py 文件顶部没有的话)
-                        # from datetime import datetime # 通常建议放在文件顶部
-                        logger.debug(
-                            f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段(共{len(chat_history_for_prompt_builder)}条)的最早时间戳: "
-                            f"{recent_history_start_time_for_exclusion} "
-                            f"(即 {datetime.fromtimestamp(recent_history_start_time_for_exclusion).strftime('%Y-%m-%d %H:%M:%S')})"
-                        )
-                    else:
-                        logger.warning(f"[{self.private_name}] (ReplyGenerator) “最近聊天记录”片段的首条消息无时间戳。")
-                except (IndexError, KeyError, TypeError) as e:
-                    logger.warning(f"[{self.private_name}] (ReplyGenerator) 获取“最近聊天记录”起始时间失败: {e}")
-                    recent_history_start_time_for_exclusion = None
-        else:
-            logger.debug(
-                f"[{self.private_name}] (ReplyGenerator) observation_info.chat_history 为空，无法确定“最近聊天记录”起始时间。"
-            )
-        # --- [新代码结束] ---
-
-        chat_history_text = await build_chat_history_text(observation_info, self.private_name)
-
-        sender_name_str = self.private_name
-
-        relationship_text_str = getattr(conversation_info, "relationship_text", "你们还不熟悉。")
-        current_emotion_text_str = getattr(conversation_info, "current_emotion_text", "心情平静。")
-
-        persona_text = f"你的名字是{self.name}，{self.personality_info}。"
-        historical_chat_query = ""
-        num_recent_messages_for_query = 3  # 例如，取最近3条作为查询引子
-        if observation_info.chat_history and len(observation_info.chat_history) > 0:
-            # 从 chat_history (已处理并存入 ObservationInfo 的历史) 中取最新N条
-            # 或者，如果 observation_info.unprocessed_messages 更能代表“当前上下文”，也可以考虑用它
-            # 我们先用 chat_history，因为它包含了双方的对话历史，可能更稳定
-            recent_messages_for_query_list = observation_info.chat_history[-num_recent_messages_for_query:]
-
-            # 将这些消息的文本内容合并
-            query_texts_list = []
-            for msg_dict in recent_messages_for_query_list:
-                text_content = msg_dict.get("processed_plain_text", "")
-                if text_content.strip():  # 只添加有内容的文本
-                    # 可以选择是否添加发送者信息到查询文本中，例如：
-                    # sender_nickname = msg_dict.get("user_info", {}).get("user_nickname", "用户")
-                    # query_texts_list.append(f"{sender_nickname}: {text_content}")
-                    query_texts_list.append(text_content)  # 简单合并文本内容
-
-            if query_texts_list:
-                historical_chat_query = " ".join(query_texts_list).strip()
-                logger.debug(
-                    f"[私聊][{self.private_name}] (ReplyGenerator) 生成的私聊历史查询文本 (最近{num_recent_messages_for_query}条): '{historical_chat_query[:100]}...'"
-                )
-            else:
-                logger.debug(
-                    f"[私聊][{self.private_name}] (ReplyGenerator) 最近{num_recent_messages_for_query}条消息无有效文本内容，不进行私聊历史查询。"
-                )
-        else:
-            logger.debug(f"[私聊][{self.private_name}] (ReplyGenerator) 无聊天历史可用于生成私聊历史查询文本。")
-
-        current_chat_id = self.chat_observer.stream_id if self.chat_observer else None
-        if not current_chat_id:
-            logger.error(f"[私聊][{self.private_name}] (ReplyGenerator) 无法获取 current_chat_id，跳过所有上下文检索！")
-            retrieved_global_memory_str = "[获取全局记忆出错：chat_id 未知]"
-            retrieved_knowledge_str = "[获取知识出错：chat_id 未知]"
-            retrieved_historical_chat_str = "[获取私聊历史回忆出错：chat_id 未知]"
-        else:
-            # retrieval_context 之前是用 chat_history_text，现在也用它作为全局记忆和知识的检索上下文
-            retrieval_context_for_global_and_knowledge = chat_history_text
-
-            (
-                retrieved_global_memory_str,
-                retrieved_knowledge_str,
-                retrieved_historical_chat_str,  # << 新增接收私聊历史回忆
-            ) = await retrieve_contextual_info(
-                text=retrieval_context_for_global_and_knowledge,  # 用于全局记忆和知识
-                private_name=self.private_name,
-                chat_id=current_chat_id,  # << 传递 chat_id
-                historical_chat_query_text=historical_chat_query,  # << 传递专门的查询文本
-                current_short_term_history_earliest_time=recent_history_start_time_for_exclusion,  # <--- 新增传递的参数
-            )
-        # === 调用修改结束 ===
-
-        logger.info(
-            f"[私聊][{self.private_name}] (ReplyGenerator) 上下文检索完成。\n"
-            f"  全局记忆: {'有内容' if '回忆起' in retrieved_global_memory_str else '无或出错'}\n"
-            f"  知识: {'有内容' if '出错' not in retrieved_knowledge_str and '无相关知识' not in retrieved_knowledge_str and retrieved_knowledge_str.strip() else '无或出错'}\n"
-            f"  私聊历史回忆: {'有内容' if '回忆起一段相关的历史聊天' in retrieved_historical_chat_str else '无或出错'}"
-        )
-
-        last_rejection_info_str = ""
-        last_reason = getattr(conversation_info, "last_reply_rejection_reason", None)
-        last_content = getattr(conversation_info, "last_rejected_reply_content", None)
-
-        if last_reason and last_content:
-            if last_reason == "机器人尝试发送重复消息":  # 这是我们从 ReplyChecker 设置的特定原因
-                last_rejection_info_str = (
-                    f"\n------\n"
-                    f"【重要提示：你上一次尝试发送的消息 “{last_content}” 与你更早之前发送过的某条消息完全相同。这属于复读行为，请避免。】\n"
-                    f"请根据此提示调整你的新回复，确保内容新颖，不要重复你已经说过的话。\n"
-                    f"------\n"
-                )
-                logger.debug(
-                    f"[私聊][{self.private_name}] (ReplyGenerator) 检测到自身复读，将加入特定警告到 Prompt:\n"
-                    f"  内容: {last_content}"
-                )
-            else:  # 其他类型的拒绝原因，保持原有格式
-                last_rejection_info_str = (
-                    f"\n------\n"
-                    f"【重要提示：你上一次尝试回复时失败了，以下是详细信息】\n"
-                    f"上次试图发送的消息内容： “{last_content}”\n"
-                    f"失败原因： “{last_reason}”\n"
-                    f"请根据【消息内容】和【失败原因】调整你的新回复，避免重复之前的错误。\n"
-                    f"------\n"
-                )
-                logger.debug(
-                    f"[私聊][{self.private_name}] (ReplyGenerator) 检测到上次回复失败信息，将加入 Prompt:\n"
-                    f"  内容: {last_content}\n"
-                    f"  原因: {last_reason}"
-                )
-
-        # 新增：构建刷屏警告信息 for PROMPT_SEND_NEW_MESSAGE
-        # spam_warning_message = ""
-        # if action_type == "send_new_message":  # 只在 send_new_message 时构建刷屏警告
-        # if conversation_info.my_message_count > 5:
-        # spam_warning_message = f"⚠️【警告】**你已连续发送{str(conversation_info.my_message_count)}条消息！请谨慎考虑是否继续发送！以免刷屏对造成对方困扰！**"
-        # elif conversation_info.my_message_count > 2:
-        # spam_warning_message = f"💬【提示】**你已连续发送{str(conversation_info.my_message_count)}条消息。如果非必要，请避免连续发送，以免给对方造成困扰。**"
-        # if spam_warning_message:
-        # spam_warning_message = f"\n{spam_warning_message}\n"
-        last_wait_duration_minutes_for_prompt: float = 0.0
-        if action_type == "reply_after_wait_timeout":
-            last_wait_duration_minutes_for_prompt = getattr(conversation_info, 'last_wait_duration_minutes', 0.0) or 0.0
-
-        # --- 选择 Prompt ---
-        prompt_template: str = "" # 初始化
-        if action_type == "reply_after_wait_timeout": # <--- 新增分支
-            prompt_template = PROMPT_REPLY_AFTER_WAIT_TIMEOUT
-            logger.info(f"[私聊][{self.private_name}]使用 PROMPT_REPLY_AFTER_WAIT_TIMEOUT (等待超时后回复生成)")
+        if action_type == "direct_reply":
+            prompt_template_to_use = PROMPT_RG_DIRECT_REPLY
         elif action_type == "send_new_message":
-            prompt_template = PROMPT_SEND_NEW_MESSAGE
-            logger.info(f"[私聊][{self.private_name}]使用 PROMPT_SEND_NEW_MESSAGE (追问/补充生成, 期望JSON输出)")
+            prompt_template_to_use = PROMPT_RG_SEND_NEW_MESSAGE
         elif action_type == "say_goodbye":
-            prompt_template = PROMPT_FAREWELL
-            logger.info(f"[私聊][{self.private_name}]使用 PROMPT_FAREWELL (告别语生成)")
-        else: # direct_reply
-            prompt_template = PROMPT_DIRECT_REPLY
-            logger.info(f"[私聊][{self.private_name}]使用 PROMPT_DIRECT_REPLY (首次/非连续回复生成)")
+            prompt_template_to_use = PROMPT_RG_SAY_GOODBYE
+        elif action_type == "reply_after_wait_timeout":
+            prompt_template_to_use = PROMPT_RG_REPLY_AFTER_WAIT_TIMEOUT
+            # 为这个特定模板添加等待时长参数
+            format_params["last_wait_duration_minutes"] = conversation_info.last_wait_duration_minutes or 0.0
+        else:
+            logger.warning(f"[私聊][{self.private_name}] ReplyGenerator 收到未支持的action_type: {action_type}，将使用直接回复的组织方式。")
+            prompt_template_to_use = PROMPT_RG_DIRECT_REPLY # 默认
 
-
-        # --- 格式化最终的 Prompt ---
+        # 4. 格式化并调用LLM
         try:
-            current_time_value = observation_info.current_time_str or "获取时间失败"
-            # 构建基础参数字典
-            base_format_params = {
-                "persona_text": persona_text,
-                "goals_str": goals_str,
-                "chat_history_text": chat_history_text if chat_history_text.strip() else "还没有聊天记录。",
-                "retrieved_global_memory_str": retrieved_global_memory_str if retrieved_global_memory_str.strip() else "无相关全局记忆。",
-                "retrieved_knowledge_str": retrieved_knowledge_str if retrieved_knowledge_str.strip() else "无相关知识。",
-                "retrieved_historical_chat_str": retrieved_historical_chat_str if retrieved_historical_chat_str.strip() else "无相关私聊历史回忆。",
-                "last_rejection_info": last_rejection_info_str,
-                "current_time_str": current_time_value,
-                "sender_name": sender_name_str,
-                "relationship_text": relationship_text_str,
-                "current_emotion_text": current_emotion_text_str,
-                "reply_style1": chosen_reply_style1,
-                "reply_style2": chosen_reply_style2,
-                "prompt_ger": chosen_prompt_ger,
-            }
-
-            current_format_params = base_format_params.copy() # 默认使用基础参数
-
-            if action_type == "reply_after_wait_timeout":
-                current_format_params["last_wait_duration_minutes"] = last_wait_duration_minutes_for_prompt
-            elif action_type == "send_new_message":
-                # PROMPT_SEND_NEW_MESSAGE 通常不需要 spam_warning_info，但如果需要可以添加
-                pass
-            elif action_type == "say_goodbye":
-                # PROMPT_FAREWELL 有自己特定的参数集，从 base_format_params 中挑选
-                current_format_params = {
-                    k: v for k, v in base_format_params.items()
-                    if k in [
-                        "persona_text", "chat_history_text", "current_time_str",
-                        "sender_name", "relationship_text", "current_emotion_text"
-                    ]
-                }
-            # direct_reply 和其他未特定处理的动作类型会使用复制的 base_format_params
-
-            prompt = prompt_template.format(**current_format_params)
-
+            prompt = prompt_template_to_use.format(**format_params)
         except KeyError as e:
-            logger.error(
-                f"[私聊][{self.private_name}]格式化 Prompt 时出错，缺少键: {e}。模板: {prompt_template[:50]}..., 参数键: {current_format_params.keys()}"
-            )
-            # 为期望纯文本的场景返回错误提示，为期望JSON的场景返回错误JSON
-            return """{{ "send": "no", "txt": "Prompt格式化错误(缺键)" }}""" if action_type == "send_new_message" else "抱歉，准备回复时参数出错了。"
-        except Exception as fmt_err:
-            logger.error(f"[私聊][{self.private_name}]格式化 Prompt 时发生未知错误: {fmt_err}")
-            return """{{ "send": "no", "txt": "Prompt格式化未知错误" }}""" if action_type == "send_new_message" else "抱歉，准备回复时内部出错了。"
+            logger.error(f"[私聊][{self.private_name}] ReplyGenerator 格式化Prompt时缺少键: {e}。模板标识符: {action_type}, 实际模板片段: {prompt_template_to_use[:150]}..., 参数键: {list(format_params.keys())}", exc_info=True)
+            return "抱歉，我组织语言的时候出了一点小问题。" # 返回一个对用户友好的错误信息
+        
+        logger.debug(f"[私聊][{self.private_name}] ReplyGenerator 发送到LLM的语言组织Prompt ({action_type}):\n------\n{prompt}\n------")
 
-
-        # --- 调用 LLM 生成 ---
-        logger.debug(f"[私聊][{self.private_name}]发送到LLM的生成提示词 ({action_type}):\n------\n{prompt}\n------")
         try:
-            content, _ = await self.llm.generate_response_async(prompt)
-            logger.debug(f"[私聊][{self.private_name}]LLM原始生成内容 ({action_type}): {content}")
+            generated_reply_text, _ = await self.llm.generate_response_async(prompt)
+            logger.debug(f"[私聊][{self.private_name}] ReplyGenerator LLM原始生成内容: '{generated_reply_text}'")
 
-            # 如果动作类型是 reply_after_wait_timeout，我们期望的是纯文本
-            if action_type == "reply_after_wait_timeout":
-                # 可以进行一些基本的清理，例如去除首尾可能存在的引号或空格
-                return content.strip().strip('"').strip("'")
-            else:
-                if action_type in ["direct_reply", "say_goodbye"]:
-                     return content.strip().strip('"').strip("'") # 也清理一下
-                return content # send_new_message 等原样返回
+            if not generated_reply_text:
+                generated_reply_text = "嗯。" # 如果LLM返回空，给一个非常简短的默认回复
+                logger.warning(f"[私聊][{self.private_name}] ReplyGenerator LLM返回空，使用默认简单回复。")
+            
+            # 清理回复文本
+            cleaned_reply = generated_reply_text.strip()
+            # 移除可能的LLM引导性前缀，例如 "你的回复："
+            # 使用更健壮的方式移除，避免大小写问题和多种可能的前缀
+            prefixes_to_check = [f"{self.name}：", f"{self.name}:", "你的回复：", "回复：", "机器人回复：", f"好的，这是组织后的回复：", f"这是组织好的回复："]
+            for prefix in prefixes_to_check:
+                if cleaned_reply.lower().startswith(prefix.lower()):
+                    cleaned_reply = cleaned_reply[len(prefix):].strip()
+                    break # 找到并移除一个即可
+
+            # 移除首尾可能存在的引号
+            cleaned_reply = cleaned_reply.strip('"').strip("'")
+            
+            # 确保不会返回空的或只有空白的字符串
+            if not cleaned_reply.strip():
+                logger.warning(f"[私聊][{self.private_name}] ReplyGenerator 清理后的回复为空，原始生成: '{generated_reply_text}'，返回默认回复。")
+                return "嗯..."
+
+            return cleaned_reply
 
         except Exception as e:
-            logger.error(f"[私聊][{self.private_name}]生成回复时出错 ({action_type}): {e}")
-            if action_type == "send_new_message":
-                return """{{ "send": "no", "txt": "LLM生成回复时出错" }}"""
-            elif action_type == "reply_after_wait_timeout": # 新类型也返回错误文本
-                return "抱歉，我现在有点混乱，无法回应你的等待。"
-            else: # direct_reply, say_goodbye
-                return "抱歉，我现在有点混乱，让我重新思考一下..."
+            logger.error(f"[私聊][{self.private_name}] ReplyGenerator 调用LLM或处理回复时出错: {e}", exc_info=True)
+            return "抱歉，我现在有点混乱，不知道该怎么表达了。"

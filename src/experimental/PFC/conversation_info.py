@@ -19,3 +19,7 @@ class ConversationInfo:
         self.current_emoji_query: Optional[str] = None  # 表情包
         self.wait_has_timed_out: bool = False  # 标记上一个 wait 动作是否超时
         self.last_wait_duration_minutes: Optional[float] = None # 上一次等待超时的时长（分钟）
+        self.current_pfc_thought: Optional[str] = None
+        self.pfc_structured_info: Dict[str, Any] = {} # 用来存储SubMind输出的结构化信息
+        self.previous_pfc_thought: Optional[str] = None # 用于存储上一轮SubMind的想法，供下一轮参考
+        self.retrieved_historical_chat_for_submind: Optional[str] = None # 存储给SubMind的回想历史聊天记录

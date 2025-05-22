@@ -6,7 +6,7 @@ import time
 import re
 import traceback
 from collections import deque
-from typing import List, Optional, Dict, Any, Deque, Callable, Coroutine, TYPE_CHECKING
+from typing import List, Optional, Dict, Any, Deque, Callable,Tuple, Coroutine, TYPE_CHECKING
 
 from rich.traceback import install
 # from .heart_flow.sub_heartflow import SubHeartflow
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from src.common.logger_manager import get_logger
 from src.config.config import global_config
-from .heart_flow.observation import Observation
+from .heart_flow.observation import Observation, ChattingObservation
 from .heart_flow.sub_mind import SubMind
 from .heart_flow.utils_chat import get_chat_type_and_target_info
 from src.manager.mood_manager import mood_manager
@@ -486,14 +486,35 @@ class HeartFChatting:
         """执行规划阶段"""
         try:
             # think:思考
-            current_mind = await self._get_submind_thinking(cycle_timers)
-            # 记录子思维思考内容
-            if self._current_cycle:
+            current_mind, tool_calls_str_after_think = await self._get_submind_thinking(cycle_timers)
+            if self._current_cycle: # 确保 _current_cycle 已创建
                 self._current_cycle.set_response_info(sub_mind_thinking=current_mind)
+
 
             # plan:决策
             with Timer("决策", cycle_timers):
                 planner_result = await self._planner(current_mind, cycle_timers)
+
+            # 如果第一次思考后有工具调用，则进行第二次思考 (HFC原有的逻辑)
+            if tool_calls_str_after_think:
+                logger.info(f"{self.log_prefix}SubMind使用了工具 ({tool_calls_str_after_think})，进行再次思考...")
+                # MODIFIED: 再次调用并接收两个返回值
+                current_mind, tool_calls_str_after_think = await self._get_submind_thinking(
+                    cycle_timers,
+                    # 假设 _get_submind_thinking 内部会处理参数，
+                    # 我们需要让它能接收 tool_calls_str 和 pass_mind
+                    # 这意味着 _get_submind_thinking 内部调用 SubMind.do_thinking_before_reply 时要传递这些参数
+                    # 我们需要修改 _get_submind_thinking 的签名和其内部对 SubMind 的调用
+                )
+                if self._current_cycle: # 再次更新思考内容
+                    self._current_cycle.set_response_info(sub_mind_thinking=current_mind)
+                if tool_calls_str_after_think: # 如果再次思考后还有工具调用，这通常不应该发生或表示逻辑问题
+                    logger.warning(f"{self.log_prefix}再次思考后仍有工具调用: {tool_calls_str_after_think}，可能存在逻辑问题。")
+
+
+            # plan:决策 (使用最终的 current_mind)
+            with Timer("决策", cycle_timers): # type: ignore
+                planner_result = await self._planner(current_mind, cycle_timers) # type: ignore
 
             # 效果不太好，还没处理replan导致观察时间点改变的问题
 
@@ -823,36 +844,42 @@ class HeartFChatting:
                 if not self._shutting_down:
                     logger.debug(f"{log_prefix} 该次决策耗时: {'; '.join(timer_strings)}")
 
-    async def _get_submind_thinking(self, cycle_timers: dict) -> str:
+    async def _get_submind_thinking(
+        self,
+        cycle_timers: dict,
+        tool_calls_str_param: Optional[str] = None, # 新增参数，用于HFC的工具调用后的再次思考
+        pass_mind_param: Optional[str] = None       # 新增参数
+    ) -> Tuple[str, Optional[str]]: # 返回 (current_mind, tool_calls_str_output)
         """
         获取子思维的思考结果
-
-        返回:
-            str: 思考结果，如果思考失败则返回错误信息
         """
         try:
-            with Timer("观察", cycle_timers):
-                observation = self.observations[0]
-                await observation.observe()
+            # "观察"步骤只在首次思考时进行（即 tool_calls_str_param 为 None）
+            if tool_calls_str_param is None:
+                with Timer("观察", cycle_timers): # type: ignore
+                    observation: ChattingObservation = self.observations[0] # type: ignore
+                    await observation.observe()
 
-            # 获取上一个循环的信息
-            # last_cycle = self._cycle_history[-1] if self._cycle_history else None
-
-            with Timer("思考", cycle_timers):
-                # 获取上一个循环的动作
-                # 传递上一个循环的信息给 do_thinking_before_reply
-                current_mind, _past_mind, tool_calls_str = await self.sub_mind.do_thinking_before_reply(
-                    history_cycle=self._cycle_history
-                )
-                if tool_calls_str:
-                    current_mind, _past_mind, tool_calls_str = await self.sub_mind.do_thinking_before_reply(
-                        history_cycle=self._cycle_history, tool_calls_str=tool_calls_str, pass_mind=current_mind
+            with Timer("思考", cycle_timers): # type: ignore
+                # 调用 SubMind，传递 HFC 特有的 history_cycle
+                # 以及可能的 tool_calls_str_param 和 pass_mind_param
+                current_mind_output, _, tool_calls_str_output, _ = \
+                    await self.sub_mind.do_thinking_before_reply(
+                        history_cycle=self._cycle_history, # HFC的循环历史
+                        # PFC参数都为None，因为这是HFC在调用
+                        pfc_done_actions=None,
+                        previous_pfc_thought=None,
+                        retrieved_historical_chat_str_pfc=None,
+                        # HFC工具调用相关的参数
+                        tool_calls_str=tool_calls_str_param,
+                        pass_mind=pass_mind_param
                     )
-                return current_mind
+                return current_mind_output, tool_calls_str_output
+
         except Exception as e:
-            logger.error(f"{self.log_prefix}子心流 思考失败: {e}")
+            logger.error(f"{self.log_prefix}子心流 思考失败: {e}") # type: ignore
             logger.error(traceback.format_exc())
-            return "[思考时出错]"
+            return "[思考时出错]", None
 
     async def _planner(self, current_mind: str, cycle_timers: dict, is_re_planned: bool = False) -> Dict[str, Any]:
         """

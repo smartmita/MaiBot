@@ -24,6 +24,7 @@ from .pfc_utils import get_person_id
 from .reply_checker import ReplyChecker
 from .pfc_relationship import PfcRelationshipUpdater, PfcRepationshipTranslator
 from .pfc_emotion import PfcEmotionUpdater
+from experimental.Legacy_HFC.heart_flow.sub_mind import SubMind
 
 
 if TYPE_CHECKING:
@@ -137,11 +138,51 @@ async def initialize_core_components(conversation_instance: "Conversation"):
     )
 
     try:
-        # 1. 初始化核心功能组件
+        # ===== 步骤 0: 优先初始化Info对象和ChatStream =====
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ObservationInfo...")
+        conversation_instance.observation_info = ObservationInfo(conversation_instance.private_name)
+        if not conversation_instance.observation_info.bot_id:
+            logger.warning(
+                f"[私聊][{conversation_instance.private_name}] (Initializer) ObservationInfo 未能自动获取 bot_id，尝试手动设置。"
+            )
+            conversation_instance.observation_info.bot_id = conversation_instance.bot_qq_str
+
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ConversationInfo...")
+        conversation_instance.conversation_info = ConversationInfo()
+
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取 ChatStream...")
+        # ChatStream 的获取是后续很多组件的基础，也应该尽早
+        chat_stream_instance = chat_manager.get_stream(conversation_instance.stream_id)
+        if not chat_stream_instance:
+            logger.error(
+                f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化错误：无法从 chat_manager 获取 stream_id {conversation_instance.stream_id} 的 ChatStream。"
+            )
+            # 抛出异常，让PFCManager知道初始化失败
+            raise ValueError(f"无法获取 stream_id {conversation_instance.stream_id} 的 ChatStream")
+        conversation_instance.chat_stream = chat_stream_instance
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ChatStream 获取成功。")
+
+
+        # ===== 步骤 1: 初始化核心功能组件 =====
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 SubMind for PFC...")
+        # 现在 conversation_info 和 observation_info 肯定已经存在了
+        conversation_instance.sub_mind_instance_for_pfc = SubMind(
+            subheartflow_id=conversation_instance.stream_id,
+            chat_state=None,
+            observations=None,
+            pfc_conversation_info=conversation_instance.conversation_info,
+            pfc_observation_info=conversation_instance.observation_info,
+            pfc_chat_stream=conversation_instance.chat_stream # 确保 chat_stream 已被正确赋值
+        )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) 为PFC创建的SubMind实例已初始化。")
+        
+        # ActionPlanner 和其他组件的初始化不应该在 SubMind 的 else 分支中
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ActionPlanner...")
         conversation_instance.action_planner = ActionPlanner(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ActionPlanner 初始化完成。")
+
 
         conversation_instance.relationship_updater = PfcRelationshipUpdater(
             private_name=conversation_instance.private_name, bot_name=global_config.bot.nickname
@@ -160,113 +201,95 @@ async def initialize_core_components(conversation_instance: "Conversation"):
         conversation_instance.goal_analyzer = GoalAnalyzer(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) GoalAnalyzer 初始化完成。")
+
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ReplyGenerator...")
         conversation_instance.reply_generator = ReplyGenerator(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ReplyGenerator 初始化完成。")
+
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 Waiter...")
         conversation_instance.waiter = Waiter(conversation_instance.stream_id, conversation_instance.private_name)
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) Waiter 初始化完成。")
+
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 DirectMessageSender...")
         conversation_instance.direct_sender = DirectMessageSender(conversation_instance.private_name)
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) DirectMessageSender 初始化完成。")
+
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ReplyChecker...")
         conversation_instance.reply_checker = ReplyChecker(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ReplyChecker 初始化完成。")
 
-        # 获取关联的 ChatStream
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取 ChatStream...")
-        conversation_instance.chat_stream = chat_manager.get_stream(conversation_instance.stream_id)
-        if not conversation_instance.chat_stream:
-            logger.error(
-                f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化错误：无法从 chat_manager 获取 stream_id {conversation_instance.stream_id} 的 ChatStream。"
-            )
-            raise ValueError(f"无法获取 stream_id {conversation_instance.stream_id} 的 ChatStream")
 
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 IdleChat...")
         conversation_instance.idle_chat = IdleChat.get_instance(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        # IdleManager 的活跃实例计数器更新是必要的
         await IdleManager._global_lock.acquire()
         try:
             IdleManager._global_active_instances_count += 1
             logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已获取并增加活跃计数，当前计数：{IdleManager._global_active_instances_count}")
         finally:
             IdleManager._global_lock.release()
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat 初始化完成。")
 
-        # 2. 初始化信息存储和观察组件
+
+        # ===== 步骤 2: 初始化信息存储和观察组件 =====
         logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取 ChatObserver 实例...")
         conversation_instance.chat_observer = ChatObserver.get_instance(
             conversation_instance.stream_id, conversation_instance.private_name
         )
+        logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ChatObserver 实例获取完成。")
 
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ObservationInfo...")
-        conversation_instance.observation_info = ObservationInfo(conversation_instance.private_name)
-        if not conversation_instance.observation_info.bot_id:  # 确保 ObservationInfo 知道机器人的 ID
-            logger.warning(
-                f"[私聊][{conversation_instance.private_name}] (Initializer) ObservationInfo 未能自动获取 bot_id，尝试手动设置。"
-            )
-            conversation_instance.observation_info.bot_id = conversation_instance.bot_qq_str
 
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化 ConversationInfo...")
-        conversation_instance.conversation_info = ConversationInfo()
-
-        # 3. 绑定观察者和信息处理器
+        # ===== 步骤 3: 绑定观察者和信息处理器 =====
         logger.debug(
             f"[私聊][{conversation_instance.private_name}] (Initializer) 绑定 ObservationInfo 到 ChatObserver..."
         )
-        if conversation_instance.observation_info and conversation_instance.chat_observer:  # 确保二者都存在
+        # 确保 observation_info 和 chat_observer 都存在
+        if conversation_instance.observation_info and conversation_instance.chat_observer:
             conversation_instance.observation_info.bind_to_chat_observer(conversation_instance.chat_observer)
+            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ObservationInfo 绑定 ChatObserver 完成。")
+        else:
+            logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) ObservationInfo 或 ChatObserver 未初始化，无法绑定！")
 
-        # 4. 加载初始聊天记录 (调用本文件内的函数)
-        await load_initial_history(conversation_instance)
 
-        # 4.1 加载用户数据
-        if (
-            conversation_instance.conversation_info and conversation_instance.chat_stream
-        ):  # 确保 conversation_info 和 chat_stream 都存在
+        # ===== 步骤 4: 加载初始聊天记录 =====
+        await load_initial_history(conversation_instance) # 这个函数内部会使用 observation_info
+
+        # ===== 步骤 4.1: 加载用户数据 (person_id, 关系文本, 情绪文本) =====
+        # person_id
+        if conversation_instance.conversation_info and conversation_instance.chat_stream:
             person_id_tuple = await get_person_id(
                 private_name=conversation_instance.private_name,
                 chat_stream=conversation_instance.chat_stream,
             )
-            if person_id_tuple:  # 确保元组不为空
-                conversation_instance.conversation_info.person_id = person_id_tuple[0]  # 第一个元素是 person_id
-                private_platform_str = person_id_tuple[1]
-                private_user_id_str = person_id_tuple[2]
-                logger.debug(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 获取到 person_id: {conversation_instance.conversation_info.person_id} for {private_platform_str}:{private_user_id_str}"
-                )
+            if person_id_tuple:
+                conversation_instance.conversation_info.person_id = person_id_tuple[0]
+                logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 获取到 person_id: {conversation_instance.conversation_info.person_id}")
             else:
-                logger.warning(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 未能从 get_person_id 获取到 person_id 相关信息。"
-                )
-
-        # 5. 启动需要后台运行的组件
-        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 ChatObserver...")
-        if conversation_instance.chat_observer:  # 确保存在
-            conversation_instance.chat_observer.start()
-
-        if conversation_instance.idle_chat:
-            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 IdleChat...")
-            # 不需要再次启动，只需确保已初始化
-            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat实例已初始化")
-
-        if (
-            conversation_instance.conversation_info
-            and conversation_instance.conversation_info.person_id
-            and conversation_instance.relationship_translator
-            and conversation_instance.person_info_mng
-        ):  # 确保都存在
+                logger.warning(f"[私聊][{conversation_instance.private_name}] (Initializer) 未能获取 person_id。")
+        
+        # 关系文本
+        if (conversation_instance.conversation_info and
+            conversation_instance.conversation_info.person_id and
+            conversation_instance.relationship_translator and
+            conversation_instance.person_info_mng):
             try:
                 numeric_relationship_value = await conversation_instance.person_info_mng.get_value(
                     conversation_instance.conversation_info.person_id, "relationship_value"
                 )
+                # ... (处理Decimal128的逻辑不变) ...
                 if not isinstance(numeric_relationship_value, (int, float)):
                     from bson.decimal128 import Decimal128
-
                     if isinstance(numeric_relationship_value, Decimal128):
                         numeric_relationship_value = float(numeric_relationship_value.to_decimal())
                     else:
@@ -276,45 +299,44 @@ async def initialize_core_components(conversation_instance: "Conversation"):
                         numeric_relationship_value
                     )
                 )
-                logger.debug(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载关系文本: {conversation_instance.conversation_info.relationship_text}"
-                )
-            except Exception as e_init_rel:
-                logger.error(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载关系文本出错: {e_init_rel}"
-                )
-                conversation_instance.conversation_info.relationship_text = "你们的关系是：普通。"
+                logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载关系文本: {conversation_instance.conversation_info.relationship_text}")
+            except Exception as e_init_rel: # ... (错误处理不变)
+                logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载关系文本出错: {e_init_rel}")
+                if conversation_instance.conversation_info : conversation_instance.conversation_info.relationship_text = "你们的关系是：普通。"
 
-        if conversation_instance.conversation_info and conversation_instance.mood_mng:  # 确保都存在
+        # 情绪文本
+        if conversation_instance.conversation_info and conversation_instance.mood_mng:
             try:
                 conversation_instance.conversation_info.current_emotion_text = (
                     conversation_instance.mood_mng.get_mood_prompt()
-                )  # type: ignore
-                logger.debug(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}"
                 )
-            except Exception as e_init_emo:
-                logger.error(
-                    f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本出错: {e_init_emo}"
-                )
-                # 保留 ConversationInfo 中的默认值
+                logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本: {conversation_instance.conversation_info.current_emotion_text}")
+            except Exception as e_init_emo: # ... (错误处理不变)
+                logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化时加载情绪文本出错: {e_init_emo}")
 
-        # 6. 标记初始化成功并设置运行状态 (这些标志由PFCManager控制和检查)
-        # conversation_instance._initialized = True -> 由 manager 设置
-        # conversation_instance.should_continue = True -> 由 manager 设置
-        conversation_instance.state = ConversationState.ANALYZING  # 设置初始状态为分析
 
+        # ===== 步骤 5: 启动需要后台运行的组件 =====
+        logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) 启动 ChatObserver...")
+        if conversation_instance.chat_observer:
+            conversation_instance.chat_observer.start() # ChatObserver 需要启动其内部循环
+            logger.info(f"[私聊][{conversation_instance.private_name}] (Initializer) ChatObserver 已启动。")
+
+
+        # IdleChat 实例在 get_instance 时如果不存在会被创建，其全局检查循环由 IdleManager 统一管理启动
+        # 此处不需要单独启动 IdleChat 的某个循环
+        if conversation_instance.idle_chat:
+            logger.debug(f"[私聊][{conversation_instance.private_name}] (Initializer) IdleChat 实例已通过 get_instance 获取/创建。")
+
+
+        # ===== 步骤 6: 设置最终状态 =====
+        conversation_instance.state = ConversationState.ANALYZING # 设置初始状态为分析
         logger.info(
-            f"[私聊][{conversation_instance.private_name}] (Initializer) 对话实例 {conversation_instance.stream_id} 核心组件初始化完成。"
+            f"[私聊][{conversation_instance.private_name}] (Initializer) 对话实例 {conversation_instance.stream_id} 核心组件初始化完成，状态设为 ANALYZING。"
         )
 
+    except ValueError as ve: # 捕获 ValueError (例如 get_stream 失败)
+        logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化对话实例核心组件时发生值错误: {ve}", exc_info=True)
+        raise # 重新抛出，让PFCManager知道初始化失败
     except Exception as e:
-        logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化对话实例核心组件失败: {e}")
-        logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) {traceback.format_exc()}")
-        # conversation_instance.should_continue = False # 由 manager 处理
-        # conversation_instance._initialized = False # 由 manager 处理
-        # 外部（PFCManager）会捕获这个异常并处理 should_continue 和 _initialized 标志
-        # 以及调用 conversation_instance.stop()
-        raise  # 将异常重新抛出，通知 PFCManager 初始化失败
-    # finally:
-    # conversation_instance._initializing_flag_from_manager = False # 清除标志
+        logger.error(f"[私聊][{conversation_instance.private_name}] (Initializer) 初始化对话实例核心组件时发生未知错误: {e}", exc_info=True)
+        raise # 重新抛出，让PFCManager知道初始化失败

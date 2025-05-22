@@ -13,7 +13,7 @@ from src.manager.mood_manager import mood_manager
 
 from .pfc_relationship import PfcRelationshipUpdater, PfcRepationshipTranslator
 from .pfc_emotion import PfcEmotionUpdater
-
+from experimental.Legacy_HFC.heart_flow.sub_mind import SubMind 
 # 导入 PFC 内部组件和类型
 from .pfc_types import ConversationState
 from .pfc import GoalAnalyzer

@@ -24,6 +24,8 @@ PROMPT_INITIAL_REPLY = """
 
 【当前对话目标】
 {goals_str}
+【{persona_text}的内心想法】
+{pfc_submind_thought_for_prompt}
 【最近行动历史概要】
 {action_history_summary}
 【上一次行动的详细情况和结果】
@@ -62,6 +64,8 @@ PROMPT_FOLLOW_UP = """
 
 【当前对话目标】
 {goals_str}
+【{persona_text}的内心想法】
+{pfc_submind_thought_for_prompt}
 【最近行动历史概要】
 {action_history_summary}
 【上一次行动的详细情况和结果】
@@ -123,6 +127,8 @@ PROMPT_REFLECT_AND_ACT = """
 
 【当前对话目标】
 {goals_str}
+【{persona_text}的内心想法】
+{pfc_submind_thought_for_prompt}
 【最近行动历史概要】
 {action_history_summary}
 【上一次行动的详细情况和结果】
@@ -160,6 +166,8 @@ PROMPT_AFTER_WAIT_TIMEOUT = """
 
 【当前对话目标】(请注意其中是否有因为等待超时而产生的目标)
 {goals_str}
+【{persona_text}的内心想法】
+{pfc_submind_thought_for_prompt}
 【最近行动历史概要】
 {action_history_summary}
 【上一次行动的详细情况和结果】(上一个行动是 'wait' 且已超时)
@@ -248,6 +256,24 @@ class ActionPlanner:
         log_msg: str = "" # 初始化
         format_params: Dict[str, Any] = {} # 初始化
 
+        pfc_submind_thought_for_prompt_val = "你此刻没有特别的内心想法。"
+        if conversation_info.current_pfc_thought:
+            pfc_submind_thought_for_prompt_val = conversation_info.current_pfc_thought
+
+        pfc_structured_info_for_prompt_val = "没有可供参考的结构化信息。"
+        if conversation_info.pfc_structured_info:
+            # 需要将 pfc_structured_info (字典) 格式化为适合Prompt的字符串
+            # 这与 SubMind 内部的 _update_structured_info_str 类似，但可能格式不同
+            # 简单实现：
+            struct_parts = []
+            for key, item_dict in conversation_info.pfc_structured_info.items():
+                if isinstance(item_dict, dict): # 确保是字典
+                    item_type = item_dict.get("type", "信息")
+                    item_content = item_dict.get("content", "")
+                    struct_parts.append(f"- ({item_type}): {item_content}")
+            if struct_parts:
+                pfc_structured_info_for_prompt_val = "\n".join(struct_parts)
+
         # --- 修改 Prompt 选择逻辑 ---
         if conversation_info.wait_has_timed_out and conversation_info.last_wait_duration_minutes is not None:
             prompt_template = PROMPT_AFTER_WAIT_TIMEOUT
@@ -263,6 +289,8 @@ class ActionPlanner:
                 "relationship_text": relationship_text_str,
                 "current_emotion_text": current_emotion_text_str,
                 "last_wait_duration_minutes": conversation_info.last_wait_duration_minutes, # <--- 传入等待时长
+                "pfc_submind_thought_for_prompt": pfc_submind_thought_for_prompt_val,
+            "pfc_structured_info_for_prompt": pfc_structured_info_for_prompt_val,
             }
             # 使用后重置标志，避免下次循环依然错误地进入此逻辑
             # conversation_info.wait_has_timed_out = False # 这个重置应该在 ActionPlanner 外部，例如 loop 确认这个状态被处理后再重置，或者 ActionHandler 处理完对应动作后重置。暂时先放在这里。
@@ -297,6 +325,8 @@ class ActionPlanner:
                 "sender_name": sender_name_str,
                 "relationship_text": relationship_text_str,
                 "current_emotion_text": current_emotion_text_str,
+                "pfc_submind_thought_for_prompt": pfc_submind_thought_for_prompt_val,
+                "pfc_structured_info_for_prompt": pfc_structured_info_for_prompt_val,
             }
         # --- Prompt 选择逻辑结束 ---
 
