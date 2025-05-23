@@ -435,7 +435,7 @@ class ProfileConfig(ConfigBase):
     min_sobriquet_strength_for_prompt_injection: float = 10
     """绰号应用最低映射强度阈值"""
 
-    sobriquet_event_decay_factor: float = 0.1
+    sobriquet_event_decay_value: float = 0.1
     """绰号映射强度衰减因子"""
 
     unreliable_sobriquet_decay_factor: float = 0.1
