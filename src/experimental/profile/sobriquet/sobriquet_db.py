@@ -302,7 +302,13 @@ class SobriquetDB:
 
                         for nick_entry in current_sobriquets_in_group: # nick_entry 保持，指代单个绰号条目
                             original_strength = float(nick_entry.get("strength", 0.0))
-                            if original_strength > 0.0:
+                            if original_strength > 10.0:
+                                new_strength = max(10.0, original_strength - decay_value)
+                                if new_strength < original_strength:
+                                    total_nicknames_decayed_count += 1
+                                    group_entry_modified_locally = True
+                                new_sobriquets_for_this_group_entry.append({"name": nick_entry["name"], "strength": new_strength})
+                            elif original_strength > 0.0:
                                 new_strength = max(0.0, original_strength - decay_value)
                                 if new_strength < original_strength:
                                     total_nicknames_decayed_count += 1
