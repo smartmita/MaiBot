@@ -204,7 +204,7 @@ sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒）�
 sobriquet_analysis_history_limit = 30  # 绰号处理可见最大上下文
 sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
 min_sobriquet_strength_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
-sobriquet_event_decay_value = 0.1  # 绰号映射强度自然衰减因子，衰减因子淫荡大于等于 0 ，减法，0 为不自然衰减
+sobriquet_event_decay_value = 0.1  # 绰号映射强度自然衰减因子，衰减因子应当大于等于 0 ，减法，0 为不自然衰减
 unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判，因此需要让llm拥有一定的自纠正能力）
 reliable_mapping_strength_increment = 5.0  # 绰号可靠映射强度增量
 
