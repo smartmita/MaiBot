@@ -117,9 +117,9 @@ def format_user_info_prompt(
 
     prompt_lines = ["以下是聊天记录中存在的对象的信息，与聊天记录中的 uid 一一映射，供你参考："]
 
-    # 构建 user_id 到其群内常用绰号字符串列表的映射 (这部分逻辑不变)
+    # 构建 user_id 到其群内常用绰号字符串列表的映射
     group_nicknames_map_by_uid: Dict[str, List[str]] = {}
-    if selected_group_nicknames: # 只有提供了 selected_group_nicknames 时才处理
+    if is_group_chat and selected_group_nicknames: # 仅群聊且有选择的绰号时处理
         for _actual_nick_key, u_id, group_nickname_str, _count in selected_group_nicknames:
             if u_id not in group_nicknames_map_by_uid:
                 group_nicknames_map_by_uid[u_id] = []
@@ -128,36 +128,35 @@ def format_user_info_prompt(
     for user_data in users_data_with_extras:
         user_id = user_data.get("user_id")
         actual_nickname = user_data.get("actual_nickname")
+        gender_mark = user_data.get("gender_mark", "未知") # 获取性别信息
 
-        if not user_id or actual_nickname is None: # actual_nickname 可以是空字符串，但不应是None
+        if not user_id or actual_nickname is None:
             logger.warning(f"format_user_info_prompt 跳过无效用户数据: {user_data}")
             continue
 
-        if user_id == global_config.bot.qq_account: # 对机器人本身的特殊处理
-            line = f"uid:{user_id}，这是你，你的昵称为“{actual_nickname}”"
+        # 机器人自身的性别应该从其 IdentityConfig 获取，而不是标记
+        if user_id == global_config.bot.qq_account:
+            bot_gender_from_config = global_config.identity.gender # 获取机器人配置的性别
+            line = f"uid:{user_id}，这是你，你的昵称为“{actual_nickname}”，性别为“{bot_gender_from_config}”"
         else:
-            line = f"uid:{user_id}，用户昵称为“{actual_nickname}”"
+            line = f"uid:{user_id}，用户昵称为“{actual_nickname}”，性别为“{gender_mark}”" # 加入性别
 
-        # 处理群名片和群头衔 (仅群聊)
-        if is_group_chat:
+        if is_group_chat: # 群相关信息只在群聊中添加
             group_cardname = user_data.get("group_cardname")
             group_titlename = user_data.get("group_titlename")
-
-            if group_cardname: # 如果存在群名片
+            if group_cardname:
                 line += f"，在本群的群名片为“{group_cardname}”"
-
-            if group_titlename: # 如果存在群头衔
+            if group_titlename: # 群头衔
                 line += f"，群特殊头衔为“{group_titlename}”"
 
-        # 处理群内常用绰号 (原有逻辑，但现在依赖 is_group_chat 和 selected_group_nicknames)
-        # 确保 selected_group_nicknames 只有在群聊且功能启用时才应被传入并处理
-        if is_group_chat and selected_group_nicknames and user_id in group_nicknames_map_by_uid:
-            group_nicknames_str_joined = "、".join(group_nicknames_map_by_uid[user_id])
-            line += f"，ta 在本群常被称为：{group_nicknames_str_joined}"
+            # 添加群内常用绰号
+            if selected_group_nicknames and user_id in group_nicknames_map_by_uid:
+                group_nicknames_str_joined = "、".join(group_nicknames_map_by_uid[user_id])
+                line += f"，ta 在本群常被称为：{group_nicknames_str_joined}"
 
         prompt_lines.append(line)
 
-    if len(prompt_lines) > 1: # 确保除了标题行还有其他内容
+    if len(prompt_lines) > 1:
         return "\n".join(prompt_lines) + "\n"
     else:
         return ""

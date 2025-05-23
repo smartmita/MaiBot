@@ -369,6 +369,12 @@ class ExperimentalConfig(ConfigBase):
     enable_always_relative_history: bool = False
     """聊天记录总是使用 relative 模式"""
 
+    force_rethink_tool_list: list[str] = field(default_factory=lambda: ["search_knowledge", "get_memory","lpmm_search_knowledge"])
+    """调用后进行二次思考的工具名称列表"""
+
+    enable_gender_marking_tool: bool = True
+    """是否启用性别标记工具及其在Prompt中的显示"""
+
 
 @dataclass
 class ScheduleConfig(ConfigBase):
