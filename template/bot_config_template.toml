@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.8"
+version = "2.0.0.9"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -134,6 +134,9 @@ sobriquet_queue_max_size = 100  # 绰号处理队列最大容量
 sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒），不建议超过5，否则大概率导致结束过程中超时
 sobriquet_analysis_history_limit = 30  # 绰号处理可见最大上下文
 sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
+min_sobriquet_count_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
+sobriquet_event_decay_factor = 0.98  # 绰号映射强度自然衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为默认不自然衰减，0 为直接清零
+unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判）
 
 [memory]
 memory_build_interval = 2000 # 记忆构建间隔 单位秒   间隔越低，bot学习越多，但是冗余信息也会增多

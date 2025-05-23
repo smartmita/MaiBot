@@ -1,50 +1,57 @@
 import random
 from typing import List, Dict, Tuple, Any, Optional
 from src.common.logger_manager import get_logger
-from src.config.config import global_config
+from src.config.config import global_config # 假设 global_config 已能正确加载配置
 
+logger = get_logger("sobriquet_utils") # 获取日志记录器实例
 
-logger = get_logger("sobriquet_utils") # 日志记录器名称更新
-
-
-def select_sobriquets_for_prompt( # 函数名更新
-    all_sobriquets_info_by_actual_name: Dict[str, Dict[str, Any]] # 参数名更新以反映键和值的含义
+def select_sobriquets_for_prompt( 
+    all_sobriquets_info_by_actual_name: Dict[str, Dict[str, Any]] 
 ) -> List[Tuple[str, str, str, int]]:
     """
     从给定的绰号信息中，根据映射次数加权随机选择最多 N 个绰号用于 Prompt。
 
     Args:
-        all_sobriquets_info_by_actual_name: 包含用户及其绰号和 UID 信息的字典，格式为
-                        { "用户实际昵称1": {"user_id": "uid1", "nicknames": [{"绰号A": 次数}, ...]}, ... }
-                        注意：这里的键是用户的实际昵称。 'nicknames' 仍为数据库中对应的key，代表群内常用绰号列表。
+        all_sobriquets_info_by_actual_name: 包含用户及其绰号和 UID 信息的字典。
+            结构示例: { 
+                "用户实际昵称1": {
+                    "user_id": "uid1", 
+                    "nicknames": [{"绰号A": 次数1}, {"绰号B": 次数2}, ...] 
+                }, ... 
+            }
+            注意：'nicknames' 键对应的值是从数据库中来的群内常用绰号列表及其计数。
 
     Returns:
-        List[Tuple[str, str, str, int]]: 选中的绰号列表，每个元素为 (用户实际昵称, user_id, 群内常用绰号, 次数)。
-                                    按次数降序排序。
+        选中的绰号列表，每个元素为 (用户实际昵称, user_id, 群内常用绰号, 次数)。
+        列表会按次数降序排序。
     """
-    if not all_sobriquets_info_by_actual_name:
+    if not all_sobriquets_info_by_actual_name: # 如果输入为空，直接返回空列表
         return []
 
-    candidates = []  # 存储 (用户实际昵称, user_id, 群内常用绰号, 次数, 权重)
-    # global_config.profile... 配置路径不变
+    candidates: List[Tuple[str, str, str, int, float]] = []  # 存储候选绰号及其相关信息：(用户实际昵称, user_id, 群内常用绰号, 次数, 权重)
+    
+    # 从全局配置中获取平滑因子，用于调整选择概率，避免计数低的绰号完全没有机会被选中
     smoothing_factor = global_config.profile.sobriquet_probability_smoothing
 
-    for user_actual_name, data in all_sobriquets_info_by_actual_name.items(): # 变量名更新
-        user_id = data.get("user_id")
-        # 'nicknames' 是从数据库结构中来的key，代表群内常用绰号列表
-        sobriquets_list = data.get("nicknames") # 变量名更新
+    # 遍历每个用户（以其实际昵称为键）的绰号信息
+    for user_actual_name, data in all_sobriquets_info_by_actual_name.items():
+        user_id = data.get("user_id") # 获取用户ID
+        sobriquets_list = data.get("nicknames") # 获取该用户的绰号列表（原始数据库结构）
 
+        # 数据有效性检查
         if not user_id or not isinstance(sobriquets_list, list):
-            logger.warning(f"用户实际昵称 '{user_actual_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。 Data: {data}")
+            logger.warning(f"用户实际昵称 '{user_actual_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。数据: {data}")
             continue
 
-        for sobriquet_entry in sobriquets_list: # 变量名更新
-            # sobriquet_entry 的结构是 {"绰号名": 次数}
+        # 遍历该用户的每个绰号条目
+        for sobriquet_entry in sobriquets_list:
+            # 绰号条目通常是 {"绰号名": 次数} 格式的字典
             if isinstance(sobriquet_entry, dict) and len(sobriquet_entry) == 1:
-                group_sobriquet_str, count = list(sobriquet_entry.items())[0] # 变量名更新
+                group_sobriquet_str, count = list(sobriquet_entry.items())[0] # 提取绰号名和次数
+                # 进一步校验绰号名和次数的有效性
                 if isinstance(count, int) and count > 0 and isinstance(group_sobriquet_str, str) and group_sobriquet_str:
-                    weight = count + smoothing_factor
-                    candidates.append((user_actual_name, user_id, group_sobriquet_str, count, weight)) # 变量名更新
+                    weight = count + smoothing_factor # 计算权重（次数 + 平滑因子）
+                    candidates.append((user_actual_name, user_id, group_sobriquet_str, count, weight))
                 else:
                     logger.warning(
                         f"用户实际昵称 '{user_actual_name}' (UID: {user_id}) 的群内常用绰号条目无效: {sobriquet_entry}。已跳过。"
@@ -52,90 +59,101 @@ def select_sobriquets_for_prompt( # 函数名更新
             else:
                 logger.warning(f"用户实际昵称 '{user_actual_name}' (UID: {user_id}) 的群内常用绰号条目格式无效: {sobriquet_entry}。已跳过。")
 
-
-    if not candidates:
+    if not candidates: # 如果没有有效的候选绰号，返回空列表
         return []
 
-    # global_config.profile... 配置路径不变
-    max_sobriquets = global_config.profile.max_sobriquets_in_prompt # 变量名更新
-    if max_sobriquets == 0:
-        logger.warning("max_nicknames_in_prompt 配置为0，不选择任何绰号。")
+    # 从配置中获取在Prompt中允许的最大绰号数量
+    max_sobriquets_in_prompt = global_config.profile.max_sobriquets_in_prompt
+    if max_sobriquets_in_prompt == 0: # 如果配置为0，则不选择任何绰号
+        logger.warning("配置项 max_sobriquets_in_prompt 为0，不选择任何绰号。")
         return []
 
-    num_to_select = min(max_sobriquets, len(candidates))
+    # 确定实际需要选择的绰号数量（不超过候选总数和配置上限）
+    num_to_select = min(max_sobriquets_in_prompt, len(candidates))
 
+    selected_candidates_with_weight: List[Tuple[str, str, str, int, float]]
     try:
+        # 执行加权随机抽样（不重复）
         selected_candidates_with_weight = weighted_sample_without_replacement(candidates, num_to_select)
 
+        # 如果加权抽样选出的数量不足，尝试用计数最高者补充
         if len(selected_candidates_with_weight) < num_to_select:
             logger.debug(
                 f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，尝试补充选择次数最多的。"
             )
-            selected_ids = set(
-                (c[0], c[1], c[2]) for c in selected_candidates_with_weight
+            # 找出已选中的，避免重复
+            selected_ids_set = set(
+                (c[0], c[1], c[2]) for c in selected_candidates_with_weight # (实际昵称, uid, 绰号) 作为唯一标识
             )
-            remaining_candidates = [c for c in candidates if (c[0], c[1], c[2]) not in selected_ids]
-            remaining_candidates.sort(key=lambda x: x[3], reverse=True)
-            needed = num_to_select - len(selected_candidates_with_weight)
-            selected_candidates_with_weight.extend(remaining_candidates[:needed])
+            # 筛选出未被选中的候选者
+            remaining_candidates = [c for c in candidates if (c[0], c[1], c[2]) not in selected_ids_set]
+            remaining_candidates.sort(key=lambda x: x[3], reverse=True) # 按原始次数降序排序
+            needed_to_fill = num_to_select - len(selected_candidates_with_weight) # 计算还需补充的数量
+            selected_candidates_with_weight.extend(remaining_candidates[:needed_to_fill]) # 添加补充
 
-    except Exception as e:
+    except Exception as e: # 如果抽样过程中发生错误
         logger.error(f"绰号加权随机选择时出错: {e}。将回退到选择次数最多的 Top N。", exc_info=True)
-        candidates.sort(key=lambda x: x[3], reverse=True)
-        selected_candidates_with_weight = candidates[:num_to_select]
+        candidates.sort(key=lambda x: x[3], reverse=True) # 按原始次数降序排序
+        selected_candidates_with_weight = candidates[:num_to_select] # 直接取次数最高的N个
 
-    result = [(user, uid, sobriquet, count) for user, uid, sobriquet, count, _weight in selected_candidates_with_weight] # 变量名更新
+    # 格式化输出结果，移除权重信息，只保留 (用户实际昵称, user_id, 绰号, 次数)
+    result = [(user, uid, sobriquet, count) for user, uid, sobriquet, count, _weight in selected_candidates_with_weight]
 
-    result.sort(key=lambda x: x[3], reverse=True)
+    result.sort(key=lambda x: x[3], reverse=True) # 最终结果按次数降序排序
 
     logger.debug(f"为 Prompt 选择的绰号 (含UID): {result}")
     return result
 
 
 def weighted_sample_without_replacement(
-    candidates: List[Tuple[Any, ...]], # 保持通用性，因为此函数可能被其他地方使用
+    candidates: List[Tuple[Any, ...]], 
     k: int
 ) -> List[Tuple[Any, ...]]:
     """
     执行不重复的加权随机抽样。使用 A-ExpJ 算法思想的简化实现。
-    假设候选列表的最后一个元素是权重。
+    假设候选列表的每个元组的最后一个元素是其权重。
+
     Args:
-        candidates: 候选列表，每个元组的最后一个元素应为权重。
-                    例如: (item_data1, item_data2, ..., weight)。
+        candidates: 候选列表，每个元组的格式应为 (数据1, 数据2, ..., 权重)。
         k: 需要选择的数量。
 
     Returns:
-        List[Tuple[Any, ...]]: 选中的元素列表（包含权重）。
+        选中的元素列表（保持原始元组结构，包含权重）。
     """
-    if k <= 0:
+    if k <= 0: # 如果选择数量无效，返回空
         return []
-    n = len(candidates)
-    if k >= n:
-        return candidates[:]
+    n = len(candidates) # 候选者总数
+    if k >= n: # 如果要选择的数量大于等于总数，则返回所有候选者
+        return candidates[:] 
 
-    weighted_keys = []
+    weighted_keys: List[Tuple[float, int]] = [] # 存储 (计算出的排序键, 原始索引)
     for i in range(n):
         candidate_item = candidates[i]
-        weight = candidate_item[-1] # 假设权重是元组的最后一个元素
-        
-        if not isinstance(weight, (int, float)):
-            logger.error(f"加权抽样时候选者 {candidate_item} 的权重格式不正确: {weight}。跳过此候选者。")
+        try:
+            weight = float(candidate_item[-1]) # 假设权重是元组的最后一个元素，并尝试转为浮点数
+        except (TypeError, ValueError, IndexError): # 处理权重无效或不存在的情况
+            logger.error(f"加权抽样时，候选者 {candidate_item} 的权重格式不正确或缺失。跳过此候选者。")
             continue
 
-        if weight <= 0:
-            log_key = float("-inf") 
+        if weight <= 0: # 如果权重非正，给予极低的选中概率
+            log_key = float("-inf") # 负无穷使得其排序时几乎总是在最后
             logger.warning(f"候选者 {str(candidate_item[:-1])} 的权重为非正数 ({weight})，抽中概率极低。")
         else:
-            log_u = -random.expovariate(1.0)
-            log_key = log_u / weight
-        weighted_keys.append((log_key, i))
+            # A-ExpJ 算法核心思想：为每个项目生成一个 key = U^(1/w)，其中 U 是 (0,1) 上的随机数，w 是权重。
+            # 或者等效地，key = exp(log(U)/w)。由于 log(U) 通常是负数，所以权重越大，key 越接近1（或0，取决于实现）。
+            # 这里使用 expovariate(1.0) 生成一个均值为1的指数分布随机数 R，然后 key = -R/w。
+            # -R 是负数，所以权重 w 越大，key 越接近0（即越大）。
+            log_u = -random.expovariate(1.0) # 生成标准指数分布的负值，模拟优先级
+            log_key = log_u / weight # 权重越大，log_key 越接近0（因为 log_u 是负数）
+        weighted_keys.append((log_key, i)) # 存储计算出的键和原始索引
 
+    # 按计算出的键值降序排序，键值越大（越接近0）的优先级越高
     weighted_keys.sort(key=lambda x: x[0], reverse=True)
     
+    # 选择排序后的前 k 个元素的原始索引
     selected_indices = [index for _log_key, index in weighted_keys[:k]]
     
+    # 根据选中的索引获取原始候选项目
     selected_items = [candidates[i] for i in selected_indices]
 
     return selected_items
-
-# 原 format_user_info_prompt 函数已移至 profile_utils.py 并重构为 format_profile_prompt_injection
