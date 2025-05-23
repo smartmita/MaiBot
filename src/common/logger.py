@@ -12,7 +12,14 @@ env_path = Path(os.getcwd()) / ".env"
 load_dotenv(dotenv_path=env_path)
 
 # logger 显示昵称
-bot_nickname = "麦麦"
+# 从环境变量 BOT_LOG_NICKNAME 读取，如果未设置或为空，则默认为 "bot"
+bot_nickname_from_env = os.getenv("BOT_LOG_NICKNAME", "bot").strip()
+if not bot_nickname_from_env:
+    bot_nickname = "bot"
+    print("BOT_LOG_NICKNAME 环境变量为空或未设置，日志昵称将使用默认值: bot") # 可以替换为早期日志记录
+else:
+    bot_nickname = bot_nickname_from_env
+    print(f"日志昵称已从环境变量配置为: {bot_nickname}") # 可以替换为早期日志记录
 
 # 保存原生处理器ID
 default_handler_id = None
