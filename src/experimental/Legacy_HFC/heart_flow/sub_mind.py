@@ -35,9 +35,9 @@ def init_prompt():
     <personality_profile>{prompt_personality}</personality_profile>
 </identity>
 
-<group_nicknames>
+<profile_info>
 {profile_info}
-</group_nicknames>
+</profile_info>
 
 <knowledge_base>
     <structured_information>{extra_info}</structured_information>

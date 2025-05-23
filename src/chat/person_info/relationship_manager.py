@@ -183,7 +183,7 @@ class RelationshipManager:
                     "_id": 0,
                     "person_id": 1,
                     "nickname": 1,
-                    "group_sobriquets": 1,  # 修改字段名: group_nicknames -> group_sobriquets
+                    "group_sobriquets": 1,
                     "user_id": 1
                 },
             )
@@ -209,7 +209,6 @@ class RelationshipManager:
                     )
                     continue
 
-                # 修改字段名: group_nicknames -> group_sobriquets
                 group_sobriquets_list_from_doc = doc.get("group_sobriquets", [])
                 target_group_sobriquets_raw = []
 
