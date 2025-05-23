@@ -206,6 +206,7 @@ sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大�
 min_sobriquet_count_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
 sobriquet_event_decay_factor = 0.1  # 绰号映射强度自然衰减因子，衰减因子淫荡大于等于 0 ，减法，0 为不自然衰减
 unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判）
+reliable_mapping_strength_increment = 1.0  # 绰号可靠映射强度增量
 
 [pfc]
 enable = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
