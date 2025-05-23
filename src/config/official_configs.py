@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any
 
+from matplotlib.backend_tools import ToolBack
+
 from src.config.config_base import ConfigBase
 
 """
@@ -403,28 +405,31 @@ class ScheduleConfig(ConfigBase):
 
 
 @dataclass
-class GroupNicknameConfig(ConfigBase):
-    """绰号处理系统配置类"""
+class ProfileConfig(ConfigBase):
+    """侧写系统配置类"""
 
-    enable_nickname_mapping: bool = False
+    profile_system_enabled: bool = True
+    """侧写系统总开关"""
+
+    enable_sobriquet_mapping: bool = False
     """绰号映射功能总开关"""
 
-    max_nicknames_in_prompt: int = 10
+    max_sobriquets_in_prompt: int = 10
     """Prompt 中最多注入的绰号数量"""
 
-    nickname_probability_smoothing: int = 1
+    sobriquet_probability_smoothing: int = 1
     """绰号加权随机选择的平滑因子"""
 
-    nickname_queue_max_size: int = 100
+    sobriquet_queue_max_size: int = 100
     """绰号处理队列最大容量"""
 
-    nickname_process_sleep_interval: float = 5.0
+    sobriquet_process_sleep_interval: float = 5.0
     """绰号处理进程休眠间隔（秒）"""
 
-    nickname_analysis_history_limit: int = 30
+    sobriquet_analysis_history_limit: int = 30
     """绰号处理可见最大上下文"""
 
-    nickname_analysis_probability: float = 0.1
+    sobriquet_analysis_probability: float = 0.1
     """绰号随机概率命中"""
 
 

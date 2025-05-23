@@ -40,7 +40,7 @@ class ProfileManager:
                 return
             logger.info("正在初始化 ProfileManager 组件...")
             # ProfileManager 本身可以有一个总开关，或者依赖于子模块的开关
-            self.is_enabled = global_config.get("profile_system_enabled", True) # 假设一个总开关
+            self.is_enabled = global_config.profile.profile_system_enabled
 
             # 这里可以初始化其他依赖，如果 ProfileManager 需要管理更多类型的画像信息
             # sobriquet_manager 已经是单例，在导入时创建/获取

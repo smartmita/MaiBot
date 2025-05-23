@@ -32,7 +32,7 @@ from src.config.official_configs import (
     PFCConfig,
     ModelConfig,
     ScheduleConfig,
-    GroupNicknameConfig
+    ProfileConfig
 )
 
 install(extra_lines=3)
@@ -160,7 +160,7 @@ class Config(ConfigBase):
     pfc: PFCConfig
     model: ModelConfig
     schedule: ScheduleConfig
-    group_nickname: GroupNicknameConfig
+    profile: ProfileConfig
 
 
 def load_config(config_path: str) -> Config:
