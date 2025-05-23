@@ -992,6 +992,8 @@ class HeartFChatting:
                 # 直接使用默认动作返回错误结果
                 action = "no_reply"  # 明确设置为默认值
                 emoji_query = ""  # 明确设置为空
+                at_user = ""
+                poke_user = ""
                 # 不再立即返回，而是继续执行 finally 块以恢复动作
                 # return { ... }
 
