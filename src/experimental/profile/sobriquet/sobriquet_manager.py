@@ -454,7 +454,7 @@ class SobriquetManager:
             return {}
 
         prompt = build_sobriquet_mapping_prompt(chat_history_str, bot_reply, existing_sobriquets_str)
-        logger.debug(f"构建的绰号映射 Prompt (部分):\n{prompt[:400]}...")
+        logger.debug(f"构建的绰号映射 Prompt :\n{prompt}...")
 
         try:
             response_content, _, _ = await self.llm_mapper.generate_response(prompt)

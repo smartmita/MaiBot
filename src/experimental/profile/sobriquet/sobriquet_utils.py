@@ -42,7 +42,7 @@ def select_sobriquets_for_prompt(
 
         # 数据有效性检查
         if not user_id or not isinstance(sobriquets_list, list):
-            logger.warning(f"用户实际昵称 '{user_actual_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。数据: {data}")
+            logger.debug(f"用户实际昵称 '{user_actual_name}' 的数据格式无效或缺少 user_id/nicknames。已跳过。数据: {data}")
             continue
 
         # 遍历该用户的每个绰号条目
