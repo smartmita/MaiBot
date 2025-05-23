@@ -191,9 +191,9 @@ class SobriquetManager: # 类名更新
             return
 
         # nickname_analysis_probability 配置键名不变
-        # if random.random() > global_config.profile.sobriquet_analysis_probability:
-        #     logger.debug("跳过绰号分析：随机概率未命中。")
-        #     return
+        if random.random() > global_config.profile.sobriquet_analysis_probability:
+            logger.debug("跳过绰号分析：随机概率未命中。")
+            return
 
         current_chat_stream = chat_stream or anchor_message.chat_stream
         if not current_chat_stream or not current_chat_stream.group_info:
