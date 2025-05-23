@@ -553,7 +553,7 @@ class ModelConfig(ConfigBase):
     tool_use: dict[str, Any] = field(default_factory=lambda: {})
     """工具使用模型配置"""
 
-    nickname_mapping: dict[str, Any] = field(default_factory=lambda: {})
+    sobriquet_mapping: dict[str, Any] = field(default_factory=lambda: {})
     """绰号映射LLM配置"""
 
     schedule_initial_generator: dict[str, Any] = field(default_factory=lambda: {}) # 替代 scheduler_all

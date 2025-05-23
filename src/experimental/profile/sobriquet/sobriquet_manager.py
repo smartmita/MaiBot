@@ -107,7 +107,7 @@ class SobriquetManager: # 类名更新
             if self.is_analysis_enabled:
                 try:
                     # nickname_mapping 模型配置键名保持不变
-                    model_config = global_config.model.nickname_mapping
+                    model_config = global_config.model.sobriquet_mapping
                     if model_config and model_config.get("name"):
                         self.llm_mapper = LLMRequest(
                             model=model_config,
@@ -191,9 +191,9 @@ class SobriquetManager: # 类名更新
             return
 
         # nickname_analysis_probability 配置键名不变
-        if random.random() > global_config.group_nickname.nickname_analysis_probability:
-            logger.debug("跳过绰号分析：随机概率未命中。")
-            return
+        # if random.random() > global_config.group_nickname.nickname_analysis_probability:
+        #     logger.debug("跳过绰号分析：随机概率未命中。")
+        #     return
 
         current_chat_stream = chat_stream or anchor_message.chat_stream
         if not current_chat_stream or not current_chat_stream.group_info:
