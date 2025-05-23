@@ -367,8 +367,8 @@ class NicknameManager:
 
     async def _analyze_and_update_nicknames(self, item: tuple):
         """处理单个队列项目：调用 LLM 分析并更新数据库。"""
-        if not isinstance(item, tuple) or len(item) != 5:
-            logger.warning(f"从队列接收到无效项目: {type(item)}")
+        if not isinstance(item, tuple) or len(item) != 4:
+            logger.warning(f"从队列接收到无效项目: {type(item)}, 期望长度 4 但得到 {len(item) if isinstance(item, tuple) else '非元组'}")
             return
 
         chat_history_str, bot_reply, platform, group_id = item
