@@ -123,21 +123,6 @@ steal_emoji = true # 是否偷取表情包，让bot可以发送她保存的这�
 content_filtration = false  # 是否启用表情包过滤，只有符合该要求的表情包才会被保存
 filtration_prompt = "符合公序良俗" # 表情包过滤要求，只有符合该要求的表情包才会被保存
 
-[profile]
-profile_system_enabled = true  # 侧写系统总开关
-
-# 绰号模块
-enable_sobriquet_mapping = false  # 绰号映射功能总开关（默认关闭，建议关闭）
-max_sobriquets_in_prompt = 10  # Prompt 中最多注入的绰号数量（防止token数量爆炸）
-sobriquet_probability_smoothing = 1  # 绰号加权随机选择的平滑因子
-sobriquet_queue_max_size = 100  # 绰号处理队列最大容量
-sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒），不建议超过5，否则大概率导致结束过程中超时
-sobriquet_analysis_history_limit = 30  # 绰号处理可见最大上下文
-sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
-min_sobriquet_count_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
-sobriquet_event_decay_factor = 0.1  # 绰号映射强度自然衰减因子，衰减因子淫荡大于等于 0 ，减法，0 为不自然衰减
-unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判）
-
 [memory]
 memory_build_interval = 2000 # 记忆构建间隔 单位秒   间隔越低，bot学习越多，但是冗余信息也会增多
 memory_build_distribution = [6.0, 3.0, 0.6, 32.0, 12.0, 0.4] # 记忆构建分布，参数：分布1均值，标准差，权重，分布2均值，标准差，权重
@@ -206,6 +191,21 @@ api_polling_max_retries = 3  # 神秘小功能
 enable_always_relative_history = false # 聊天记录总是使用 relative 模式
 force_rethink_tool_list = ["search_knowledge", "get_memory", "lpmm_search_knowledge"] # 可配置：子心流在调用这些工具后不会进入决策，而是进入第二轮思考，留空为不会进入第二轮思考
 enable_gender_marking_tool = true # 是否使用性别标记工具和显示用户性别
+
+[profile]
+profile_system_enabled = true  # 侧写系统总开关
+
+# 绰号模块
+enable_sobriquet_mapping = false  # 绰号映射功能总开关（默认关闭，建议关闭）
+max_sobriquets_in_prompt = 10  # Prompt 中最多注入的绰号数量（防止token数量爆炸）
+sobriquet_probability_smoothing = 1  # 绰号加权随机选择的平滑因子
+sobriquet_queue_max_size = 100  # 绰号处理队列最大容量
+sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒），不建议超过5，否则大概率导致结束过程中超时
+sobriquet_analysis_history_limit = 30  # 绰号处理可见最大上下文
+sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
+min_sobriquet_count_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
+sobriquet_event_decay_factor = 0.1  # 绰号映射强度自然衰减因子，衰减因子淫荡大于等于 0 ，减法，0 为不自然衰减
+unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判）
 
 [pfc]
 enable = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复模式独立
