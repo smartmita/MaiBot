@@ -26,8 +26,8 @@ def select_sobriquets_for_prompt( # 函数名更新
         return []
 
     candidates = []  # 存储 (用户实际昵称, user_id, 群内常用绰号, 次数, 权重)
-    # global_config.group_nickname... 配置路径不变
-    smoothing_factor = global_config.group_nickname.nickname_probability_smoothing
+    # global_config.profile... 配置路径不变
+    smoothing_factor = global_config.profile.sobriquet_probability_smoothing
 
     for user_actual_name, data in all_sobriquets_info_by_actual_name.items(): # 变量名更新
         user_id = data.get("user_id")
@@ -56,8 +56,8 @@ def select_sobriquets_for_prompt( # 函数名更新
     if not candidates:
         return []
 
-    # global_config.group_nickname... 配置路径不变
-    max_sobriquets = global_config.group_nickname.max_nicknames_in_prompt # 变量名更新
+    # global_config.profile... 配置路径不变
+    max_sobriquets = global_config.profile.max_sobriquets_in_prompt # 变量名更新
     if max_sobriquets == 0:
         logger.warning("max_nicknames_in_prompt 配置为0，不选择任何绰号。")
         return []

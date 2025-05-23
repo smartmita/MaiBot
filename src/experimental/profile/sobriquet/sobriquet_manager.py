@@ -96,7 +96,7 @@ class SobriquetManager: # 类名更新
 
             logger.info("正在初始化 SobriquetManager 组件...") # 日志内容更新
             # enable_nickname_mapping 控制的是绰号分析功能，此配置键名保持不变
-            self.is_analysis_enabled = global_config.group_nickname.enable_nickname_mapping
+            self.is_analysis_enabled = global_config.profile.enable_sobriquet_mapping
 
             person_info_collection = getattr(db, "person_info", None)
             self.db_handler = SobriquetDB(person_info_collection) # 使用 SobriquetDB
@@ -127,12 +127,12 @@ class SobriquetManager: # 类名更新
             
             # 队列和线程 (用于绰号分析)
             # nickname_queue_max_size 配置键名不变
-            self.queue_max_size = global_config.group_nickname.nickname_queue_max_size
+            self.queue_max_size = global_config.profile.sobriquet_queue_max_size
             self.sobriquet_queue: asyncio.Queue = asyncio.Queue(maxsize=self.queue_max_size) # 队列名更新
             self._stop_event = threading.Event()
             self._sobriquet_thread: Optional[threading.Thread] = None # 线程名更新
             # nickname_process_sleep_interval 配置键名不变
-            self.sleep_interval = global_config.group_nickname.nickname_process_sleep_interval
+            self.sleep_interval = global_config.profile.sobriquet_process_sleep_interval
 
             self._initialized = True
             logger.info("SobriquetManager 初始化完成。") # 日志内容更新
@@ -143,9 +143,9 @@ class SobriquetManager: # 类名更新
             logger.info("绰号分析功能已禁用，处理器未启动。")
             return
         # max_nicknames_in_prompt 配置键名不变 (这个配置现在由ProfileManager/ProfileUtils使用，但SobriquetManager的启动可能仍受其影响)
-        if global_config.group_nickname.max_nicknames_in_prompt == 0:
+        if global_config.profile.max_sobriquets_in_prompt == 0:
             # 此处逻辑是如果prompt不注入绰号，可能也不需要分析。可以保留。
-            logger.error("[错误] max_nicknames_in_prompt 配置为0，绰号分析功能可能受影响或不必要。")
+            logger.error("[错误] max_sobriquets_in_prompt 配置为0，绰号分析功能可能受影响或不必要。")
 
 
         if self._sobriquet_thread is None or not self._sobriquet_thread.is_alive(): # 变量更新
@@ -191,7 +191,7 @@ class SobriquetManager: # 类名更新
             return
 
         # nickname_analysis_probability 配置键名不变
-        # if random.random() > global_config.group_nickname.nickname_analysis_probability:
+        # if random.random() > global_config.profile.sobriquet_analysis_probability:
         #     logger.debug("跳过绰号分析：随机概率未命中。")
         #     return
 
@@ -203,7 +203,7 @@ class SobriquetManager: # 类名更新
         log_prefix = f"[{current_chat_stream.stream_id}]"
         try:
             # nickname_analysis_history_limit 配置键名不变
-            history_limit = global_config.group_nickname.nickname_analysis_history_limit
+            history_limit = global_config.profile.sobriquet_analysis_history_limit
             history_messages = get_raw_msg_before_timestamp_with_chat(
                 chat_id=current_chat_stream.stream_id,
                 timestamp=time.time(),
@@ -238,8 +238,8 @@ class SobriquetManager: # 类名更新
             # 或者可以考虑一个独立的“是否在prompt中显示已存储绰号”的开关
             logger.debug(f"Sobriquet analysis is disabled, not providing sobriquets for prompt. Group: {group_id}")
             return None
-        if global_config.group_nickname.max_nicknames_in_prompt == 0:
-             logger.debug(f"max_nicknames_in_prompt is 0, not providing sobriquets for prompt. Group: {group_id}")
+        if global_config.profile.max_sobriquets_in_prompt == 0:
+             logger.debug(f"max_sobriquets_in_prompt is 0, not providing sobriquets for prompt. Group: {group_id}")
              return None
 
 
