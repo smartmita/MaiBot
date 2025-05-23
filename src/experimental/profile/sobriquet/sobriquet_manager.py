@@ -222,7 +222,7 @@ class SobriquetManager:
         except Exception as e:
             logger.error(f"{log_prefix} 触发绰号分析时出错: {e}", exc_info=True)
 
-    async def get_selected_sobriquets_for_group( # 此方法也需要在其异步上下文中正确调用同步的DB方法
+    async def get_selected_sobriquets_for_group(
         self, platform: str, user_ids_in_context: List[str], group_id: str
     ) -> Optional[List[Tuple[str, str, str, int]]]:
         max_sobriquets_to_inject = global_config.profile.max_sobriquets_in_prompt 
@@ -239,20 +239,20 @@ class SobriquetManager:
         try:
             all_sobriquets_data_by_actual_name: Dict[str, Dict[str, Any]] = {}
             if user_ids_in_context: 
-                # relationship_manager.get_users_group_nicknames 也可能是同步的，需要确认
-                # 假设它是异步的或已正确处理同步/异步
-                # 如果它是同步的，也需要用 run_in_executor
-                # 为简化，我们先假设它可以直接 await，如果它也是同步的，则需要类似下面的修改
-                loop = asyncio.get_running_loop()
-                all_sobriquets_data_by_actual_name = await loop.run_in_executor(
-                    None,
-                    relationship_manager.get_users_group_nicknames, # 假设这是同步方法
+                # 假设 relationship_manager.get_users_group_nicknames 是一个异步方法
+                # 如果它是同步的，则需要使用 loop.run_in_executor
+                all_sobriquets_data_by_actual_name = await relationship_manager.get_users_group_nicknames(
                     platform, user_ids_in_context, group_id
                 )
+                logger.debug(f"{log_prefix} 从 relationship_manager 获取到的原始绰号数据类型: {type(all_sobriquets_data_by_actual_name)}")
 
 
-            if not all_sobriquets_data_by_actual_name: 
-                logger.debug(f"{log_prefix} 未找到群组 '{group_id}' 的原始绰号数据。")
+            if not isinstance(all_sobriquets_data_by_actual_name, dict):
+                logger.error(f"{log_prefix} 从 relationship_manager 获取的绰号数据不是预期的字典类型，而是 {type(all_sobriquets_data_by_actual_name)}。无法继续。")
+                return None # 确保如果不是字典则提前退出
+                
+            if not all_sobriquets_data_by_actual_name: # 检查字典是否为空
+                logger.debug(f"{log_prefix} 未找到群组 '{group_id}' 的原始绰号数据或数据为空。")
                 return None
 
             selected_sobriquets_candidates = select_sobriquets_for_prompt(all_sobriquets_data_by_actual_name)
@@ -310,14 +310,13 @@ class SobriquetManager:
         log_prefix = f"[{platform}:{group_id}]" 
         logger.debug(f"{log_prefix} 开始处理绰号分析任务。上下文用户ID (用于衰减和LLM参考): {user_ids_for_llm_ref_and_decay}")
         
-        loop = asyncio.get_running_loop() # 获取当前事件循环
+        loop = asyncio.get_running_loop() 
 
-        # 步骤1: 事件触发式衰减
         if self.event_decay_factor < 1.0 and self.db_handler.is_available(): 
             if user_ids_for_llm_ref_and_decay: 
                 try:
-                    decayed_count = await loop.run_in_executor( # 使用 run_in_executor 调用同步方法
-                        None, # 使用默认线程池执行器
+                    decayed_count = await loop.run_in_executor( 
+                        None, 
                         self.db_handler.decay_sobriquets_in_group,
                         platform,
                         group_id,
@@ -333,7 +332,6 @@ class SobriquetManager:
             else:
                 logger.debug(f"{log_prefix} 跳过事件触发式衰减，因未提供上下文用户ID列表。")
 
-        # 步骤2: LLM 分析前的准备和调用
         if not self.llm_mapper: 
             logger.error(f"{log_prefix} LLM 映射器不可用，无法执行绰号分析。")
             return
@@ -345,7 +343,7 @@ class SobriquetManager:
         existing_data_for_processing: Dict[str, List[Dict[str, Any]]] = {} 
         if user_ids_for_llm_ref_and_decay: 
             try:
-                existing_data_for_processing = await loop.run_in_executor( # 使用 run_in_executor
+                existing_data_for_processing = await loop.run_in_executor( 
                     None,
                     self.db_handler.get_existing_sobriquets_for_users_in_group,
                     platform, group_id, user_ids_for_llm_ref_and_decay
@@ -370,7 +368,6 @@ class SobriquetManager:
             existing_sobriquets_for_ref_str 
         )
 
-        # 步骤3: 根据LLM分析结果更新数据库
         reliable_mappings = analysis_result.get("reliable_mappings", {}) 
         if isinstance(reliable_mappings, dict) and reliable_mappings: 
             logger.info(f"{log_prefix} LLM找到的可靠绰号映射: {reliable_mappings}")
