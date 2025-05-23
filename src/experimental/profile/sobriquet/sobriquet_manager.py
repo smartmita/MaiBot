@@ -242,11 +242,6 @@ class SobriquetManager:
                 for msg in history_messages # 从历史消息中提取
                 if msg.get("user_info", {}).get("user_id") # 安全获取用户ID
             ))
-            # 将当前锚点消息的发送者ID也加入列表
-            if anchor_message.user_info and anchor_message.user_info.user_id:
-                 current_sender_id = str(anchor_message.user_info.user_id)
-                 if current_sender_id not in user_ids_in_current_context: # 避免重复添加
-                    user_ids_in_current_context.append(current_sender_id)
             
             logger.debug(f"{log_prefix} 为事件衰减和LLM参考收集到的上下文用户ID: {user_ids_in_current_context}")
 
