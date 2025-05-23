@@ -17,9 +17,14 @@ from .mai_state_manager import MaiStateInfo
 from .observation import ChattingObservation
 
 # 导入LLM请求工具
+from src.experimental.profile.profile_manager import profile_manager
 from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from src.individuality.individuality import Individuality
+from src.manager.mood_manager import mood_manager
+from ..schedule.schedule_generator import bot_schedule # 如果还没导入的话
+from src.chat.utils.chat_message_builder import build_readable_messages, get_raw_msg_before_timestamp_with_chat
+from src.chat.utils.prompt_builder import global_prompt_manager
 import traceback
 
 
@@ -275,84 +280,201 @@ class SubHeartflowManager:
     async def sbhf_absent_into_focus(self):
         """评估子心流兴趣度，满足条件且未达上限则提升到FOCUSED状态（基于start_hfc_probability）"""
         try:
-            current_state = self.mai_state_info.get_current_state()
-            focused_limit = current_state.get_focused_chat_max_num()
+            current_mai_state = self.mai_state_info.get_current_state()
+            focused_limit = current_mai_state.get_focused_chat_max_num()
 
-            # --- 新增：检查是否允许进入 FOCUS 模式 --- #
             if not global_config.chat.allow_focus_mode:
-                if int(time.time()) % 60 == 0:  # 每60秒输出一次日志避免刷屏
+                if int(time.time()) % 60 == 0:
                     logger.trace("未开启 FOCUSED 状态 (allow_focus_mode=False)")
-                return  # 如果不允许，直接返回
-            # --- 结束新增 ---
+                return
 
-            logger.debug(f"当前状态 ({current_state.value}) 可以在{focused_limit}个群 专注聊天")
+            # logger.debug(f"当前状态 ({current_mai_state.value}) 可以在{focused_limit}个群 专注聊天") # 日志可能过于频繁
 
             if focused_limit <= 0:
-                # logger.debug(f"{log_prefix} 当前状态 ({current_state.value}) 不允许 FOCUSED 子心流")
                 return
 
+            # 在循环外先获取一次当前的专注数量
+            # 注意：这里用的是带锁的版本，因为我们还没进入循环内部的锁
             current_focused_count = self.count_subflows_by_state(ChatState.FOCUSED)
             if current_focused_count >= focused_limit:
-                logger.debug(f"已达专注上限 ({current_focused_count}/{focused_limit})")
+                # logger.debug(f"已达专注上限 ({current_focused_count}/{focused_limit})，不进行CHAT->FOCUSED评估") # 日志可能过于频繁
                 return
 
-            for sub_hf in list(self.subheartflows.values()):
+            # 使用 list(self.subheartflows.values()) 创建副本进行迭代
+            subflows_to_evaluate = list(self.subheartflows.values())
+
+            for sub_hf in subflows_to_evaluate:
+                # 在每次迭代开始时，检查专注上限是否已在之前的迭代中达到
+                if current_focused_count >= focused_limit:
+                    logger.debug(f"已在本轮评估中达到专注上限 ({current_focused_count}/{focused_limit})，停止评估后续CHAT状态的子心流。")
+                    break # 如果已达上限，后续的也不用评估了
+
                 flow_id = sub_hf.subheartflow_id
                 stream_name = chat_manager.get_stream_name(flow_id) or flow_id
+                log_prefix_chat_to_focus = f"[{stream_name}][CHAT->FOCUSED评估]"
 
-                if sub_hf.last_planner_initiated_exit_time > 0: # 大于0表示曾经被设置过
+                if sub_hf.last_planner_initiated_exit_time > 0:
                     time_since_planner_exit = time.time() - sub_hf.last_planner_initiated_exit_time
                     if time_since_planner_exit < PLANNER_EXIT_COOLDOWN_SECONDS:
-                        logger.debug(
-                            f"{stream_name} 在 Planner 主动退出的冷却期内 ({time_since_planner_exit:.1f}s / {PLANNER_EXIT_COOLDOWN_SECONDS}s)，跳过进入专注模式的判断。"
-                        )
-                        continue # 跳过此 sub_hf，不进行后续判断
+                        # logger.debug( # 日志可能过于频繁
+                        #     f"{stream_name} 在 Planner 主动退出的冷却期内 ({time_since_planner_exit:.1f}s / {PLANNER_EXIT_COOLDOWN_SECONDS}s)，跳过进入专注模式的判断。"
+                        # )
+                        continue
 
-                # 跳过非CHAT状态或已经是FOCUSED状态的子心流
-                if sub_hf.chat_state.chat_status == ChatState.FOCUSED:
+                # 我们只关心从 CHAT 状态到 FOCUSED 状态的转换
+                if sub_hf.chat_state.chat_status != ChatState.CHAT:
                     continue
+
+                # ---- 专注评估冷却期检查 (策略2) ----
+                FOCUS_DENIED_COOLDOWN_SECONDS = 30 # 可以调整或放入配置文件
+                if hasattr(sub_hf, 'last_focus_denied_time') and sub_hf.last_focus_denied_time > 0:
+                    time_since_denied = time.time() - sub_hf.last_focus_denied_time
+                    if time_since_denied < FOCUS_DENIED_COOLDOWN_SECONDS:
+                        # logger.debug( # 日志可能过于频繁
+                        #     f"{log_prefix_chat_to_focus} 最近 ({time_since_denied:.1f}s)已被LLM拒绝进入专注，冷却中，跳过本次评估。"
+                        # )
+                        continue
+                # ---- 结束冷却期检查 ----
+
 
                 if sub_hf.interest_chatting.start_hfc_probability == 0:
                     continue
-                else:
-                    logger.debug(
-                        f"{stream_name}，现在状态: {sub_hf.chat_state.chat_status.value}，进入专注概率: {sub_hf.interest_chatting.start_hfc_probability}"
-                    )
-
-                # 调试用
-                from .mai_state_manager import enable_unlimited_hfc_chat
-
-                if not enable_unlimited_hfc_chat:
-                    if sub_hf.chat_state.chat_status != ChatState.CHAT:
-                        continue
+                # else: # 日志可能过于频繁
+                    # logger.debug(
+                    #     f"{stream_name}，现在状态: {sub_hf.chat_state.chat_status.value}，进入专注概率: {sub_hf.interest_chatting.start_hfc_probability}"
+                    # )
 
                 if random.random() >= sub_hf.interest_chatting.start_hfc_probability:
                     continue
 
-                # 再次检查是否达到上限
-                if current_focused_count >= focused_limit:
-                    logger.debug(f"{stream_name} 已达专注上限")
-                    break
+                # --- 开始使用新的配置项 ---
+                perform_llm_judgment = False # 初始化为不执行LLM判断
 
-                # 获取最新状态并执行提升
-                current_subflow = self.subheartflows.get(flow_id)
-                if not current_subflow:
-                    continue
+                if global_config.chat.enable_llm_judgment_for_chat_to_focus: #
+                    # 如果总开关开启，则根据概率决定本次是否真的执行LLM判断
+                    if random.random() < global_config.chat.probability_for_llm_judgment_chat_to_focus: #
+                        perform_llm_judgment = True
+                        logger.info(f"{log_prefix_chat_to_focus} 配置允许并概率触发LLM评估是否提升至FOCUSED。")
+                    else:
+                        logger.info(f"{log_prefix_chat_to_focus} 配置允许LLM评估，但本次概率未触发 ({global_config.chat.probability_for_llm_judgment_chat_to_focus * 100}%)，将直接尝试进入专注。") #
+                        # perform_llm_judgment 保持 False，会跳过下面的LLM判断逻辑
+                else:
+                    logger.info(f"{log_prefix_chat_to_focus} 配置未启用LLM评估CHAT到FOCUSED，将直接尝试进入专注。")
+                # perform_llm_judgment 保持 False
 
+                should_really_focus = True # 默认情况下，如果跳过LLM判断，则认为应该专注（因为兴趣概率已经触发）
+                reason_from_llm = "跳过LLM判断，基于兴趣概率直接进入专注"
+
+                # from .mai_state_manager import enable_unlimited_hfc_chat # 这个调试开关一般在 mai_state_manager.py 控制即可
+                # if not enable_unlimited_hfc_chat: # 这段逻辑可以简化或移除，因为上面已经检查了CHAT状态
+                #     if sub_hf.chat_state.chat_status != ChatState.CHAT:
+                #         continue
+
+                # logger.info(f"{log_prefix_chat_to_focus} 概率触发，准备LLM评估是否提升至FOCUSED。")
+
+                # 1. 构建Prompt所需的上下文信息
+                if perform_llm_judgment:
+                # --- LLM判断逻辑---
+                    logger.info(f"{log_prefix_chat_to_focus} 开始执行LLM评估。")
+                    individuality = Individuality.get_instance()
+                    prompt_personality = individuality.get_prompt(x_person=2, level=3)
+                    mood_info_str = self.mai_state_info.get_mood_prompt()
+                    schedule_info_str = bot_schedule.get_current_num_task(num=1, time_info=True) # 只获取最近一条
+
+                    recent_chat_log_str = "（无法获取聊天记录）"
+                    if sub_hf.observations and isinstance(sub_hf.observations[0], ChattingObservation):
+                        await sub_hf.observations[0].observe()
+                        recent_chat_log_str = sub_hf.observations[0].talking_message_str_truncate or "（近期无聊天）"
+                        # 注意：这里的 sub_hf.subheartflow_id 就是 chat_id
+                        message_list_for_nicknames = get_raw_msg_before_timestamp_with_chat(
+                            chat_id=sub_hf.subheartflow_id, # 使用 sub_hf 的 ID
+                            timestamp=time.time(),
+                            limit=global_config.chat.observation_context_size, #
+                        )
+
+                    # --- 新增：获取 profile_info ---
+                    profile_injection_str = "[获取群成员绰号信息失败]" # 默认值
+                    if sub_hf.chat_stream: # 确保 chat_stream 存在
+                        try:
+                            profile_injection_str = await profile_manager.get_profile_prompt_injection(
+                                sub_hf.chat_stream, # 传递当前子心流的 chat_stream
+                                message_list_for_nicknames # 传递上面获取的聊天记录
+                            )
+                        except Exception as e_profile:
+                            logger.error(f"{log_prefix_chat_to_focus} 获取 profile_info 失败: {e_profile}", exc_info=True)
+                    else:
+                        logger.warning(f"{log_prefix_chat_to_focus} sub_hf.chat_stream 为空，无法获取 profile_info。")
+                    # --- 结束获取 profile_info ---
+                    
+                    chat_type_description = "群聊" if sub_hf.is_group_chat else f"与 {sub_hf.chat_target_info.get('user_nickname', '用户')} 的私聊"
+                    current_chat_count_for_prompt = self.count_subflows_by_state(ChatState.CHAT)
+                    chat_limit_for_prompt = current_mai_state.get_normal_chat_max_num()
+
+                    prompt_params = {
+                        "bot_name": global_config.bot.nickname,
+                        "chat_stream_name": stream_name,
+                        "prompt_personality": prompt_personality,
+                        "profile_info": profile_injection_str,
+                        "chat_type_description": chat_type_description,
+                        "recent_chat_log": recent_chat_log_str,
+                        "interest_level": sub_hf.interest_chatting.interest_level,
+                        "start_hfc_probability": sub_hf.interest_chatting.start_hfc_probability,
+                        "mai_state": current_mai_state.value,
+                        "mood_info": mood_info_str,
+                        "current_focused_count": current_focused_count,
+                        "focused_chat_limit": focused_limit,
+                        "current_chat_count": current_chat_count_for_prompt,
+                        "chat_limit": chat_limit_for_prompt,
+                        "schedule_info": schedule_info_str,
+                    }
+
+                    try:
+                        decision_prompt = await global_prompt_manager.format_prompt(
+                            "chat_to_focused_decision_prompt", **prompt_params
+                        )
+                    except Exception as e:
+                        logger.error(f"{log_prefix_chat_to_focus} 构建决策Prompt失败: {e}", exc_info=True)
+                        continue
+
+                    # LLM评估的结果会覆盖 should_really_focus 和 reason_from_llm
+                    llm_decision_focus, llm_reason = await self._llm_evaluate_state_transition(decision_prompt)
+
+                    if llm_decision_focus is None:
+                        logger.warning(f"{log_prefix_chat_to_focus} LLM评估转换到FOCUSED失败，本次不提升。")
+                        should_really_focus = False # LLM失败，则不专注
+                        reason_from_llm = "LLM评估失败"
+                    else:
+                        should_really_focus = llm_decision_focus
+                        reason_from_llm = llm_reason
+                    # --- LLM判断逻辑结束 ---
+
+                # --- 根据最终的 should_really_focus 决定后续操作 ---
+                if not should_really_focus:
+                    logger.info(f"{log_prefix_chat_to_focus} 最终决策不建议转换到FOCUSED。原因: {reason_from_llm or '未提供'}")
+                    if perform_llm_judgment: # 只有真正执行了LLM判断并被拒绝时，才进行抑制
+                        if sub_hf.interest_chatting:
+                            logger.debug(f"{log_prefix_chat_to_focus} LLM拒绝专注，将部分重置专注触发器。")
+                            await sub_hf.interest_chatting.reset_focus_triggers(reset_level="partial")
+                        if hasattr(sub_hf, 'last_focus_denied_time'):
+                            sub_hf.last_focus_denied_time = time.time()
+                    continue # 跳过这个子心流的后续专注转换尝试
+                
+                # 如果 should_really_focus 为 True (无论是直接跳过LLM判断还是LLM判断同意)
+                logger.info(f"{log_prefix_chat_to_focus} 最终决策建议转换到FOCUSED。原因: {reason_from_llm or '好的'}")
+                
                 logger.info(
-                    f"{stream_name} 触发 认真水群 (概率={current_subflow.interest_chatting.start_hfc_probability:.2f})"
+                    f"{stream_name} 触发并决策进入 认真水群 (概率={sub_hf.interest_chatting.start_hfc_probability:.2f})"
                 )
 
-                # 执行状态提升
-                await current_subflow.change_chat_state(ChatState.FOCUSED)
+                await sub_hf.change_chat_state(ChatState.FOCUSED)
 
-                # 验证提升结果
-                if (
-                    final_subflow := self.subheartflows.get(flow_id)
-                ) and final_subflow.chat_state.chat_status == ChatState.FOCUSED:
+                if sub_hf.chat_state.chat_status == ChatState.FOCUSED:
                     current_focused_count += 1
+                else:
+                    logger.warning(f"{log_prefix_chat_to_focus} 尝试提升到FOCUSED后状态仍为 {sub_hf.chat_state.chat_status.value}")
+
         except Exception as e:
-            logger.error(f"启动HFC 兴趣评估失败: {e}", exc_info=True)
+            logger.error(f"CHAT提升到FOCUSED的兴趣评估失败: {e}", exc_info=True)
 
     async def sbhf_absent_into_chat(self):
         """

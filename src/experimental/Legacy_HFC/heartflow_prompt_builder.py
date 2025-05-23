@@ -227,6 +227,55 @@ JSON 对象应包含以下五个字段: "action", "reasoning", "emoji_query", "a
     )
 
 
+Prompt(
+    """
+
+你的{bot_name}，{prompt_personality}
+
+你现在的状态为：{mai_state}
+你的心情大概是：{mood_info}
+
+
+你当前正在一个名为 [{chat_stream_name}] 的QQ群里随便聊天。以下是最近的聊天内容：
+
+{chat_type_description}
+
+{profile_info}
+
+{recent_chat_log}
+
+你对[{chat_stream_name}]群里聊天的兴趣值(0-15): {interest_level:.2f}（由系统生成，仅供参考）
+你已经在专注的聊天的群数量: {current_focused_count}/{focused_chat_limit}
+你正在随便聊聊的群数量: {current_chat_count}/{chat_limit}
+
+你现在正在做的事： {schedule_info}
+       
+
+
+
+现在，请综合分析以上所有信息 判断你是否要在这个群[{chat_stream_name}]进入更加专注的聊天模式。
+这意味着你会更集中注意力、更主动、更深入地参与到这个聊天中。
+你需要判断，现在是否真的有必要、并且适合将你与 [{chat_stream_name}] 的互动提升到这种专注程度。
+
+    判断时请考虑：
+    1.  聊天内容是否足够吸引你或重要，值得投入更多精力？
+    2.  你是否有足够的“专注精力”来处理更多的专注聊天？
+    3.  你现在在做的事情或心情是否适合，允许你进行专注聊天？
+    5.  如果聊天内容仅仅是短暂的提及或者简单互动，可能不需要进入专注模式。
+
+
+你的决策必须以严格的 JSON 格式输出，并且只包含 JSON 内容，不要附加任何额外的文字、解释或Markdown标记。
+JSON 对象应包含以下两个字段: "decision" (布尔值 true/false) 和 "reason" (字符串, 解释你做出此决策的原因)。
+    例如：
+    {{"decision": true, "reason": "聊天内容看起来非常重要，并且我当前的兴趣很高，精力也充足，也有空。"}}
+    或
+    {{"decision": false, "reason": "虽然兴趣值不低，但聊天内容比较日常，而且我已经有好几个专注聊天了，暂时不进入。"}}
+请输出你的决策 JSON：
+""",
+    "chat_to_focused_decision_prompt"  # 新的模板名称
+)
+
+
 async def _build_prompt_focus(reason, current_mind_info, structured_info, chat_stream, sender_name) -> str:
     individuality = Individuality.get_instance()
     prompt_personality = individuality.get_prompt(x_person=0, level=3)

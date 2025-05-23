@@ -123,6 +123,12 @@ class ChatConfig(ConfigBase):
     allow_remove_duplicates: bool = True
     """是否开启心流去重（如果发现心流截断问题严重可尝试关闭）"""
 
+    enable_llm_judgment_for_chat_to_focus: bool = True
+    """是否启用LLM判断CHAT状态的子心流是否应该进入FOCUSED状态"""
+
+    probability_for_llm_judgment_chat_to_focus: float = 0.6
+    """当启用LLM判断CHAT到FOCUSED时，实际执行LLM判断流程的概率 (0.0-1.0)"""
+
 
 @dataclass
 class NormalChatConfig(ConfigBase):

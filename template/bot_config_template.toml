@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.9"
+version = "2.0.0.10"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -75,6 +75,9 @@ allow_remove_duplicates = true # 是否开启心流去重（如果发现心流�
 
 observation_context_size = 15 # 观察到的最长上下文大小,建议15，太短太长都会导致脑袋尖尖
 message_buffer = true # 启用消息缓冲器？启用此项以解决消息的拆分问题，但会使bot的回复延迟
+
+enable_llm_judgment_for_chat_to_focus = true # 是否启用LLM判断CHAT状态的子心流是否应该进入专注聊天
+probability_for_llm_judgment_chat_to_focus = 0.6 # 当启用LLM判断CHAT到FOCUSED时，有多大概率实际执行LLM判断流程，默认0.6为60%
 
 # 以下是消息过滤，可以根据规则过滤特定消息，将不会读取这些消息
 ban_words = [

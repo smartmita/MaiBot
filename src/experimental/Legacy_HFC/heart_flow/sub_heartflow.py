@@ -24,6 +24,7 @@ class SubHeartflow:
         subheartflow_id,
         mai_states: MaiStateInfo,
         hfc_no_reply_callback: Callable[[], Coroutine[None, None, None]],
+        
     ):
         """子心流初始化函数
 
@@ -77,6 +78,7 @@ class SubHeartflow:
         self.log_prefix = str(subheartflow_id)  # Initial default prefix
         self.last_planner_initiated_exit_time: float = 0.0 # 记录最后一次由Planner发起的退出专注的时间
         self.is_exiting_focus_by_planner: bool = False # 标志是否由Planner主动发起退出
+        self.last_focus_denied_time: float = 0.0 # 记录上次LLM拒绝进入专注的时间
 
     async def initialize(self):
         """异步初始化方法，创建兴趣流并确定聊天类型"""
