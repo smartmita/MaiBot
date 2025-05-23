@@ -10,9 +10,9 @@ from src.common.logger_manager import get_logger
 from src.common.database import db
 from src.config.config import global_config
 from src.chat.models.utils_model import LLMRequest
-from .nickname_db import NicknameDB
-from .nickname_mapper import build_mapping_prompt
-from .nickname_utils import select_nicknames_for_prompt, format_user_info_prompt
+from .sobriquet_db import NicknameDB
+from .sobriquet_mapper import build_mapping_prompt
+from .sobriquet_utils import select_nicknames_for_prompt, format_user_info_prompt
 from src.chat.person_info.person_info import person_info_manager
 from src.chat.person_info.relationship_manager import relationship_manager
 from src.chat.message_receive.chat_stream import ChatStream

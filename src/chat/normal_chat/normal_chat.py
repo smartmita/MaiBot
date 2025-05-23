@@ -21,7 +21,7 @@ from src.chat.utils.utils_image import image_path_to_base64
 from src.chat.emoji_system.emoji_manager import emoji_manager
 from src.chat.normal_chat.willing.willing_manager import willing_manager
 from src.config.config import global_config
-from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
 
 logger = get_logger("chat")
 

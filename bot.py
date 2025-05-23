@@ -13,7 +13,7 @@ from src.common.logger_manager import get_logger
 from src.common.crash_logger import install_crash_handler
 from src.main import MainSystem
 from rich.traceback import install
-from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
 from src.experimental.PFC.PFC_idle.idle_manager import IdleManager
 from src.chat.message_receive.chat_stream import chat_manager
 import atexit

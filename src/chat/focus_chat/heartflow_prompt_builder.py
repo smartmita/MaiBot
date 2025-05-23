@@ -14,7 +14,7 @@ from src.chat.memory_system.Hippocampus import HippocampusManager
 from src.chat.knowledge.knowledge_lib import qa_manager
 from src.chat.focus_chat.expressors.exprssion_learner import expression_learner
 import random
-from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
 
 logger = get_logger("prompt")
 

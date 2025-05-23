@@ -38,7 +38,7 @@ from src.chat.utils.info_catcher import info_catcher_manager
 from src.chat.utils.chat_message_builder import num_new_messages_since, get_raw_msg_before_timestamp_with_chat
 from src.chat.utils.timer_calculator import Timer  # <--- Import Timer
 from .heartFC_sender import HeartFCSender
-from src.experimental.profile.sobriquet.nickname_manager import nickname_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
 
 install(extra_lines=3)
 
