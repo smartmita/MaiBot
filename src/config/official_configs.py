@@ -432,7 +432,7 @@ class ProfileConfig(ConfigBase):
     sobriquet_analysis_probability: float = 0.1
     """绰号随机概率命中"""
 
-    min_sobriquet_count_for_prompt_injection: float = 10
+    min_sobriquet_strength_for_prompt_injection: float = 10
     """绰号应用最低映射强度阈值"""
 
     sobriquet_event_decay_factor: float = 0.1

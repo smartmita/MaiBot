@@ -111,13 +111,13 @@ class SobriquetManager:
             self._sobriquet_thread: Optional[threading.Thread] = None
             self.sleep_interval = global_config.profile.sobriquet_process_sleep_interval
             
-            self.min_strength_for_prompt = float(global_config.profile.get('min_sobriquet_strength_for_prompt_injection', 0.5))
+            self.min_strength_for_prompt = float(global_config.profile.min_sobriquet_strength_for_prompt_injection)
             if self.min_strength_for_prompt > 0: # 阈值仍应大于0才有意义
                 logger.info(f"将对注入Prompt的绰号应用最低映射强度阈值: {self.min_strength_for_prompt:.2f}")
             
             # 事件衰减值 (数值减法)
             # 配置项名建议改为 sobriquet_event_decay_value
-            self.event_decay_value = float(global_config.profile.get('sobriquet_event_decay_value', 0.1))
+            self.event_decay_value = float(global_config.profile.sobriquet_event_decay_value)
             if self.event_decay_value < 0.0: # 衰减值不能为负
                 logger.warning(f"事件衰减值 sobriquet_event_decay_value ({self.event_decay_value:.2f}) 配置无效 (不能为负)。将设置为0.0 (不衰减)。")
                 self.event_decay_value = 0.0
@@ -194,6 +194,10 @@ class SobriquetManager:
         if not current_chat_stream or not current_chat_stream.group_info:
             logger.debug("跳过绰号分析：非群聊或无效的聊天流。")
             return
+
+        # if random.random() > global_config.profile.sobriquet_analysis_probability:
+        #     logger.debug("跳过绰号分析：随机概率未命中。")
+        #     return
 
         log_prefix = f"[{current_chat_stream.stream_id}]"
         try:
