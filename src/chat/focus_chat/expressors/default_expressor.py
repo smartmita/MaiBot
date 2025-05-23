@@ -115,14 +115,14 @@ class DefaultExpressor:
                         )
                     has_sent_something = True
 
-                    # 为 trigger_nickname_analysis 准备 bot_reply 参数
+                    # 为 trigger_sobriquet_analysis 准备 bot_reply 参数
                     bot_reply_for_analysis = []
                     if reply:  # reply 是 List[Tuple[str, str]]
                         for seg_type, seg_data in reply:
                             if seg_type == "text":  # 只取文本类型的数据
                                 bot_reply_for_analysis.append(seg_data)
 
-                    await sobriquet_manager.trigger_nickname_analysis(
+                    await sobriquet_manager.trigger_sobriquet_analysis(
                         anchor_message, bot_reply_for_analysis, self.chat_stream
                     )
                 else:

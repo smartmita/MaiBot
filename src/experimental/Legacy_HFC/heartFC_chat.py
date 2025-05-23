@@ -663,7 +663,7 @@ class HeartFChatting:
                 )
 
             # 调用工具函数触发绰号分析
-            await sobriquet_manager.trigger_nickname_analysis(anchor_message, reply, self.chat_stream)
+            await sobriquet_manager.trigger_sobriquet_analysis(anchor_message, reply, self.chat_stream)
 
             return True, thinking_id
 

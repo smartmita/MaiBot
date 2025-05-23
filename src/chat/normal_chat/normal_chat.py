@@ -317,7 +317,7 @@ class NormalChat:
             # 检查 first_bot_msg 是否为 None (例如思考消息已被移除的情况)
             if first_bot_msg:
                 info_catcher.catch_after_response(timing_results["消息发送"], response_set, first_bot_msg)
-                await sobriquet_manager.trigger_nickname_analysis(message, response_set, self.chat_stream)
+                await sobriquet_manager.trigger_sobriquet_analysis(message, response_set, self.chat_stream)
             else:
                 logger.warning(f"[{self.stream_name}] 思考消息 {thinking_id} 在发送前丢失，无法记录 info_catcher")
 
