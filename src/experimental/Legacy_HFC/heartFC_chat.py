@@ -1034,6 +1034,8 @@ class HeartFChatting:
                         action = "no_reply"
                         reasoning = f"LLM 返回了当前不可用的动作 '{extracted_action}' (可用: {list(current_available_actions.keys())})。原始理由: {extracted_reasoning}"
                         emoji_query = ""
+                        at_user = ""
+                        poke_user = ""
                         # 检查 no_reply 是否也恰好被移除了 (极端情况)
                         if "no_reply" not in current_available_actions:
                             logger.error(
