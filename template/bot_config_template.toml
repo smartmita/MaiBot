@@ -200,12 +200,12 @@ enable_sobriquet_mapping = false  # 绰号映射功能总开关（默认关闭�
 max_sobriquets_in_prompt = 10  # Prompt 中最多注入的绰号数量（防止token数量爆炸）
 sobriquet_probability_smoothing = 1  # 绰号加权随机选择的平滑因子
 sobriquet_queue_max_size = 100  # 绰号处理队列最大容量
-sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒），不建议超过5，否则大概率导致结束过程中超时
+sobriquet_process_sleep_interval = 5  # 绰号处理进程休眠间隔（秒），不建议超过5，否则大概率导致优雅结束过程中超时
 sobriquet_analysis_history_limit = 30  # 绰号处理可见最大上下文
 sobriquet_analysis_probability = 0.1  # 绰号随机概率命中，该值越大，绰号分析越频繁
 min_sobriquet_strength_for_prompt_injection = 10  # 绰号应用最低映射强度阈值
 sobriquet_event_decay_value = 0.1  # 绰号映射强度自然衰减因子，衰减因子淫荡大于等于 0 ，减法，0 为不自然衰减
-unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判）
+unreliable_sobriquet_decay_factor = 0.1  # 绰号不可靠映射强度衰减因子，衰减因子必须在 [0, 1] 之间，乘法，1 为不启用，0 为不可靠直接清零（可能存在llm误判，因此需要让llm拥有一定的自纠正能力）
 reliable_mapping_strength_increment = 5.0  # 绰号可靠映射强度增量
 
 [pfc]
@@ -213,16 +213,16 @@ enable = true # 是否启用PFC聊天，该功能仅作用于私聊，与回复�
 pfc_message_buffer_size = 2  # PFC 聊天消息缓冲数量，有利于使聊天节奏更加紧凑流畅，请根据实际 LLM 响应速度进行调整，默认2条
 pfc_recent_history_display_count = 18  # PFC 对话最大可见上下文
 
-# pfc.checker
+# pfc 检查器
 enable_pfc_reply_checker = true # 是否启用 PFC 的回复检查器
 pfc_max_reply_attempts = 3  # 发言最多尝试次数
 pfc_max_chat_history_for_checker = 30  # checker聊天记录最大可见上文长度
 
-# pfc.emotion
+# pfc 情绪
 pfc_emotion_update_intensity = 0.6  # 情绪更新强度
 pfc_emotion_history_count = 5  # 情绪更新最大可见上下文长度
 
-# pfc.relationship
+# pfc 关系
 pfc_relationship_incremental_interval = 10  # 关系值增值强度
 pfc_relationship_incremental_msg_count = 10  # 会话中，关系值判断最大可见上下文
 pfc_relationship_incremental_default_change = 1.0  # 会话中，关系值默认更新值（当 llm 返回错误时默认采用该值）
@@ -231,10 +231,10 @@ pfc_relationship_final_msg_count = 30  # 会话结束时，关系值判断最大
 pfc_relationship_final_default_change =5.0  # 会话结束时，关系值默认更新值
 pfc_relationship_final_max_change = 50.0  # 会话结束时，关系值最大可变值
 
-# pfc.fallback
+# pfc 聊天记录
 pfc_historical_fallback_exclude_seconds = 45 # pfc 翻看聊天记录排除最近时长
 
-# pfc.idle_chat
+# pfc 主动对话
 enable_idle_chat = true # 是否启用 pfc 主动发言
 idle_check_interval = 10  # 检查间隔，10分钟检查一次
 min_cooldown = 7200      # 最短冷却时间，2小时 (7200秒)
