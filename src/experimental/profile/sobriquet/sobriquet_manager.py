@@ -179,9 +179,9 @@ class SobriquetManager:
         if not self.is_analysis_enabled: 
             return
 
-        if random.random() > global_config.profile.sobriquet_analysis_probability:
-            logger.debug("跳过绰号分析：随机概率未命中。")
-            return
+        # if random.random() > global_config.profile.sobriquet_analysis_probability:
+        #     logger.debug("跳过绰号分析：随机概率未命中。")
+        #     return
 
         current_chat_stream = chat_stream or anchor_message.chat_stream 
         if not current_chat_stream or not current_chat_stream.group_info: 
@@ -239,9 +239,8 @@ class SobriquetManager:
         try:
             all_sobriquets_data_by_actual_name: Dict[str, Dict[str, Any]] = {}
             if user_ids_in_context: 
-                # 假设 relationship_manager.get_users_group_nicknames 是一个异步方法
                 # 如果它是同步的，则需要使用 loop.run_in_executor
-                all_sobriquets_data_by_actual_name = await relationship_manager.get_users_group_nicknames(
+                all_sobriquets_data_by_actual_name = await relationship_manager.get_users_group_sobriquets(
                     platform, user_ids_in_context, group_id
                 )
                 logger.debug(f"{log_prefix} 从 relationship_manager 获取到的原始绰号数据类型: {type(all_sobriquets_data_by_actual_name)}")

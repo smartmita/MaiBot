@@ -7,31 +7,33 @@ logger = get_logger("sobriquet_utils") # 获取日志记录器实例
 
 def select_sobriquets_for_prompt( 
     all_sobriquets_info_by_actual_name: Dict[str, Dict[str, Any]] 
-) -> List[Tuple[str, str, str, int]]:
+) -> List[Tuple[str, str, str, float]]: # 返回类型中的 int 改为 float
     """
-    从给定的绰号信息中，根据映射次数加权随机选择最多 N 个绰号用于 Prompt。
+    从给定的绰号信息中，根据映射强度加权随机选择最多 N 个绰号用于 Prompt。
+    现在使用 'strength' (float) 而不是 'count' (int)。
 
     Args:
         all_sobriquets_info_by_actual_name: 包含用户及其绰号和 UID 信息的字典。
             结构示例: { 
                 "用户实际昵称1": {
                     "user_id": "uid1", 
-                    "nicknames": [{"绰号A": 次数1}, {"绰号B": 次数2}, ...] 
+                    "nicknames": [{"绰号A": strength1_float}, {"绰号B": strength2_float}, ...] 
                 }, ... 
             }
-            注意：'nicknames' 键对应的值是从数据库中来的群内常用绰号列表及其计数。
+            注意：'nicknames' 键对应的值是从数据库中来的群内常用绰号列表及其强度。
 
     Returns:
-        选中的绰号列表，每个元素为 (用户实际昵称, user_id, 群内常用绰号, 次数)。
-        列表会按次数降序排序。
+        选中的绰号列表，每个元素为 (用户实际昵称, user_id, 群内常用绰号, 强度_float)。
+        列表会按强度降序排序。
     """
     if not all_sobriquets_info_by_actual_name: # 如果输入为空，直接返回空列表
         return []
 
-    candidates: List[Tuple[str, str, str, int, float]] = []  # 存储候选绰号及其相关信息：(用户实际昵称, user_id, 群内常用绰号, 次数, 权重)
+    # 候选绰号及其相关信息：(用户实际昵称, user_id, 群内常用绰号, 强度_float, 权重_float)
+    candidates: List[Tuple[str, str, str, float, float]] = []  
     
-    # 从全局配置中获取平滑因子，用于调整选择概率，避免计数低的绰号完全没有机会被选中
-    smoothing_factor = global_config.profile.sobriquet_probability_smoothing
+    # 从全局配置中获取平滑因子，用于调整选择概率，避免强度低的绰号完全没有机会被选中
+    smoothing_factor = float(global_config.profile.sobriquet_probability_smoothing) # 确保是 float
 
     # 遍历每个用户（以其实际昵称为键）的绰号信息
     for user_actual_name, data in all_sobriquets_info_by_actual_name.items():
@@ -45,16 +47,20 @@ def select_sobriquets_for_prompt(
 
         # 遍历该用户的每个绰号条目
         for sobriquet_entry in sobriquets_list:
-            # 绰号条目通常是 {"绰号名": 次数} 格式的字典
+            # 绰号条目通常是 {"绰号名": 强度_float} 格式的字典
             if isinstance(sobriquet_entry, dict) and len(sobriquet_entry) == 1:
-                group_sobriquet_str, count = list(sobriquet_entry.items())[0] # 提取绰号名和次数
-                # 进一步校验绰号名和次数的有效性
-                if isinstance(count, int) and count > 0 and isinstance(group_sobriquet_str, str) and group_sobriquet_str:
-                    weight = count + smoothing_factor # 计算权重（次数 + 平滑因子）
-                    candidates.append((user_actual_name, user_id, group_sobriquet_str, count, weight))
+                group_sobriquet_str, strength_val = list(sobriquet_entry.items())[0] # 提取绰号名和强度
+                
+                # 进一步校验绰号名和强度的有效性
+                if isinstance(strength_val, (int, float)) and float(strength_val) > 0.0 and \
+                   isinstance(group_sobriquet_str, str) and group_sobriquet_str:
+                    
+                    current_strength = float(strength_val)
+                    weight = current_strength + smoothing_factor # 计算权重（强度 + 平滑因子）
+                    candidates.append((user_actual_name, user_id, group_sobriquet_str, current_strength, weight))
                 else:
                     logger.warning(
-                        f"用户实际昵称 '{user_actual_name}' (UID: {user_id}) 的群内常用绰号条目无效: {sobriquet_entry}。已跳过。"
+                        f"用户实际昵称 '{user_actual_name}' (UID: {user_id}) 的群内常用绰号条目强度无效: {sobriquet_entry}。已跳过。"
                     )
             else:
                 logger.warning(f"用户实际昵称 '{user_actual_name}' (UID: {user_id}) 的群内常用绰号条目格式无效: {sobriquet_entry}。已跳过。")
@@ -71,15 +77,15 @@ def select_sobriquets_for_prompt(
     # 确定实际需要选择的绰号数量（不超过候选总数和配置上限）
     num_to_select = min(max_sobriquets_in_prompt, len(candidates))
 
-    selected_candidates_with_weight: List[Tuple[str, str, str, int, float]]
+    selected_candidates_with_weight: List[Tuple[str, str, str, float, float]]
     try:
         # 执行加权随机抽样（不重复）
         selected_candidates_with_weight = weighted_sample_without_replacement(candidates, num_to_select)
 
-        # 如果加权抽样选出的数量不足，尝试用计数最高者补充
+        # 如果加权抽样选出的数量不足，尝试用强度最高者补充
         if len(selected_candidates_with_weight) < num_to_select:
             logger.debug(
-                f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，尝试补充选择次数最多的。"
+                f"加权随机选择后数量不足 ({len(selected_candidates_with_weight)}/{num_to_select})，尝试补充选择强度最高的。"
             )
             # 找出已选中的，避免重复
             selected_ids_set = set(
@@ -87,21 +93,21 @@ def select_sobriquets_for_prompt(
             )
             # 筛选出未被选中的候选者
             remaining_candidates = [c for c in candidates if (c[0], c[1], c[2]) not in selected_ids_set]
-            remaining_candidates.sort(key=lambda x: x[3], reverse=True) # 按原始次数降序排序
+            remaining_candidates.sort(key=lambda x: x[3], reverse=True) # 按原始强度降序排序
             needed_to_fill = num_to_select - len(selected_candidates_with_weight) # 计算还需补充的数量
             selected_candidates_with_weight.extend(remaining_candidates[:needed_to_fill]) # 添加补充
 
     except Exception as e: # 如果抽样过程中发生错误
-        logger.error(f"绰号加权随机选择时出错: {e}。将回退到选择次数最多的 Top N。", exc_info=True)
-        candidates.sort(key=lambda x: x[3], reverse=True) # 按原始次数降序排序
-        selected_candidates_with_weight = candidates[:num_to_select] # 直接取次数最高的N个
+        logger.error(f"绰号加权随机选择时出错: {e}。将回退到选择强度最高的 Top N。", exc_info=True)
+        candidates.sort(key=lambda x: x[3], reverse=True) # 按原始强度降序排序
+        selected_candidates_with_weight = candidates[:num_to_select] # 直接取强度最高的N个
 
-    # 格式化输出结果，移除权重信息，只保留 (用户实际昵称, user_id, 绰号, 次数)
-    result = [(user, uid, sobriquet, count) for user, uid, sobriquet, count, _weight in selected_candidates_with_weight]
+    # 格式化输出结果，移除权重信息，只保留 (用户实际昵称, user_id, 绰号, 强度_float)
+    result = [(user, uid, sobriquet, strength) for user, uid, sobriquet, strength, _weight in selected_candidates_with_weight]
 
-    result.sort(key=lambda x: x[3], reverse=True) # 最终结果按次数降序排序
+    result.sort(key=lambda x: x[3], reverse=True) # 最终结果按强度降序排序
 
-    logger.debug(f"为 Prompt 选择的绰号 (含UID): {result}")
+    logger.debug(f"为 Prompt 选择的绰号 (含UID和强度): {result}")
     return result
 
 

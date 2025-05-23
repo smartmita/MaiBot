@@ -141,11 +141,11 @@ class RelationshipManager:
         return actual_nicknames_map
 
     @staticmethod
-    async def get_users_group_nicknames(
+    async def get_users_group_sobriquets( # 方法重命名
         platform: str, user_ids: List[str], group_id: str
     ) -> Dict[str, Dict[str, Any]]:
         """
-        批量获取多个用户在指定群组的绰号信息和 user_id。
+        批量获取多个用户在指定群组的绰号信息 (现在称为 'sobriquets' 和 'strength') 和 user_id。
 
         Args:
             platform (str): 平台名称。
@@ -153,106 +153,109 @@ class RelationshipManager:
             group_id (str): 群组 ID。
 
         Returns:
-            Dict[str, Dict[str, Any]]: 映射 {nickname: {"user_id": "uid", "nicknames": [{"绰号A": 次数}, ...]} }
+            Dict[str, Dict[str, Any]]: 映射 {nickname: {"user_id": "uid", "sobriquets": [{"绰号A": strength_float}, ...]} }
                                        其中 nickname 是用户在平台上的实际昵称。
         """
         if not user_ids or not group_id:
             return {}
 
-        # 创建 person_id 到原始 user_id (字符串形式) 的映射
-        person_ids_map = {person_info_manager.get_person_id(platform, str(uid)): str(uid) for uid in user_ids}
+        person_ids_map = {}
+        for uid in user_ids:
+            uid_str = str(uid)
+            person_id = person_info_manager.get_person_id(platform, uid_str)
+            if person_id:
+                person_ids_map[person_id] = uid_str
+            else:
+                logger.warning(f"无法为 platform '{platform}', uid '{uid_str}' 获取有效的 person_id (get_users_group_sobriquets)。")
+
         person_ids_to_query = list(person_ids_map.keys())
+        if not person_ids_to_query:
+            logger.debug("没有有效的 person_ids 可供查询群组绰号。")
+            return {}
         
-        nicknames_data_by_actual_nickname = {} # 存储结果的字典，键为用户的实际昵称
+        sobriquets_data_by_actual_nickname = {} # 存储结果的字典，键为用户的实际昵称
         group_id_str = str(group_id)
 
         try:
-            # 从数据库查询时，确保包含 nickname 字段
             cursor = db.person_info.find(
                 {"person_id": {"$in": person_ids_to_query}},
                 {
                     "_id": 0,
                     "person_id": 1,
-                    "nickname": 1,  # 获取用户的实际平台昵称
-                    "group_nicknames": 1,
+                    "nickname": 1,
+                    "group_sobriquets": 1,  # 修改字段名: group_nicknames -> group_sobriquets
                     "user_id": 1
                 },
             )
 
-            for doc in cursor: # 使用 async for
-                actual_nickname_from_db = doc.get("nickname") # 获取用户的实际平台昵称
-
-                user_id_val = doc.get("user_id")
-                original_user_id_from_doc = None # 用于存储从文档中解析出的 user_id
-
-                # 解析文档中的 user_id (这部分逻辑保持不变)
-                if isinstance(user_id_val, (int, float)):
-                    original_user_id_from_doc = str(user_id_val)
-                elif isinstance(user_id_val, str):
-                    if "_" in user_id_val: # 假设 user_id 可能存储为 "platform_actualuid" 格式
-                        original_user_id_from_doc = user_id_val.split("_", 1)[-1]
-                    else:
-                        original_user_id_from_doc = user_id_val
-
+            for doc in cursor:
+                actual_nickname_from_db = doc.get("nickname")
+                user_id_val = doc.get("user_id") # 数据库中存储的 user_id
                 current_person_id_from_doc = doc.get("person_id")
-                # 优先使用请求时映射的 user_id，如果找不到，则使用从文档中解析的 user_id
-                # 这确保了即使数据库中的 user_id 字段格式多样，也能尽量关联回请求时的 uid
-                actual_user_id_for_output = person_ids_map.get(current_person_id_from_doc, original_user_id_from_doc)
+                
+                # 解析 user_id (保持现有逻辑，但确保它与 person_ids_map 中的原始 user_id 一致)
+                original_user_id_from_map = person_ids_map.get(current_person_id_from_doc)
 
-                # 关键检查：确保我们有有效的实际昵称 (actual_nickname_from_db) 和用户ID (actual_user_id_for_output)
-                if not actual_nickname_from_db or not actual_user_id_for_output:
+                if not original_user_id_from_map: # 如果 person_id 无法映射回请求的 user_id，则跳过
+                    logger.warning(f"无法将数据库 person_id '{current_person_id_from_doc}' 映射回原始请求的 user_id。")
+                    continue
+                
+                actual_user_id_for_output = original_user_id_from_map
+
+                if not actual_nickname_from_db: # 确保有实际昵称作为key
                     logger.warning(
-                        f"跳过处理，因为从数据库获取的实际昵称 ('{actual_nickname_from_db}') 或 "
-                        f"解析的用户ID ('{actual_user_id_for_output}') 无效。 "
-                        f"文档 Person ID: {current_person_id_from_doc}"
+                        f"跳过处理，因为从数据库获取的实际昵称 ('{actual_nickname_from_db}') 无效。"
+                        f"用户ID: {actual_user_id_for_output}, Person ID: {current_person_id_from_doc}"
                     )
                     continue
 
-                group_nicknames_list_from_doc = doc.get("group_nicknames", [])
-                target_group_nicknames_raw = [] # 存储目标群组的原始绰号列表
+                # 修改字段名: group_nicknames -> group_sobriquets
+                group_sobriquets_list_from_doc = doc.get("group_sobriquets", [])
+                target_group_sobriquets_raw = []
 
-                # 提取特定群组的绰号 (这部分逻辑保持不变)
-                for group_entry in group_nicknames_list_from_doc:
+                for group_entry in group_sobriquets_list_from_doc:
                     if isinstance(group_entry, dict) and group_entry.get("group_id") == group_id_str:
-                        nicknames_raw_for_group = group_entry.get("nicknames", [])
-                        if isinstance(nicknames_raw_for_group, list):
-                            target_group_nicknames_raw = nicknames_raw_for_group
+                        # 修改字段名: nicknames -> sobriquets
+                        sobriquets_raw_for_group = group_entry.get("sobriquets", [])
+                        if isinstance(sobriquets_raw_for_group, list):
+                            target_group_sobriquets_raw = sobriquets_raw_for_group
                         break
 
-                valid_nicknames_formatted = [] # 存储格式化且有效的绰号
-                if target_group_nicknames_raw:
-                    for item in target_group_nicknames_raw:
+                valid_sobriquets_formatted = [] # 重命名变量
+                if target_group_sobriquets_raw:
+                    for item in target_group_sobriquets_raw:
+                        # 修改字段名: count -> strength, 并处理浮点数
+                        name = item.get("name")
+                        strength_val = item.get("strength")
                         if (
-                            isinstance(item, dict)
-                            and isinstance(item.get("name"), str)
-                            and isinstance(item.get("count"), int)
-                            and item["count"] > 0 # 确保绰号计数有效
+                            isinstance(name, str) and name.strip() and # 确保name是有效字符串
+                            isinstance(strength_val, (int, float)) and # 强度可以是int或float
+                            float(strength_val) > 0.0 # 确保绰号强度有效
                         ):
-                            valid_nicknames_formatted.append({item["name"]: item["count"]})
+                            valid_sobriquets_formatted.append({name: float(strength_val)}) # 存储为浮点数
                         else:
-                            logger.warning(
+                            logger.debug(
                                 f"数据库中用户 (实际昵称: {actual_nickname_from_db}, UID: {actual_user_id_for_output}) "
-                                f"在群组 {group_id_str} 中的绰号格式无效或 count <= 0: {item}"
+                                f"在群组 {group_id_str} 中的绰号格式无效或 strength <= 0: {item}"
                             )
-
-                # 如果找到了有效的绰号，则以用户的实际昵称 (actual_nickname_from_db) 为键存储
-                if valid_nicknames_formatted:
-                    nicknames_data_by_actual_nickname[actual_nickname_from_db] = {
+                
+                if valid_sobriquets_formatted:
+                    sobriquets_data_by_actual_nickname[actual_nickname_from_db] = {
                         "user_id": actual_user_id_for_output,
-                        "nicknames": valid_nicknames_formatted
+                        "sobriquets": valid_sobriquets_formatted # 修改字段名
                     }
 
             logger.debug(
                 f"批量获取群组 {group_id_str} 中 {len(user_ids)} 个用户的绰号和UID (以实际昵称为键)，"
-                f"找到 {len(nicknames_data_by_actual_nickname)} 个用户的数据。"
+                f"找到 {len(sobriquets_data_by_actual_nickname)} 个用户的数据。"
             )
 
-        except AttributeError as e: # 捕获数据库对象属性错误
+        except AttributeError as e:
             logger.error(f"访问数据库时出错: {e}。请检查 common/database.py 和集合名称 'person_info'。")
-        except Exception as e: # 捕获其他潜在错误
+        except Exception as e:
             logger.error(f"批量获取群组绰号时发生未知错误: {e}", exc_info=True)
 
-        return nicknames_data_by_actual_nickname
+        return sobriquets_data_by_actual_nickname
 
 
     @staticmethod
