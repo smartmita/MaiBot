@@ -441,7 +441,7 @@ class ProfileConfig(ConfigBase):
     unreliable_sobriquet_decay_factor: float = 0.1
     """绰号不可靠映射强度衰减因子"""
 
-    reliable_mapping_strength_increment: float = 1.0
+    reliable_mapping_strength_increment: float = 5.0
     """绰号可靠映射强度增量"""
 
 @dataclass
