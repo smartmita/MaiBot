@@ -1,15 +1,10 @@
-# src/plugins/group_nickname/nickname_mapper.py
 from typing import Dict
 from src.common.logger_manager import get_logger
 
-# 这个文件现在只负责构建 Prompt，LLM 的初始化和调用移至 NicknameManager
-
-logger = get_logger("nickname_mapper")
-
-# LLMRequest 实例和 analyze_chat_for_nicknames 函数已被移除
+logger = get_logger("sobriquet_mapper") # 日志记录器名称更新
 
 
-def build_mapping_prompt(chat_history_str: str, bot_reply: str) -> str:
+def build_sobriquet_mapping_prompt(chat_history_str: str, bot_reply: str) -> str: # 函数名更新
     """
     构建用于 LLM 进行绰号映射分析的 Prompt。
 
@@ -20,7 +15,7 @@ def build_mapping_prompt(chat_history_str: str, bot_reply: str) -> str:
     Returns:
         str: 构建好的 Prompt 字符串。
     """
-    # 核心 Prompt 内容
+    # 核心 Prompt 内容中的 "绰号" 保持不变，因为这是给 LLM 的自然语言指令
     prompt = f"""
 任务：仔细分析以下聊天记录和“你的最新回复”，判断其中是否明确提到了某个用户的绰号，并且这个绰号可以清晰地与一个特定的用户 ID 对应起来。
 
@@ -61,8 +56,4 @@ def build_mapping_prompt(chat_history_str: str, bot_reply: str) -> str:
 
 输出：
 """
-    # logger.debug(f"构建的绰号映射 Prompt (部分):\n{prompt[:500]}...") # 可以在 NicknameManager 中记录
     return prompt
-
-
-# analyze_chat_for_nicknames 函数已被移除，其逻辑移至 NicknameManager._call_llm_for_analysis

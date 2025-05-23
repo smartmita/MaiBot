@@ -38,7 +38,8 @@ from src.chat.utils.info_catcher import info_catcher_manager
 from src.chat.utils.chat_message_builder import num_new_messages_since, get_raw_msg_before_timestamp_with_chat
 from src.chat.utils.timer_calculator import Timer  # <--- Import Timer
 from .heartFC_sender import HeartFCSender
-from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
+from src.experimental.profile.profile_manager import profile_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import sobriquet_manager
 
 install(extra_lines=3)
 
@@ -662,7 +663,7 @@ class HeartFChatting:
                 )
 
             # 调用工具函数触发绰号分析
-            await nickname_manager.trigger_nickname_analysis(anchor_message, reply, self.chat_stream)
+            await sobriquet_manager.trigger_nickname_analysis(anchor_message, reply, self.chat_stream)
 
             return True, thinking_id
 
@@ -959,7 +960,7 @@ class HeartFChatting:
                 limit=global_config.chat.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
-            nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+            nickname_injection_str = await profile_manager.get_profile_prompt_injection(
                 self.chat_stream, message_list_before_now
             )
 

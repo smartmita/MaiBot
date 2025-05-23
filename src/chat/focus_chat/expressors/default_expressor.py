@@ -18,7 +18,7 @@ from src.manager.mood_manager import mood_manager
 from src.chat.heart_flow.utils_chat import get_chat_type_and_target_info
 from src.chat.message_receive.chat_stream import ChatStream
 from src.chat.focus_chat.hfc_utils import parse_thinking_id_to_timestamp
-from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
+from src.experimental.profile.sobriquet.sobriquet_manager import sobriquet_manager
 
 logger = get_logger("expressor")
 
@@ -122,7 +122,7 @@ class DefaultExpressor:
                             if seg_type == "text":  # 只取文本类型的数据
                                 bot_reply_for_analysis.append(seg_data)
 
-                    await nickname_manager.trigger_nickname_analysis(
+                    await sobriquet_manager.trigger_nickname_analysis(
                         anchor_message, bot_reply_for_analysis, self.chat_stream
                     )
                 else:

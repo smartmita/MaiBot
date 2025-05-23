@@ -4,7 +4,7 @@ from src.chat.models.utils_model import LLMRequest
 from src.config.config import global_config
 from ..schedule.schedule_generator import bot_schedule
 from src.chat.utils.chat_message_builder import get_raw_msg_before_timestamp_with_chat, build_readable_messages
-from src.experimental.profile.sobriquet.sobriquet_manager import nickname_manager
+from src.experimental.profile.profile_manager import profile_manager
 import time
 import re
 import traceback
@@ -612,7 +612,7 @@ class SubMind:
                     timestamp=time.time(),
                     limit=global_config.chat.observation_context_size,
                 )
-                nickname_injection_str = await nickname_manager.get_nickname_prompt_injection(
+                nickname_injection_str = await profile_manager.get_profile_prompt_injection(
                     chat_stream, message_list_for_nicknames
                 )
 
