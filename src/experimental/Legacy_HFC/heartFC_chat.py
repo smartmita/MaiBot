@@ -960,7 +960,7 @@ class HeartFChatting:
                 limit=global_config.chat.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
-            nickname_injection_str = await profile_manager.get_profile_prompt_injection(
+            profile_injection_str = await profile_manager.get_profile_prompt_injection(
                 self.chat_stream, message_list_before_now
             )
 
@@ -973,7 +973,7 @@ class HeartFChatting:
                 current_mind=current_mind,  # <-- Pass argument
                 structured_info=self.sub_mind.structured_info_str,  # <-- Pass SubMind info
                 current_available_actions=current_available_actions,  # <-- Pass determined actions
-                nickname_info=nickname_injection_str,
+                profile_info=profile_injection_str,
             )
 
             # --- 调用 LLM (普通文本生成) ---

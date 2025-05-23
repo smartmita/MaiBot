@@ -36,7 +36,7 @@ def init_prompt():
 </identity>
 
 <group_nicknames>
-{nickname_info}
+{profile_info}
 </group_nicknames>
 
 <knowledge_base>
@@ -597,7 +597,7 @@ class SubMind:
 
         # ---------- 5. 构建最终提示词 ----------
         # --- Choose template based on chat type ---
-        nickname_injection_str = ""  # 初始化为空字符串
+        profile_injection_str = ""  # 初始化为空字符串
 
         if is_group_chat:
             template_name = "sub_heartflow_prompt_before"
@@ -605,14 +605,14 @@ class SubMind:
             chat_stream = chat_manager.get_stream(self.subheartflow_id)
             if not chat_stream:
                 logger.error(f"{self.log_prefix} 无法获取 chat_stream，无法生成绰号信息。")
-                nickname_injection_str = "[获取群成员绰号信息失败]"
+                profile_injection_str = "[获取群成员绰号信息失败]"
             else:
                 message_list_for_nicknames = get_raw_msg_before_timestamp_with_chat(
                     chat_id=self.subheartflow_id,
                     timestamp=time.time(),
                     limit=global_config.chat.observation_context_size,
                 )
-                nickname_injection_str = await profile_manager.get_profile_prompt_injection(
+                profile_injection_str = await profile_manager.get_profile_prompt_injection(
                     chat_stream, message_list_for_nicknames
                 )
 
@@ -627,7 +627,7 @@ class SubMind:
                 hf_do_next=hf_do_next,
                 last_loop_prompt=last_loop_prompt,
                 cycle_info_block=cycle_info_block,
-                nickname_info=nickname_injection_str,
+                profile_info=profile_injection_str,
                 schedule_info=current_schedule_info,
                 # chat_target_name is not used in group prompt
             )

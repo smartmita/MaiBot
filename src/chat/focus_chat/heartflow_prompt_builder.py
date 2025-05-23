@@ -24,7 +24,7 @@ def init_prompt():
         """
 你可以参考以下的语言习惯，如果情景合适就使用，不要盲目使用,不要生硬使用，而是结合到表达中：
 {style_habbits}
-{nickname_info}
+{profile_info}
 
 你现在正在群里聊天，以下是群里正在进行的聊天内容：
 {chat_info}
@@ -62,7 +62,7 @@ def init_prompt():
 {memory_prompt}
 {relation_prompt}
 {prompt_info}
-{nickname_info}
+{profile_info}
 {chat_target}
 {chat_talking_prompt}
 现在"{sender_name}"说的:{message_txt}。引起了你的注意，你想要在群里发言或者回复这条消息。\n
@@ -203,7 +203,7 @@ async def _build_prompt_focus(
         # chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
         # 调用新的工具函数获取绰号信息
-        nickname_injection_str = await sobriquet_manager.get_profile_prompt_injection(
+        profile_injection_str = await profile_manager.get_profile_prompt_injection(
             chat_stream, message_list_before_now
         )
 
@@ -212,7 +212,7 @@ async def _build_prompt_focus(
             # info_from_tools=structured_info_prompt,
             style_habbits=style_habbits_str,
             grammar_habbits=grammar_habbits_str,
-            nickname_info=nickname_injection_str,
+            profile_info=profile_injection_str,
             chat_target=chat_target_1,  # Used in group template
             # chat_talking_prompt=chat_talking_prompt,
             chat_info=chat_talking_prompt,
@@ -392,7 +392,7 @@ class PromptBuilder:
             chat_target_2 = await global_prompt_manager.get_prompt_async("chat_target_group2")
 
             # 调用新的工具函数获取绰号信息
-            nickname_injection_str = await profile_manager.get_profile_prompt_injection(
+            profile_injection_str = await profile_manager.get_profile_prompt_injection(
                 chat_stream, message_list_before_now
             )
 
@@ -404,7 +404,7 @@ class PromptBuilder:
                 prompt_info=prompt_info,
                 chat_target=chat_target_1,
                 chat_target_2=chat_target_2,
-                nickname_info=nickname_injection_str,  # <--- 注入绰号信息
+                profile_info=profile_injection_str,  # <--- 注入绰号信息
                 chat_talking_prompt=chat_talking_prompt,
                 message_txt=message_txt,
                 bot_name=global_config.bot.nickname,

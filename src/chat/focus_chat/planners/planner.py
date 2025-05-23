@@ -27,7 +27,7 @@ install(extra_lines=3)
 def init_prompt():
     Prompt(
         """你的名字是{bot_name},{prompt_personality}，{chat_context_description}。需要基于以下信息决定如何参与对话：
-{nickname_info_block}
+{profile_info_block}
 {chat_content_block}
 {mind_info_block}
 {cycle_info_block}
@@ -275,7 +275,7 @@ class ActionPlanner:
                 limit=global_config.chat.observation_context_size,  # 使用与 prompt 构建一致的 limit
             )
             # 调用工具函数获取格式化后的绰号字符串
-            nickname_injection_str = await profile_manager.get_profile_prompt_injection(
+            profile_injection_str = await profile_manager.get_profile_prompt_injection(
                 self.chat_stream, message_list_before_now
             )
 
@@ -288,7 +288,7 @@ class ActionPlanner:
                 mind_info_block=mind_info_block,
                 cycle_info_block=cycle_info,
                 action_options_text=action_options_block,
-                nickname_info_block=nickname_injection_str,
+                profile_info_block=profile_injection_str,
             )
             return prompt
 
