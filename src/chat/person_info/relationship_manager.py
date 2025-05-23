@@ -8,7 +8,7 @@ import random
 from typing import List, Dict, Any
 from ...common.database import db
 from maim_message import UserInfo
-
+from src.config.config import global_config
 from ...manager.mood_manager import mood_manager
 
 # import re
@@ -201,6 +201,9 @@ class RelationshipManager:
                     continue
                 
                 actual_user_id_for_output = original_user_id_from_map
+
+                if actual_user_id_for_output == global_config.bot.qq_account:
+                    continue
 
                 if not actual_nickname_from_db: # 确保有实际昵称作为key
                     logger.warning(
