@@ -231,11 +231,11 @@ class HeartFChatting:
 
         # --- 移除 gpt_instance, 直接初始化 LLM 模型 ---
         # self.gpt_instance = HeartFCGenerator() # <-- 移除
-        self.model_normal = LLMRequest(  # <-- 新增 LLM 初始化
-            model=global_config.model.normal,
-            temperature=global_config.model.normal["temp"],
-            max_tokens=global_config.model.normal["max_tokens"],
-            request_type="response_heartflow",
+        self.model_replier = LLMRequest(  # <-- 新增 LLM 初始化
+            model=global_config.model.focus_chat_replier,
+            temperature=global_config.model.focus_chat_replier["temp"],
+            max_tokens=global_config.model.focus_chat_replier["max_tokens"],
+            request_type="focus_chat_reply_generation",
         )
         self.heart_fc_sender = HeartFCSender()
 
@@ -1478,9 +1478,9 @@ class HeartFChatting:
         """
         try:
             # 1. 获取情绪影响因子并调整模型温度
-            arousal_multiplier = mood_manager.get_arousal_multiplier()
-            current_temp = global_config.model.normal["temp"] * arousal_multiplier
-            self.model_normal.temperature = current_temp  # 动态调整温度
+            # arousal_multiplier = mood_manager.get_arousal_multiplier()
+            # current_temp = global_config.model.normal["temp"] * arousal_multiplier
+            # self.model_normal.temperature = current_temp  # 动态调整温度
 
             # 2. 获取信息捕捉器
             info_catcher = info_catcher_manager.get_info_catcher(thinking_id)
@@ -1519,7 +1519,7 @@ class HeartFChatting:
 
             try:
                 with Timer("LLM生成", {}):  # 内部计时器，可选保留
-                    content, reasoning_content, model_name = await self.model_normal.generate_response(prompt)
+                    content, reasoning_content, model_name = await self.model_replier.generate_response(prompt)
                 # logger.info(f"{self.log_prefix}[Replier-{thinking_id}]\nPrompt:\n{prompt}\n生成回复: {content}\n")
                 # 捕捉 LLM 输出信息
                 info_catcher.catch_after_llm_generated(

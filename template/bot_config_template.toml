@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.11"
+version = "2.0.0.12"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -271,7 +271,7 @@ max_tokens = 4096
 pri_in = 1.0
 pri_out = 4.0
 
-[model.normal] # 回复模型 专注和一般聊天模式共用的回复模型
+[model.normal] # 一般聊天模式回复模型
 name = "Pro/deepseek-ai/DeepSeek-V3"
 provider = "SILICONFLOW"
 temp = 0.3
@@ -279,6 +279,14 @@ max_tokens = 4096
 pri_in = 2
 pri_out = 8
 
+[model.focus_chat_replier] # 用于专注聊天中语言组织和回复生成的模型
+name = "Pro/deepseek-ai/DeepSeek-V3"
+provider = "SILICONFLOW"
+temp = 0.3
+max_tokens = 800
+pri_in = 2
+pri_out = 8
+    
 [model.topic_judge] #主题判断模型：建议使用qwen2.5 7b
 name = "Pro/Qwen/Qwen2.5-7B-Instruct"
 provider = "SILICONFLOW"

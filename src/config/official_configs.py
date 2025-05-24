@@ -544,6 +544,9 @@ class ModelConfig(ConfigBase):
     normal: dict[str, Any] = field(default_factory=lambda: {})
     """普通模型配置"""
 
+    focus_chat_replier: dict[str, Any] = field(default_factory=lambda: {})
+    """专注聊天中，用于最终语言组织和回复生成的模型配置"""
+
     topic_judge: dict[str, Any] = field(default_factory=lambda: {})
     """主题判断模型配置"""
 
