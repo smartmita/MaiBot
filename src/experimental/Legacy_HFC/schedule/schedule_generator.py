@@ -329,7 +329,7 @@ class ScheduleGenerator:
         if mind_thinking:
             prompt += f"你脑子里在想：{mind_thinking}\n"
         prompt += f"现在是{now_time}，结合你的个人特点和行为习惯,注意关注你今天的日程安排和想法安排你接下来做什么，现实一点，不要浮夸"
-        prompt += "安排你接下来做什么，具体一些，详细一些\n"
+        prompt += "安排你接下来做什么，具体一些，详细一些，但是也注意不要过于冗长\n"
         prompt += "直接返回你在做的事情，注意是当前时间，不要输出其他内容："
         return prompt
     
