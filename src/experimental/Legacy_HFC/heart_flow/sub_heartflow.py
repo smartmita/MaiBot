@@ -5,7 +5,7 @@ from typing import Optional, List, Dict, Tuple, Callable, Coroutine
 import traceback
 from src.common.logger_manager import get_logger
 from src.chat.message_receive.message import MessageRecv
-from src.chat.message_receive.chat_stream import chat_manager
+from src.chat.message_receive.chat_stream import chat_manager,ChatStream
 from ..heartFC_chat import HeartFChatting
 from ..normal_chat import NormalChat
 from .mai_state_manager import MaiStateInfo
@@ -50,6 +50,7 @@ class SubHeartflow:
         # --- Initialize attributes ---
         self.is_group_chat: bool = False
         self.chat_target_info: Optional[dict] = None
+        self.chat_stream: Optional[ChatStream] = None
         # --- End Initialization ---
 
         # 兴趣检测器
@@ -84,13 +85,20 @@ class SubHeartflow:
         """异步初始化方法，创建兴趣流并确定聊天类型"""
 
         # --- Use utility function to determine chat type and fetch info ---
-        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.chat_id)
+        self.is_group_chat, self.chat_target_info, obtained_chat_stream = await get_chat_type_and_target_info(self.chat_id)
         # Update log prefix after getting info (potential stream name)
+        self.chat_stream = obtained_chat_stream # <--- 存储获取到的ChatStream对象
+
+        if not self.chat_stream:
+            logger.error(f"SubHeartflow {self.chat_id} 初始化时未能获取有效的 ChatStream 对象。")
+            # 可能需要在这里决定如何处理，例如抛出异常或允许某些功能降级
+
+        # Update log prefix after getting info
         self.log_prefix = (
             chat_manager.get_stream_name(self.subheartflow_id) or self.subheartflow_id
-        )  # Keep this line or adjust if utils provides name
+        )
         logger.debug(
-            f"SubHeartflow {self.chat_id} initialized: is_group={self.is_group_chat}, target_info={self.chat_target_info}"
+            f"SubHeartflow {self.chat_id} initialized: is_group={self.is_group_chat}, target_info={self.chat_target_info}, has_chat_stream={bool(self.chat_stream)}"
         )
         # --- End using utility function ---
 
