@@ -875,12 +875,13 @@ class HeartFChatting:
                 if not self._shutting_down:
                     logger.debug(f"{log_prefix} 该次决策耗时: {'; '.join(timer_strings)}")
 
-    async def _get_submind_thinking(self, cycle_timers: dict) -> str:
+    async def _get_submind_thinking(self, cycle_timers: dict) -> tuple[str, list, Optional[str]]:
         """
         获取子思维的思考结果
 
         返回:
-            str: 思考结果，如果思考失败则返回错误信息
+            tuple[str, list, Optional[str]]: (current_mind, past_mind, tool_calls_str_from_initial_submind_pass)
+                                            思考结果，过去的想法列表，以及首次SubMind调用产生的工具调用字符串
         """
         try:
             with Timer("观察", cycle_timers):
@@ -890,45 +891,42 @@ class HeartFChatting:
             # 获取上一个循环的信息
             # last_cycle = self._cycle_history[-1] if self._cycle_history else None
 
-            with Timer("思考", cycle_timers):
+            with Timer("思考 (SubMind Pass 1 for _get_submind_thinking)", cycle_timers):
                 # 获取上一个循环的动作
                 # 传递上一个循环的信息给 do_thinking_before_reply
-                current_mind, _past_mind, tool_calls_str_from_first_pass = await self.sub_mind.do_thinking_before_reply(
+                res_current_mind, res_past_mind, res_tool_calls_str = await self.sub_mind.do_thinking_before_reply(
                     history_cycle=self._cycle_history
                 )
 
-                should_rethink = False # 初始化一个标志变量
-                if tool_calls_str_from_first_pass:
-                    # tool_calls_str_from_first_pass 是一个类似 "tool_name1, tool_name2" 的字符串
-                    # 我们需要把它解析成工具名称的列表
-                    called_tool_names = [name.strip() for name in tool_calls_str_from_first_pass.split(",")]
-
-                    # 检查是否有任何一个被调用的工具在我们的强制二次思考列表中
+                should_rethink_due_to_tool = False
+                if res_tool_calls_str: # 检查是否有工具调用
+                    called_tool_names = [name.strip() for name in res_tool_calls_str.split(",")]
                     for tool_name in called_tool_names:
-                        if tool_name in force_rethink_tools:
-                            should_rethink = True
-                            logger.debug(f"{self.log_prefix} 工具 '{tool_name}' 在强制二次思考列表中，将进行二次思考。")
-                            break # 找到一个就需要二次思考，可以跳出循环
+                        if tool_name in force_rethink_tools: # force_rethink_tools 来自 global_config
+                            should_rethink_due_to_tool = True
+                            logger.debug(f"{self.log_prefix} SubMind内部二次思考触发：工具 '{tool_name}' 在 force_rethink_tools 列表中。")
+                            break
+                
+                if should_rethink_due_to_tool:
+                    logger.info(f"{self.log_prefix} SubMind检测到需要二次思考的工具调用 ({res_tool_calls_str})，将基于工具结果再次思考。")
+                    with Timer("思考 (SubMind Pass 2 for _get_submind_thinking due to tool)", cycle_timers):
+                        # 第二次调用 SubMind，传入第一次的结果
+                        # 注意：第二次工具调用结果通常用 _ 忽略，因为我们主要关心最终想法
+                        res_current_mind, res_past_mind, _ = await self.sub_mind.do_thinking_before_reply(
+                            history_cycle=self._cycle_history,
+                            tool_calls_str=res_tool_calls_str, # 传入第一次的工具调用
+                            pass_mind=res_current_mind      # 传入第一次的想法
+                        )
+                
+                # 无论是否经过内部二次思考，都返回最终的 current_mind, past_mind
+                # 和 *最初的* 工具调用字符串 (res_tool_calls_str)
+                # 因为 _think_plan_execute_loop 中的变量叫 tool_calls_str_from_first_pass
+                return res_current_mind, res_past_mind, res_tool_calls_str
 
-                    if not should_rethink:
-                        logger.debug(f"{self.log_prefix} 调用了工具 ({tool_calls_str_from_first_pass})，但它们不在强制二次思考列表中。工具结果已存入structured_info，但不进行二次LLM思考。")
-
-                # 如果需要二次思考
-                if should_rethink:
-                    logger.info(f"{self.log_prefix} 检测到需要二次思考的工具调用 ({tool_calls_str_from_first_pass})，将基于工具结果再次思考。")
-                    # 进行第二次调用，传入第一次思考的结果 (current_mind) 和工具调用信息
-                    current_mind, _past_mind, _ = await self.sub_mind.do_thinking_before_reply(
-                        history_cycle=self._cycle_history, 
-                        tool_calls_str=tool_calls_str_from_first_pass, # 传递实际调用的工具信息
-                        pass_mind=current_mind # 传递第一次LLM的内心想法
-                    )
-                    # 第二次调用后返回的 tool_calls_str 通常我们期望是空的，所以用 _ 忽略
-
-                return current_mind
         except Exception as e:
-            logger.error(f"{self.log_prefix}子心流 思考失败: {e}")
-            logger.error(traceback.format_exc())
-            return "[思考时出错]"
+            logger.error(f"{self.log_prefix} 子心流在 _get_submind_thinking 中思考失败: {e}", exc_info=True) # 添加 exc_info=True
+                # 确保即使出错也返回三个值，以避免解包错误
+            return "[思考时出错]", [], None # 返回一个字符串,一个空列表,一个None
 
     async def _planner(self, current_mind: str, cycle_timers: dict, is_re_planned: bool = False) -> Dict[str, Any]:
         """
