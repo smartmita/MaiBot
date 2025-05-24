@@ -267,25 +267,18 @@ class HeartFChatting:
             return True
 
         # --- Use utility function to determine chat type and fetch info ---
-        # Note: get_chat_type_and_target_info handles getting the chat_stream internally
-        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.stream_id)
+        # 修改这里，接收三个值，并将 chat_stream 对象存储起来
+        self.is_group_chat, self.chat_target_info, obtained_chat_stream = await get_chat_type_and_target_info(self.stream_id)
+        self.chat_stream = obtained_chat_stream # <--- HeartFChatting 需要存储 chat_stream
 
-        # Update log prefix based on potential stream name (if needed, or get it from chat_stream if util doesn't return it)
-        # Assuming get_chat_type_and_target_info focuses only on type/target
-        # We still need the chat_stream object itself for other operations
-        try:
-            self.chat_stream = await asyncio.to_thread(chat_manager.get_stream, self.stream_id)
-            if not self.chat_stream:
-                logger.error(
-                    f"[HFC:{self.stream_id}] 获取ChatStream失败 during _initialize, though util func might have succeeded earlier."
-                )
-                return False  # Cannot proceed without chat_stream object
-            # Update log prefix using the fetched stream object
-            self.log_prefix = f"[{chat_manager.get_stream_name(self.stream_id) or self.stream_id}]"
-        except Exception as e:
-            logger.error(f"[HFC:{self.stream_id}] 获取ChatStream时出错 in _initialize: {e}")
-            return False
+        if not self.chat_stream: # 如果获取 chat_stream 失败
+            logger.error(
+                f"[HFC:{self.stream_id}] 获取ChatStream失败 during _initialize."
+            )
+            return False # 初始化失败
 
+        # Update log prefix using the fetched stream object
+        self.log_prefix = f"[{chat_manager.get_stream_name(self.stream_id) or self.stream_id}]"
         # --- End using utility function ---
 
         self._initialized = True

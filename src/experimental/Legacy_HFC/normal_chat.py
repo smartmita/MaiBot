@@ -62,7 +62,7 @@ class NormalChat:
             return
 
         # --- Use utility function to determine chat type and fetch info ---
-        self.is_group_chat, self.chat_target_info = await get_chat_type_and_target_info(self.stream_id)
+        self.is_group_chat, self.chat_target_info, _ = await get_chat_type_and_target_info(self.stream_id) # 用 _ 忽略
         # Update stream_name again after potential async call in util func
         self.stream_name = chat_manager.get_stream_name(self.stream_id) or self.stream_id
         # --- End using utility function ---
