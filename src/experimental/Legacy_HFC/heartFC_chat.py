@@ -1,7 +1,7 @@
 import asyncio
 import contextlib
-import json  # <--- 确保导入 json
-import random  # <--- 添加导入
+import json
+import random 
 import time
 import re
 import traceback
@@ -484,68 +484,118 @@ class HeartFChatting:
             logger.error(f"{self.log_prefix} 检查新消息时出错: {e}")
             return False
 
-    async def _think_plan_execute_loop(self, cycle_timers: dict, planner_start_db_time: float) -> tuple[bool, str]:
+    async def _think_plan_execute_loop(self, cycle_timers: dict, initial_cycle_timestamp: float) -> tuple[bool, str]:
         """执行规划阶段"""
         try:
-            # think:思考
-            current_mind = await self._get_submind_thinking(cycle_timers)
-            # 记录子思维思考内容
+            # --- 初始观察与思考 (SubMind Pass 1) ---
+            # _get_submind_thinking 内部已经包含了 await observation.observe()
+            timestamp_before_initial_submind = time.time()
+            current_mind, _past_mind, tool_calls_str_from_first_pass = await self._get_submind_thinking(cycle_timers)
             if self._current_cycle:
                 self._current_cycle.set_response_info(sub_mind_thinking=current_mind)
 
-            # plan:决策
-            with Timer("决策", cycle_timers):
-                planner_result = await self._planner(current_mind, cycle_timers)
+            # --- 检查是否需要因新消息而重新规划 (在Planner决策之前) ---
+            should_trigger_replan_logic = False
+            # 使用新的配置项 (注意：global_config.dynamic_replan)
+            if global_config.dynamic_replan.enable: # 检查总开关
+                new_msg_count_during_think = num_new_messages_since(self.stream_id, timestamp_before_initial_submind)
 
-            # 效果不太好，还没处理replan导致观察时间点改变的问题
+                if new_msg_count_during_think > 0:
+                    # 使用新的配置项获取概率
+                    replan_probs = global_config.dynamic_replan.probabilities
+                    replan_probability = 0.0
+                    if new_msg_count_during_think == 1:
+                        replan_probability = replan_probs.get("1", 0.05) # 提供默认值以防配置错误
+                    elif new_msg_count_during_think == 2:
+                        replan_probability = replan_probs.get("2", 0.10)
+                    elif new_msg_count_during_think >= 3:
+                        # 对于 "3+"，我们需要确保键是字符串 "3+"
+                        replan_probability = replan_probs.get("3+", 0.50)
 
-            # action = planner_result.get("action", "error")
-            # reasoning = planner_result.get("reasoning", "未提供理由")
 
-            # self._current_cycle.set_action_info(action, reasoning, False)
+                    if random.random() < replan_probability:
+                        should_trigger_replan_logic = True
+                        logger.info(f"{self.log_prefix} 在首次思考期间收到 {new_msg_count_during_think} 条新消息。"
+                                    f"触发重新规划 (概率: {replan_probability*100:.0f}%)")
+                    else:
+                        logger.info(f"{self.log_prefix} 在首次思考期间收到 {new_msg_count_during_think} 条新消息。"
+                                    f"未达到重新规划概率 (阈值: {replan_probability*100:.0f}%)，继续使用首次思考结果。")
+            
+            if should_trigger_replan_logic:
+                if self._current_cycle: # 确保 self._current_cycle 不是 None
+                    self._current_cycle.replanned = True
 
-            # 在获取规划结果后检查新消息
+                # 1. 重新观察 (修复观察时间点问题)
+                observation = self.observations[0]
+                with Timer("动态重新观察", cycle_timers):
+                    await observation.observe()
 
-            # if await self._check_new_messages(planner_start_db_time):
-            #     if random.random() < 0.2:
-            #         logger.info(f"{self.log_prefix} 看到了新消息，{global_config.bot.nickname}决定重新观察和规划...")
-            #         # 重新规划
-            #         with Timer("重新决策", cycle_timers):
-            #             self._current_cycle.replanned = True
-            #             planner_result = await self._planner(current_mind, cycle_timers, is_re_planned=True)
-            #         logger.info(f"{self.log_prefix} 重新规划完成.")
+                # 2. 重新思考 (SubMind Pass 2, 基于最新的观察)
+                with Timer("动态重新思考 (SubMind)", cycle_timers):
+                    current_mind, _past_mind, tool_calls_str_from_first_pass = await self.sub_mind.do_thinking_before_reply(
+                        history_cycle=self._cycle_history,
+                        tool_calls_str=tool_calls_str_from_first_pass,
+                        pass_mind=current_mind
+                    )
+                if self._current_cycle:
+                    self._current_cycle.set_response_info(sub_mind_thinking=current_mind)
+            # --- 重新规划逻辑结束 ---
 
-            # 解析规划结果
+            # --- Planner 决策 ---
+            with Timer("决策 (Planner)", cycle_timers):
+                planner_result = await self._planner(
+                    current_mind,
+                    cycle_timers,
+                    is_re_planned=(self._current_cycle.replanned if self._current_cycle else False) # 传递 replanned 状态
+                )
+
+            # --- 解析 Planner 结果并执行后续动作 ---
             action = planner_result.get("action", "error")
             reasoning = planner_result.get("reasoning", "未提供理由")
-            # 更新循环信息
-            self._current_cycle.set_action_info(action, reasoning, True)
+            if self._current_cycle:
+                self._current_cycle.set_action_info(action, reasoning, True)
 
-            # 处理LLM错误
             if planner_result.get("llm_error"):
-                logger.error(f"{self.log_prefix} LLM失败: {reasoning}")
+                logger.error(f"{self.log_prefix} LLM在规划时失败: {reasoning}")
                 return False, ""
 
-            # execute:执行
-
-            # 在此处添加日志记录
+            # action_str 用于日志，确保在日志前定义
+            action_str_log = "未知动作"
             if action == "text_reply":
-                action_str = "回复"
+                action_str_log = "回复"
             elif action == "emoji_reply":
-                action_str = "回复表情"
-            else:
-                action_str = "不回复"
+                action_str_log = "回复表情"
+            elif action == "no_reply":
+                action_str_log = "不回复"
+            elif action == "exit_focus_mode":
+                action_str_log = "结束专注"
 
-            logger.info(f"{self.log_prefix} {global_config.bot.nickname}决定'{action_str}', 原因'{reasoning}'")
 
-            return await self._handle_action(
-                action, reasoning, planner_result.get("emoji_query", ""), planner_result.get("at_user", ""), planner_result.get("poke_user", ""), cycle_timers, planner_start_db_time
+            logger.info(f"{self.log_prefix} {global_config.bot.nickname}决定'{action_str_log}', 原因'{reasoning}'")
+
+            action_executed, thinking_id = await self._handle_action(
+                action,
+                reasoning,
+                planner_result.get("emoji_query", ""),
+                planner_result.get("at_user", ""),
+                planner_result.get("poke_user", ""),
+                cycle_timers,
+                initial_cycle_timestamp
             )
+            if self._current_cycle:
+                self._current_cycle.action_taken = action_executed
+            
+            return action_executed, thinking_id
 
         except PlannerError as e:
-            logger.error(f"{self.log_prefix} 规划错误: {e}")
-            # 更新循环信息
-            self._current_cycle.set_action_info("error", str(e), False)
+            logger.error(f"{self.log_prefix} 规划阶段出错: {e}")
+            if self._current_cycle:
+                self._current_cycle.set_action_info("error", str(e), False)
+            return False, ""
+        except Exception as e:
+            logger.error(f"{self.log_prefix} 在 _think_plan_execute_loop 中发生意外错误: {e}", exc_info=True)
+            if self._current_cycle:
+                self._current_cycle.set_action_info("error", str(e), False)
             return False, ""
 
     async def _handle_action(

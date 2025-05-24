@@ -21,6 +21,7 @@ from src.config.official_configs import (
     ChatConfig,
     NormalChatConfig,
     FocusChatConfig,
+    DynamicReplanConfig,
     EmojiConfig,
     MemoryConfig,
     MoodConfig,
@@ -149,6 +150,7 @@ class Config(ConfigBase):
     chat: ChatConfig
     normal_chat: NormalChatConfig
     focus_chat: FocusChatConfig
+    dynamic_replan: DynamicReplanConfig = field(default_factory=DynamicReplanConfig)
     emoji: EmojiConfig
     memory: MemoryConfig
     mood: MoodConfig

@@ -1,5 +1,5 @@
 [inner]
-version = "2.0.0.10"
+version = "2.0.0.11"
 
 #----以下是给开发人员阅读的，如果你只是部署了麦麦，不需要阅读----
 #如果你想要修改配置文件，请在修改后将version的值进行变更
@@ -114,6 +114,14 @@ consecutive_no_reply_threshold = 3 # 连续不回复的阈值，越低越容易�
 # 以下选项暂时无效
 compressed_length = 5 # 不能大于observation_context_size,心流上下文压缩的最短压缩长度，超过心流观察到的上下文长度，会压缩，最短压缩长度为5
 compress_length_limit = 5 #最多压缩份数，超过该数值的压缩上下文会被删除
+
+[dynamic_replan]
+enable = true # 是否启用动态重新规划机制
+
+[dynamic_replan.probabilities] # 需要启用动态重新规划机制
+"1" = 0.05    # 收到1条新消息时，5%的概率重新规划
+"2" = 0.10    # 收到2条新消息时，10%的概率重新规划
+"3+" = 0.50   # 收到3条或更多新消息时，50%的概率重新规划
 
 
 [emoji]

@@ -187,6 +187,25 @@ class FocusChatConfig(ConfigBase):
     compress_length_limit: int = 5
     """最多压缩份数，超过该数值的压缩上下文会被删除"""
 
+@dataclass
+class DynamicReplanConfig(ConfigBase):
+    """动态重新规划配置"""
+    enable: bool = True  # 总开关，默认为开启
+    """是否启用动态重新规划机制"""
+
+    probabilities: dict[str, float] = field(
+        default_factory=lambda: {
+            "1": 0.05,  # 收到1条新消息时，5%的概率重新规划
+            "2": 0.10,  # 收到2条新消息时，10%的概率重新规划
+            "3+": 0.50  # 收到3条或更多新消息时，50%的概率重新规划
+        }
+    )
+    """
+    根据收到的新消息数量设置不同的重新规划概率。
+    键可以是 "1", "2", "3+" (或任何你定义的层级)
+    值是0.0到1.0之间的概率。
+    """
+
 
 @dataclass
 class EmojiConfig(ConfigBase):
@@ -396,9 +415,6 @@ class ScheduleConfig(ConfigBase):
 
     schedule_doing_update_interval: int = 300
     """日程表更新间隔 单位秒"""
-
-    # schedule_temperature: float = 0.5
-    # """日程表温度，建议0.5-1.0"""
 
     time_zone: str = "Asia/Shanghai"
     """时区"""
