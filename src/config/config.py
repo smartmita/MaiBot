@@ -150,7 +150,6 @@ class Config(ConfigBase):
     chat: ChatConfig
     normal_chat: NormalChatConfig
     focus_chat: FocusChatConfig
-    dynamic_replan: DynamicReplanConfig = field(default_factory=DynamicReplanConfig)
     emoji: EmojiConfig
     memory: MemoryConfig
     mood: MoodConfig
@@ -163,6 +162,7 @@ class Config(ConfigBase):
     model: ModelConfig
     schedule: ScheduleConfig
     profile: ProfileConfig
+    dynamic_replan: DynamicReplanConfig = field(default_factory=DynamicReplanConfig)
 
 
 def load_config(config_path: str) -> Config:
